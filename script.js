@@ -53,10 +53,52 @@ const FESTIVAL_THEMES = {
   },
 };
 
-const FESTIVAL_THEME_KEY = 'dakshayaniFestivalTheme';
-let festivalPanel;
-let festivalSelect;
-let festivalLauncher;
+const SITE_SETTINGS_ENDPOINT = '/api/public/site-settings';
+const DEFAULT_SITE_SETTINGS = {
+  festivalTheme: 'default',
+  hero: {
+    title: 'Cut Your Electricity Bills. Power Your Future.',
+    subtitle: 'Join 500+ Jharkhand families saving lakhs with dependable rooftop and hybrid solar solutions designed around you.',
+    primaryImage: 'images/hero/hero.png',
+    primaryAlt: 'Dakshayani engineers installing a rooftop solar plant',
+    primaryCaption: 'Live commissioning | Ranchi',
+    bubbleHeading: '24/7 monitoring',
+    bubbleBody: 'Hybrid + storage ready',
+    gallery: [
+      { image: 'images/team.jpg', caption: 'Certified engineers' },
+      { image: 'images/finance.jpg', caption: 'Finance desk' }
+    ]
+  },
+  installs: [
+    {
+      id: 'install-001',
+      title: '6 kW PM Surya Ghar Rooftop',
+      location: 'Ranchi, Jharkhand',
+      capacity: '6 kW',
+      completedOn: 'September 2024',
+      image: 'images/roof.jpg',
+      summary: 'Hybrid-ready rooftop array with remote monitoring for a duplex residence.'
+    },
+    {
+      id: 'install-002',
+      title: '25 kW Nursing Home Retrofit',
+      location: 'Jamshedpur, Jharkhand',
+      capacity: '25 kW',
+      completedOn: 'August 2024',
+      image: 'images/hero.jpg',
+      summary: 'Tier-1 mono-PERC modules with zero downtime switchover for critical care loads.'
+    },
+    {
+      id: 'install-003',
+      title: '12 kW Agro Cold Storage',
+      location: 'Hazaribagh, Jharkhand',
+      capacity: '12 kW',
+      completedOn: 'July 2024',
+      image: 'images/pump.jpg',
+      summary: 'Rooftop solar with battery support to power drip irrigation and cold storage.'
+    }
+  ]
+};
 
 /**
  * Resolve a partial path relative to the location of this script file.
@@ -227,7 +269,7 @@ function ensureFestivalBanner() {
   return banner;
 }
 
-function applyFestivalTheme(themeKey, { persist = true } = {}) {
+function applyFestivalTheme(themeKey) {
   const theme = FESTIVAL_THEMES[themeKey] || FESTIVAL_THEMES.default;
   const root = document.documentElement;
   const banner = ensureFestivalBanner();
@@ -259,128 +301,186 @@ function applyFestivalTheme(themeKey, { persist = true } = {}) {
   } else {
     document.body.dataset.festivalTheme = themeKey;
   }
-
-  if (festivalSelect && festivalSelect.value !== themeKey) {
-    festivalSelect.value = themeKey;
+}
+function normaliseSiteSettings(rawSettings) {
+  const defaults = DEFAULT_SITE_SETTINGS;
+  if (!rawSettings || typeof rawSettings !== 'object') {
+    return JSON.parse(JSON.stringify(defaults));
   }
 
-  if (festivalLauncher) {
-    const label = festivalLauncher.querySelector('[data-festival-label]');
-    if (label) {
-      label.textContent = themeKey === 'default' ? 'Festival décor' : `${theme.label} décor`;
-    }
-  }
+  const hero = rawSettings.hero && typeof rawSettings.hero === 'object' ? rawSettings.hero : {};
+  const gallery = Array.isArray(hero.gallery) ? hero.gallery : [];
+  const installs = Array.isArray(rawSettings.installs) ? rawSettings.installs : [];
 
-  if (persist) {
-    try {
-      localStorage.setItem(FESTIVAL_THEME_KEY, themeKey);
-    } catch (error) {
-      console.warn('Unable to persist festival theme', error);
-    }
-  }
+  return {
+    festivalTheme: FESTIVAL_THEMES[rawSettings.festivalTheme] ? rawSettings.festivalTheme : defaults.festivalTheme,
+    hero: {
+      title: typeof hero.title === 'string' ? hero.title : defaults.hero.title,
+      subtitle: typeof hero.subtitle === 'string' ? hero.subtitle : defaults.hero.subtitle,
+      primaryImage: typeof hero.primaryImage === 'string' ? hero.primaryImage : defaults.hero.primaryImage,
+      primaryAlt: typeof hero.primaryAlt === 'string' ? hero.primaryAlt : defaults.hero.primaryAlt,
+      primaryCaption: typeof hero.primaryCaption === 'string' ? hero.primaryCaption : defaults.hero.primaryCaption,
+      bubbleHeading: typeof hero.bubbleHeading === 'string' ? hero.bubbleHeading : defaults.hero.bubbleHeading,
+      bubbleBody: typeof hero.bubbleBody === 'string' ? hero.bubbleBody : defaults.hero.bubbleBody,
+      gallery: gallery.length
+        ? gallery.slice(0, 6).map((item, index) => {
+            const fallback = defaults.hero.gallery[index % defaults.hero.gallery.length];
+            return {
+              image: typeof item?.image === 'string' ? item.image : fallback.image,
+              caption: typeof item?.caption === 'string' ? item.caption : fallback.caption
+            };
+          })
+        : defaults.hero.gallery
+    },
+    installs: installs.length
+      ? installs.slice(0, 8).map((install, index) => {
+          const fallback = defaults.installs[index % defaults.installs.length];
+          return {
+            id: typeof install?.id === 'string' ? install.id : `install-${index + 1}`,
+            title: typeof install?.title === 'string' ? install.title : fallback.title,
+            location: typeof install?.location === 'string' ? install.location : fallback.location,
+            capacity: typeof install?.capacity === 'string' ? install.capacity : fallback.capacity,
+            completedOn: typeof install?.completedOn === 'string' ? install.completedOn : fallback.completedOn,
+            image: typeof install?.image === 'string' ? install.image : fallback.image,
+            summary: typeof install?.summary === 'string' ? install.summary : fallback.summary
+          };
+        })
+      : defaults.installs
+  };
 }
 
-function toggleFestivalPanel(open) {
-  if (!festivalPanel || !festivalLauncher) return;
-  const nextState = typeof open === 'boolean' ? open : festivalPanel.dataset.open !== 'true';
-  festivalPanel.dataset.open = nextState ? 'true' : 'false';
-  festivalLauncher.setAttribute('aria-expanded', String(nextState));
-}
+function renderHeroGallery(items) {
+  const container = document.querySelector('[data-hero-gallery]');
+  if (!container) return;
+  const galleryItems = Array.isArray(items) && items.length ? items : DEFAULT_SITE_SETTINGS.hero.gallery;
+  container.innerHTML = '';
+  galleryItems.slice(0, 3).forEach((item) => {
+    const figure = document.createElement('figure');
+    const img = document.createElement('img');
+    img.src = item.image;
+    img.alt = item.caption;
+    img.loading = 'lazy';
 
-function createFestivalUi() {
-  if (!document.body) return;
+    const caption = document.createElement('figcaption');
+    caption.textContent = item.caption;
 
-  festivalLauncher = document.createElement('button');
-  festivalLauncher.type = 'button';
-  festivalLauncher.className = 'festival-launcher';
-  festivalLauncher.setAttribute('aria-expanded', 'false');
-  festivalLauncher.setAttribute('aria-controls', 'festival-switcher-panel');
-  festivalLauncher.innerHTML = '<i class="fa-solid fa-star"></i><span data-festival-label>Festival décor</span>';
-  document.body.appendChild(festivalLauncher);
-
-  festivalPanel = document.createElement('div');
-  festivalPanel.className = 'festival-switcher';
-  festivalPanel.id = 'festival-switcher-panel';
-  festivalPanel.dataset.open = 'false';
-  festivalPanel.innerHTML = `
-    <header>
-      <strong>Festival décor</strong>
-      <button type="button" aria-label="Close décor panel" data-festival-close>&times;</button>
-    </header>
-    <label for="festival-select">Choose a theme</label>
-    <select id="festival-select" data-festival-select></select>
-    <div class="festival-actions">
-      <button type="button" data-festival-reset>Reset</button>
-      <button type="button" data-festival-close>Close</button>
-    </div>
-  `;
-  document.body.appendChild(festivalPanel);
-
-  festivalSelect = festivalPanel.querySelector('[data-festival-select]');
-  Object.entries(FESTIVAL_THEMES).forEach(([key, details]) => {
-    const option = document.createElement('option');
-    option.value = key;
-    option.textContent = details.label;
-    festivalSelect.appendChild(option);
-  });
-
-  const closeButtons = festivalPanel.querySelectorAll('[data-festival-close]');
-  const resetButton = festivalPanel.querySelector('[data-festival-reset]');
-
-  festivalLauncher.addEventListener('click', () => toggleFestivalPanel());
-  closeButtons.forEach((button) => button.addEventListener('click', () => toggleFestivalPanel(false)));
-  document.addEventListener('click', (event) => {
-    if (!festivalPanel || festivalPanel.dataset.open !== 'true') return;
-    if (festivalPanel.contains(event.target) || event.target === festivalLauncher) return;
-    toggleFestivalPanel(false);
-  });
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && festivalPanel?.dataset.open === 'true') {
-      toggleFestivalPanel(false);
-    }
-  });
-
-  festivalSelect.addEventListener('change', (event) => {
-    applyFestivalTheme(event.target.value);
-  });
-
-  resetButton?.addEventListener('click', () => {
-    applyFestivalTheme('default');
-    toggleFestivalPanel(false);
+    figure.appendChild(img);
+    figure.appendChild(caption);
+    container.appendChild(figure);
   });
 }
 
-function initFestivalTheming() {
-  if (typeof window === 'undefined' || !document.body) return;
+function applyHeroSettings(hero) {
+  const defaults = DEFAULT_SITE_SETTINGS.hero;
+  const data = {
+    ...defaults,
+    ...(hero || {}),
+    gallery: Array.isArray(hero?.gallery) ? hero.gallery : defaults.gallery
+  };
 
-  createFestivalUi();
-  ensureFestivalBanner();
+  const title = document.querySelector('[data-hero-title]');
+  const subtitle = document.querySelector('[data-hero-subtitle]');
+  const mainImage = document.querySelector('[data-hero-main-image]');
+  const mainCaption = document.querySelector('[data-hero-main-caption]');
+  const bubbleHeading = document.querySelector('[data-hero-bubble-heading]');
+  const bubbleBody = document.querySelector('[data-hero-bubble-body]');
+  const root = document.documentElement;
+  const activeTheme = document.body?.dataset?.festivalTheme || 'default';
 
-  const params = new URLSearchParams(window.location.search);
-  const requestedTheme = params.get('theme');
-  const storedTheme = (() => {
-    try {
-      return localStorage.getItem(FESTIVAL_THEME_KEY);
-    } catch (error) {
-      return null;
-    }
-  })();
-
-  const initialTheme = (requestedTheme && FESTIVAL_THEMES[requestedTheme])
-    ? requestedTheme
-    : (storedTheme && FESTIVAL_THEMES[storedTheme])
-      ? storedTheme
-      : 'default';
-
-  applyFestivalTheme(initialTheme, { persist: false });
-
-  if (requestedTheme && FESTIVAL_THEMES[requestedTheme]) {
-    try {
-      localStorage.setItem(FESTIVAL_THEME_KEY, requestedTheme);
-    } catch (error) {
-      console.warn('Unable to persist requested festival theme', error);
-    }
+  if (title) title.textContent = data.title;
+  if (subtitle) subtitle.textContent = data.subtitle;
+  if (mainImage) {
+    mainImage.src = data.primaryImage;
+    mainImage.alt = data.primaryAlt;
   }
+  if (mainCaption) mainCaption.textContent = data.primaryCaption;
+  if (bubbleHeading) bubbleHeading.textContent = data.bubbleHeading;
+  if (bubbleBody) bubbleBody.textContent = data.bubbleBody;
+
+  if (data.primaryImage && activeTheme === 'default') {
+    root.style.setProperty('--hero-image-url', `url('${data.primaryImage}')`);
+  }
+
+  renderHeroGallery(data.gallery);
+}
+
+function renderNewestInstalls(installs) {
+  const section = document.querySelector('[data-installs-section]');
+  const grid = document.querySelector('[data-installs-grid]');
+  if (!grid) return;
+
+  const items = Array.isArray(installs) && installs.length ? installs : [];
+  grid.innerHTML = '';
+
+  if (!items.length) {
+    if (section) section.hidden = true;
+    return;
+  }
+
+  if (section) section.hidden = false;
+
+  items.slice(0, 4).forEach((install) => {
+    const card = document.createElement('article');
+    card.className = 'install-card';
+
+    const media = document.createElement('div');
+    media.className = 'install-media';
+    const img = document.createElement('img');
+    img.src = install.image;
+    img.alt = install.title;
+    img.loading = 'lazy';
+    media.appendChild(img);
+
+    const body = document.createElement('div');
+    body.className = 'install-body';
+
+    const meta = document.createElement('p');
+    meta.className = 'install-meta';
+    meta.textContent = `${install.capacity} • ${install.completedOn}`;
+
+    const title = document.createElement('h3');
+    title.textContent = install.title;
+
+    const location = document.createElement('p');
+    location.className = 'install-location';
+    const locationIcon = document.createElement('i');
+    locationIcon.className = 'fa-solid fa-location-dot';
+    location.appendChild(locationIcon);
+    location.append(` ${install.location}`);
+
+    const summary = document.createElement('p');
+    summary.className = 'install-summary';
+    summary.textContent = install.summary;
+
+    body.append(meta, title, location, summary);
+    card.append(media, body);
+    grid.appendChild(card);
+  });
+}
+
+function applySiteSettings(settings) {
+  const safeSettings = normaliseSiteSettings(settings);
+  applyFestivalTheme(safeSettings.festivalTheme);
+  applyHeroSettings(safeSettings.hero);
+  renderNewestInstalls(safeSettings.installs);
+}
+
+async function fetchSiteSettings() {
+  try {
+    const response = await fetch(SITE_SETTINGS_ENDPOINT, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+    const data = await response.json();
+    return normaliseSiteSettings(data.settings || data);
+  } catch (error) {
+    console.warn('Falling back to default site settings.', error);
+    return JSON.parse(JSON.stringify(DEFAULT_SITE_SETTINGS));
+  }
+}
+
+async function initSiteSettings() {
+  applySiteSettings(DEFAULT_SITE_SETTINGS);
+  const settings = await fetchSiteSettings();
+  applySiteSettings(settings);
 }
 
 // Wait for the document to be interactive before injecting content.
@@ -388,5 +488,5 @@ document.addEventListener('DOMContentLoaded', () => {
   injectPartial('header.site-header', PARTIALS.header);
   injectPartial('footer.site-footer', PARTIALS.footer);
   stampCurrentYear();
-  initFestivalTheming();
+  initSiteSettings();
 });
