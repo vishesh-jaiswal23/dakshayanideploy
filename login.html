@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <style>
     :root {
       color-scheme: light;
@@ -18,7 +19,9 @@
     body {
       margin: 0;
       font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.2), transparent 60%),
+        radial-gradient(circle at bottom right, rgba(251, 191, 36, 0.18), transparent 55%),
+        #0f172a;
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -28,10 +31,10 @@
     }
 
     .portal-shell {
-      width: min(100%, 960px);
+      width: min(100%, 1040px);
       background: #ffffff;
-      border-radius: 1.75rem;
-      box-shadow: 0 35px 60px -35px rgba(15, 23, 42, 0.55);
+      border-radius: 1.9rem;
+      box-shadow: 0 35px 70px -32px rgba(15, 23, 42, 0.6);
       display: grid;
       gap: 0;
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -39,15 +42,32 @@
     }
 
     .portal-info {
-      background: radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.15), transparent 55%),
-        radial-gradient(circle at 100% 0%, rgba(37, 99, 235, 0.15), transparent 55%),
-        #0f172a;
+      position: relative;
       color: #f8fafc;
-      padding: 3rem 2.5rem;
+      padding: 3.25rem 2.75rem;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       gap: 2.5rem;
+      background-image:
+        linear-gradient(140deg, rgba(15, 23, 42, 0.9), rgba(8, 47, 73, 0.75)),
+        url('images/hero/hero%20large.png');
+      background-size: cover;
+      background-position: center;
+    }
+
+    .portal-info::after {
+      content: '';
+      position: absolute;
+      inset: 1.5rem;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 1.5rem;
+      pointer-events: none;
+    }
+
+    .portal-info > * {
+      position: relative;
+      z-index: 1;
     }
 
     .portal-info h1 {
@@ -64,10 +84,49 @@
     }
 
     .portal-card {
-      padding: 3rem 2.5rem;
+      padding: 3rem 2.75rem;
       display: flex;
       flex-direction: column;
-      gap: 2rem;
+      gap: 2.25rem;
+      background: linear-gradient(180deg, rgba(248, 250, 252, 0.7), #ffffff 45%);
+    }
+
+    .form-stack {
+      display: grid;
+      gap: 1.75rem;
+    }
+
+    @media (min-width: 720px) {
+      .form-stack {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    .form-section {
+      background: #ffffff;
+      border-radius: 1.25rem;
+      padding: 1.75rem 1.75rem 2rem;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      box-shadow: 0 18px 35px -30px rgba(15, 23, 42, 0.25);
+      display: grid;
+      gap: 1.1rem;
+    }
+
+    .form-section--accent {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(59, 130, 246, 0.05));
+      border-color: rgba(37, 99, 235, 0.18);
+    }
+
+    .form-section h2 {
+      margin: 0;
+      font-size: 1.35rem;
+      color: #0f172a;
+    }
+
+    .form-subtitle {
+      margin: 0;
+      color: rgba(15, 23, 42, 0.65);
+      font-size: 0.95rem;
     }
 
     .login-form {
@@ -146,6 +205,13 @@
       border: 1px solid #bbf7d0;
     }
 
+    .feedback.info {
+      display: block;
+      background: #dbeafe;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -183,6 +249,29 @@
       margin: 0;
     }
 
+    .form-note {
+      margin: 0;
+      font-size: 0.85rem;
+      color: rgba(15, 23, 42, 0.55);
+    }
+
+    .form-note a {
+      color: #2563eb;
+      font-weight: 600;
+    }
+
+    .fieldset-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
+
+    .form-divider {
+      height: 1px;
+      background: rgba(148, 163, 184, 0.25);
+      margin: 0.5rem 0;
+    }
+
     @media (max-width: 768px) {
       body {
         padding: 1.5rem 1rem;
@@ -192,8 +281,12 @@
         border-radius: 1.25rem;
       }
 
-      .portal-info, .portal-card {
-        padding: 2.25rem 1.75rem;
+      .portal-info {
+        padding: 2.5rem 1.85rem;
+      }
+
+      .portal-card {
+        padding: 2.5rem 1.85rem;
       }
     }
   </style>
@@ -205,6 +298,26 @@
         <img src="images/logo/New dakshayani logo centered small.png" alt="Dakshayani Enterprises" style="width: 160px; height: auto; margin-bottom: 1.75rem;" />
         <h1>Access your Dakshayani portal</h1>
         <p>Use one of the official demo accounts below. The same credentials work online, on cPanel static hosting, and inside this download.</p>
+        <ul style="margin: 1.5rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.85rem;">
+          <li style="display: flex; gap: 0.75rem; align-items: center;">
+            <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 50%; background: rgba(148, 163, 184, 0.25); align-items: center; justify-content: center;">
+              <i class="fa-solid fa-lock" aria-hidden="true"></i>
+            </span>
+            <span style="font-size: 0.95rem; color: rgba(248, 250, 252, 0.85);">Secure role-based dashboards for admin, customer, employee, installer, and referrer journeys.</span>
+          </li>
+          <li style="display: flex; gap: 0.75rem; align-items: center;">
+            <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 50%; background: rgba(148, 163, 184, 0.25); align-items: center; justify-content: center;">
+              <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+            </span>
+            <span style="font-size: 0.95rem; color: rgba(248, 250, 252, 0.85);">Seasonal décor engine lets you light up the portal for Diwali, Holi, Christmas, and more.</span>
+          </li>
+          <li style="display: flex; gap: 0.75rem; align-items: center;">
+            <span style="display: inline-flex; width: 34px; height: 34px; border-radius: 50%; background: rgba(148, 163, 184, 0.25); align-items: center; justify-content: center;">
+              <i class="fa-solid fa-user-plus" aria-hidden="true"></i>
+            </span>
+            <span style="font-size: 0.95rem; color: rgba(248, 250, 252, 0.85);">Self-service signup keeps new customers and channel partners connected without email back-and-forth.</span>
+          </li>
+        </ul>
       </div>
       <div>
         <p class="notice">Need help deploying on cPanel? Open <code>PORTAL_INSTRUCTIONS.md</code> for the complete step-by-step guide.</p>
@@ -212,31 +325,83 @@
     </aside>
 
     <section class="portal-card">
-      <form data-login-form class="login-form" autocomplete="on">
-        <div>
-          <label for="login-email">Email address</label>
-          <input type="email" id="login-email" name="email" placeholder="you@dakshayani.in" autocomplete="username" required />
+      <div class="form-stack">
+        <div class="form-section">
+          <h2>Welcome back</h2>
+          <p class="form-subtitle">Sign in with your Dakshayani portal credentials.</p>
+          <form data-login-form class="login-form" autocomplete="on">
+            <div>
+              <label for="login-email">Email address</label>
+              <input type="email" id="login-email" name="email" placeholder="you@dakshayani.in" autocomplete="username" required />
+            </div>
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                <label for="login-password" style="margin: 0;">Password</label>
+                <button type="button" class="demo-button" data-fill-demo>Fill admin demo</button>
+              </div>
+              <input type="password" id="login-password" name="password" placeholder="Enter your password" autocomplete="current-password" required />
+            </div>
+            <div>
+              <label for="login-role">Choose a portal</label>
+              <select id="login-role" name="role" required>
+                <option value="admin">Administrator</option>
+                <option value="customer">Customer</option>
+                <option value="employee">Employee</option>
+                <option value="installer">Installer</option>
+                <option value="referrer">Referral partner</option>
+              </select>
+            </div>
+            <p class="feedback" data-login-feedback role="status" aria-live="assertive"></p>
+            <button type="submit">Log in</button>
+            <p class="form-note">Forgot your password? Email <a href="mailto:connect@dakshayani.co.in">connect@dakshayani.co.in</a> for a reset.</p>
+          </form>
         </div>
-        <div>
-          <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
-            <label for="login-password" style="margin: 0;">Password</label>
-            <button type="button" class="demo-button" data-fill-demo>Fill admin demo</button>
-          </div>
-          <input type="password" id="login-password" name="password" placeholder="Enter your password" autocomplete="current-password" required />
+
+        <div class="form-section form-section--accent">
+          <h2>Create a new account</h2>
+          <p class="form-subtitle">Track subsidy progress, manage referrals, or support customers with a personalised login.</p>
+          <form data-signup-form class="login-form" autocomplete="on">
+            <div class="fieldset-grid">
+              <div>
+                <label for="signup-name">Full name</label>
+                <input type="text" id="signup-name" name="name" placeholder="Your name" autocomplete="name" required />
+              </div>
+              <div>
+                <label for="signup-email">Email address</label>
+                <input type="email" id="signup-email" name="email" placeholder="you@dakshayani.in" autocomplete="email" required />
+              </div>
+            </div>
+            <div class="fieldset-grid">
+              <div>
+                <label for="signup-phone">Phone</label>
+                <input type="tel" id="signup-phone" name="phone" placeholder="e.g. +91 90000 00000" autocomplete="tel" />
+              </div>
+              <div>
+                <label for="signup-city">City</label>
+                <input type="text" id="signup-city" name="city" placeholder="Ranchi, Jamshedpur…" autocomplete="address-level2" />
+              </div>
+            </div>
+            <div>
+              <label for="signup-role">Portal role</label>
+              <select id="signup-role" name="role" required>
+                <option value="customer">Customer</option>
+                <option value="referrer">Referral partner</option>
+                <option value="employee">Employee</option>
+                <option value="installer">Installer</option>
+              </select>
+            </div>
+            <div>
+              <label for="signup-password">Create password</label>
+              <input type="password" id="signup-password" name="password" placeholder="Minimum 8 characters" autocomplete="new-password" required />
+            </div>
+            <p class="feedback" data-signup-feedback role="status" aria-live="assertive"></p>
+            <button type="submit">Create my portal access</button>
+            <p class="form-note">By continuing you agree to Dakshayani Enterprises' privacy policy and responsible data usage.</p>
+          </form>
         </div>
-        <div>
-          <label for="login-role">Choose a portal</label>
-          <select id="login-role" name="role" required>
-            <option value="admin">Administrator</option>
-            <option value="customer">Customer</option>
-            <option value="employee">Employee</option>
-            <option value="installer">Installer</option>
-            <option value="referrer">Referral partner</option>
-          </select>
-        </div>
-        <p class="feedback" data-login-feedback role="status" aria-live="assertive"></p>
-        <button type="submit">Log in</button>
-      </form>
+      </div>
+
+      <div class="form-divider"></div>
 
       <div>
         <h2 style="margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 700; color: #0f172a;">Demo credentials (works offline)</h2>
