@@ -32,3 +32,8 @@ curl -s http://localhost:4000/api/dashboard/admin \
 ```
 
 For a full end-to-end run, open `login.html` in a browser (or via the server above) and sign in with any of the published demo accounts. Each dashboard page will automatically fetch its data once authenticated.
+
+### Sign up vs. log in cheatsheet
+
+1. **Log in** – Choose your portal role on the login form, enter the matching email/password pair, then submit. Successful logins redirect to the role-specific dashboard. When the API is offline (for example on cPanel), the same form validates the bundled demo accounts entirely in the browser.
+2. **Sign up** – Complete the “Create a new account” form with your name, email, password, optional phone/city, and preferred role. On self-hosted installs the Node.js API creates the account instantly and signs you in. On static-only deployments the form shows contact details (`connect@dakshayani.co.in`) so the team can activate your access manually.

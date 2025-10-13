@@ -12,92 +12,117 @@ const PARTIALS = {
   footer: 'partials/footer.html',
 };
 
-const FESTIVAL_THEMES = {
-  default: {
-    label: 'Standard décor',
-    heroImage: '',
-    primary: '',
-    dark: '',
-    overlay: '',
-    banner: '',
-  },
-  diwali: {
-    label: 'Diwali lights',
-    heroImage: 'images/4.png',
-    primary: '#f97316',
-    dark: '#c2410c',
-    overlay: 'rgba(17, 24, 39, 0.88)',
-    banner: 'Happy Diwali! May your rooftops shine bright with clean solar energy and prosperity.',
-    bannerBg: 'linear-gradient(120deg, rgba(249, 115, 22, 0.9), rgba(245, 158, 11, 0.78))',
-    bannerColor: '#fff7ed',
-  },
-  holi: {
-    label: 'Holi colours',
-    heroImage: 'images/collage.jpg',
-    primary: '#ec4899',
-    dark: '#be123c',
-    overlay: 'rgba(76, 29, 149, 0.72)',
-    banner: 'Rang Barse! Celebrate Holi with vibrant savings and sustainable power from Dakshayani.',
-    bannerBg: 'linear-gradient(120deg, rgba(236, 72, 153, 0.9), rgba(59, 130, 246, 0.75))',
-    bannerColor: '#fdf2f8',
-  },
-  christmas: {
-    label: 'Christmas glow',
-    heroImage: 'images/team.jpg',
-    primary: '#16a34a',
-    dark: '#0f766e',
-    overlay: 'rgba(15, 23, 42, 0.82)',
-    banner: 'Season’s greetings! Spread warmth and clean energy this Christmas with Dakshayani Enterprises.',
-    bannerBg: 'linear-gradient(120deg, rgba(20, 83, 45, 0.92), rgba(14, 116, 144, 0.8))',
-    bannerColor: '#ecfdf5',
-  },
-};
+const INLINE_PARTIALS = {
+  header: `
+    <div class="container header-inner">
+      <a href="index.html" class="brand" aria-label="Dakshayani Enterprises home">
+        <img src="images/logo/New dakshayani logo centered small.png" alt="Dakshayani Enterprises" class="brand-logo-em" />
+        <span class="brand-text">Dakshayani Enterprises</span>
+      </a>
 
-const SITE_SETTINGS_ENDPOINT = '/api/public/site-settings';
-const DEFAULT_SITE_SETTINGS = {
-  festivalTheme: 'default',
-  hero: {
-    title: 'Cut Your Electricity Bills. Power Your Future.',
-    subtitle: 'Join 500+ Jharkhand families saving lakhs with dependable rooftop and hybrid solar solutions designed around you.',
-    primaryImage: 'images/hero/hero.png',
-    primaryAlt: 'Dakshayani engineers installing a rooftop solar plant',
-    primaryCaption: 'Live commissioning | Ranchi',
-    bubbleHeading: '24/7 monitoring',
-    bubbleBody: 'Hybrid + storage ready',
-    gallery: [
-      { image: 'images/team.jpg', caption: 'Certified engineers' },
-      { image: 'images/finance.jpg', caption: 'Finance desk' }
-    ]
-  },
-  installs: [
-    {
-      id: 'install-001',
-      title: '6 kW PM Surya Ghar Rooftop',
-      location: 'Ranchi, Jharkhand',
-      capacity: '6 kW',
-      completedOn: 'September 2024',
-      image: 'images/roof.jpg',
-      summary: 'Hybrid-ready rooftop array with remote monitoring for a duplex residence.'
-    },
-    {
-      id: 'install-002',
-      title: '25 kW Nursing Home Retrofit',
-      location: 'Jamshedpur, Jharkhand',
-      capacity: '25 kW',
-      completedOn: 'August 2024',
-      image: 'images/hero.jpg',
-      summary: 'Tier-1 mono-PERC modules with zero downtime switchover for critical care loads.'
-    },
-    {
-      id: 'install-003',
-      title: '12 kW Agro Cold Storage',
-      location: 'Hazaribagh, Jharkhand',
-      capacity: '12 kW',
-      completedOn: 'July 2024',
-      image: 'images/pump.jpg',
-      summary: 'Rooftop solar with battery support to power drip irrigation and cold storage.'
-    }
-  ]
+      <nav class="nav-desktop" aria-label="Primary navigation">
+        <a href="index.html" class="nav-link">Home</a>
+        <a href="about.html" class="nav-link">About Us</a>
+        <div class="nav-dropdown">
+          <button type="button" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">
+            Solutions
+            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+          </button>
+          <div class="nav-dropdown-menu" role="menu">
+            <a href="projects.html" class="nav-link" role="menuitem">Solar Projects</a>
+            <a href="pm-surya-ghar.html" class="nav-link" role="menuitem">PM Surya Ghar Subsidy</a>
+            <a href="meera-gh2.html" class="nav-link" role="menuitem">Meera GH2 Initiative</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <button type="button" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">
+            Resources
+            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+          </button>
+          <div class="nav-dropdown-menu" role="menu">
+            <a href="calculator.html" class="nav-link" role="menuitem">Savings Calculator</a>
+            <a href="policies.html" class="nav-link" role="menuitem">Policies &amp; Compliance</a>
+            <a href="rewards.html" class="nav-link" role="menuitem">Rewards Program</a>
+            <a href="blog.html" class="nav-link" role="menuitem">Blog &amp; News</a>
+          </div>
+        </div>
+        <a href="contact.html" class="btn btn-secondary nav-link">Quote / Contact</a>
+        <a href="login.html" class="btn btn-primary nav-link">Portal Login</a>
+      </nav>
+
+      <button class="menu-btn" aria-label="Open navigation" aria-expanded="false" id="mobile-menu-button">
+        <i class="fas fa-bars"></i>
+      </button>
+    </div>
+
+    <nav id="mobile-menu" class="nav-mobile" aria-label="Mobile navigation">
+      <a href="index.html">Home</a>
+      <a href="about.html">About Us</a>
+      <a href="projects.html">Solar Projects</a>
+      <a href="pm-surya-ghar.html">PM Surya Ghar Subsidy</a>
+      <a href="meera-gh2.html">Meera GH2 Initiative</a>
+      <a href="calculator.html">Savings Calculator</a>
+      <a href="policies.html">Policies &amp; Compliance</a>
+      <a href="rewards.html">Rewards Program</a>
+      <a href="blog.html">Blog &amp; News</a>
+      <a href="login.html">User Portal Login</a>
+      <a href="contact.html" class="btn btn-primary nav-mobile-cta">Free Quote / Contact</a>
+    </nav>
+  `.trim(),
+  footer: `
+    <div class="container footer-content">
+      <div>
+        <div class="footer-brand">
+          <img src="images/logo/New dakshayani logo centered small.png" alt="Dakshayani Enterprises" class="brand-logo-em" />
+          <span class="brand-text">Dakshayani Enterprises</span>
+        </div>
+        <p class="text-sm">
+          Your trusted solar EPC partner in Ranchi, expanding clean energy access across Jharkhand,
+          Chhattisgarh, Odisha, and Uttar Pradesh with Tier-1 technology and transparent service.
+        </p>
+        <div class="footer-social" aria-label="Social links">
+          <a href="https://wa.me/917070278178" target="_blank" rel="noopener" aria-label="WhatsApp">
+            <i class="fa-brands fa-whatsapp"></i>
+          </a>
+          <a href="mailto:connect@dakshayani.co.in" aria-label="Email">
+            <i class="fa-solid fa-envelope"></i>
+          </a>
+          <a href="tel:+917070278178" aria-label="Call">
+            <i class="fa-solid fa-phone"></i>
+          </a>
+        </div>
+      </div>
+
+      <div>
+        <h4 class="font-bold text-lg">Solar &amp; Schemes</h4>
+        <ul class="footer-links">
+          <li><a href="pm-surya-ghar.html">PM Surya Ghar Yojana</a></li>
+          <li><a href="financing.html">Financing &amp; Loans</a></li>
+          <li><a href="projects.html">Residential Solutions</a></li>
+          <li><a href="projects.html#commercial">Commercial / Industrial</a></li>
+          <li><a href="calculator.html">Solar Savings Calculator</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h4 class="font-bold text-lg">Company</h4>
+        <ul class="footer-links">
+          <li><a href="about.html">About Dakshayani Enterprises</a></li>
+          <li><a href="meera-gh2.html">Meera GH2 (Hydrogen)</a></li>
+          <li><a href="blog.html">Blog &amp; News</a></li>
+          <li><a href="policies.html#terms">T&amp;C / Warranty</a></li>
+          <li><a href="contact.html">Contact &amp; Support</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="container footer-bottom">
+      <p>
+        &copy; <span data-current-year></span> Dakshayani Enterprises. All rights reserved.
+        Office: Maa Tara, Kilburn Colony, Hinoo, Ranchi, Jharkhand-834002.
+      </p>
+    </div>
+  `.trim(),
 };
 
 const FESTIVAL_THEMES = {
@@ -212,11 +237,16 @@ function getPageKey(pathname = window.location.pathname) {
 /**
  * Fetch a HTML partial and inject it into the provided host element.
  */
+function getPartialKey(partialPath) {
+  return Object.entries(PARTIALS).find(([, path]) => path === partialPath)?.[0];
+}
+
 async function injectPartial(selector, partialPath) {
   const host = document.querySelector(selector);
   if (!host) return;
 
   const url = resolvePartialUrl(partialPath);
+  const partialKey = getPartialKey(partialPath);
 
   try {
     const response = await fetch(url, { cache: 'no-cache' });
@@ -229,6 +259,12 @@ async function injectPartial(selector, partialPath) {
     }
   } catch (error) {
     console.error(`Failed to load partial: ${url}`, error);
+    if (partialKey && INLINE_PARTIALS[partialKey]) {
+      host.innerHTML = INLINE_PARTIALS[partialKey];
+      if (partialKey === 'header') {
+        enhanceHeaderNavigation(host);
+      }
+    }
   }
 }
 
