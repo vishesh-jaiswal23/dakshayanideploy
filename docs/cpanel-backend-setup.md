@@ -1,14 +1,14 @@
 # Deploying the Dakshayani Backend on cPanel
 
-This guide walks you through uploading the Dakshayani portal (static front end + Node.js backend API) to a cPanel hosting account. It assumes you want a working login/sign-up experience for the five dashboard personas bundled with the project (admin, customer, employee, installer, referrer).
+This guide walks you through uploading the Dakshayani portal (static front end + Node.js backend API) to a cPanel hosting account that looks like the tool layout in the screenshot you shared (icons such as **File Manager**, **Terminal**, **Git Version Control**, **Setup Node.js App**, **Subdomains**, **SSL/TLS Status**, etc.). It assumes you want a working login/sign-up experience for the five dashboard personas bundled with the project (admin, customer, employee, installer, referrer).
 
 The server already ships with production-ready endpoints for authentication, dashboards, and administrative user management located at `server/index.js`. You will:
 
 1. Prepare the project locally.
-2. Upload the codebase to your hosting space.
-3. Provision the Node.js application with the cPanel **Application Manager**.
-4. Connect your domain or subdomain to the running app.
-5. Verify that log in, sign up, and admin management work.
+2. Upload the codebase to your hosting space with **File Manager** (or **Git Version Control** if you prefer).
+3. Provision the Node.js application from **Setup Node.js App** (found under the **Software** section of your screenshot).
+4. Connect your domain or subdomain with the **Domains → Subdomains** or **Domains** icons.
+5. Issue SSL with **SSL/TLS Status** and verify that log in, sign up, and admin management work.
 
 > **Tip for first-timers:** Keep a text editor open with these instructions while you work inside cPanel so you can tick each step off as you go.
 
@@ -37,10 +37,10 @@ The server already ships with production-ready endpoints for authentication, das
 
 ## 2. Upload the code to cPanel
 
-1. Sign in to **cPanel** and open **File Manager**.
+1. Sign in to **cPanel** and open **File Manager** (first item in the **Files** group of your screenshot).
 2. Decide on a deployment path:
-   * For a dedicated subdomain, create a folder like `backend` under your home directory.
-   * For the primary domain, you can deploy inside `public_html` (recommended: use a subdirectory such as `portal`).
+   * For a dedicated subdomain, create a folder like `backend` under your home directory (e.g. `/home/username/backend`).
+   * For the primary domain, you can deploy inside `public_html` (recommended: use a subdirectory such as `portal` so static files and the API live together).
 3. Use the **Upload** button in File Manager to upload your ZIP archive.
 4. After the upload completes, select the ZIP file and click **Extract**. Confirm the extraction path matches the directory you created in the previous step.
 5. Confirm the structure looks like:
@@ -61,21 +61,21 @@ The server already ships with production-ready endpoints for authentication, das
 
 ---
 
-## 3. Provision the Node.js app in Application Manager
+## 3. Provision the Node.js app via “Setup Node.js App”
 
-1. In cPanel, search for **“Setup Node.js App”** (also labelled **Application Manager**).
+1. Back on the cPanel home screen, scroll to the **Software** section and click **Setup Node.js App** (exactly as shown in the screenshot).
 2. Click **Create Application** and fill in:
-   * **Application mode:** `Production`
-   * **Node.js version:** `18` (or higher if available).
-   * **Application root:** The folder you extracted above (e.g. `/home/username/portal`).
-   * **Application URL:** Select the domain/subdomain you want to serve (e.g. `https://solar.example.com`).
-   * **Application startup file:** `server/index.js`
-   * Leave the environment variables blank for now; the defaults baked into the app cover all roles.
-3. Click **Create**. cPanel will provision the environment.
-4. Once created, scroll to the **NPM** section and click **Run NPM Install**. This installs dependencies listed in `package.json` (there are none, but the step ensures the environment is initialised correctly).
-5. After the install completes, click **Restart App** at the top of the page. You should see a green success banner.
+   * **Application Mode:** `Production`
+   * **Node.js Version:** Choose `18` if available (the selector in this interface lists versions that are already provisioned on the server).
+   * **Application Root:** Browse to the folder you extracted above (e.g. `/home/username/portal`).
+   * **Application URL:** Pick the domain/subdomain that should serve the portal. If you have not created a subdomain yet, you can select your main domain for now and adjust later.
+   * **Application Startup File:** `server/index.js`
+   * Leave the **Environment Variables** table empty for now; the application runs with defaults.
+3. Click **Create**. cPanel will provision the environment and show you the **Application Manager** screen for this app. (On some hosts this page is still titled “Application Manager”; the entry point, however, is the **Setup Node.js App** icon you can see on your dashboard.)
+4. In the **NPM** section press **Run NPM Install**. Even though the project has no third-party dependencies, running this step initialises the environment so Passenger knows everything is ready.
+5. Once `npm install` finishes, click **Restart App** near the top right. A success toast confirms the Node.js process is online.
 
-The Node.js process now listens on the internal port chosen by Passenger and proxies requests from your chosen domain.
+The Node.js process now listens on the internal port chosen by Passenger and proxies requests from your chosen domain. If your cPanel plan does not show a **Setup Node.js App** icon, you will need to ask your hosting provider to enable it or upgrade to a plan that supports Node.js. Without it there is no persistent process manager to keep the backend running.
 
 ---
 
@@ -84,12 +84,12 @@ The Node.js process now listens on the internal port chosen by Passenger and pro
 If you created a new subdomain for the portal:
 
 1. Go back to the cPanel home screen.
-2. Open **Domains → Subdomains** and create a subdomain (e.g. `solar` under `example.com`). Point its document root to the same directory used in Application Manager.
+2. Open **Domains → Subdomains** (icon available in the **Domains** group of the screenshot) and create a subdomain (e.g. `solar` under `example.com`). Point its document root to the same directory used in Setup Node.js App.
 3. Wait for DNS to propagate (usually instant for an existing domain managed in the same cPanel account).
 
 For primary domain usage, ensure the document root you configured is the one serving your website.
 
-> **SSL/TLS:** Use cPanel’s **SSL/TLS Status** tool to issue a free AutoSSL certificate so that the app works on HTTPS.
+> **SSL/TLS:** Use the **SSL/TLS Status** icon (right-hand column in your screenshot) to issue a free AutoSSL certificate so that the app works on HTTPS. Click “Run AutoSSL” if the certificate is not already provisioned.
 
 ---
 
