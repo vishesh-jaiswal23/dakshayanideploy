@@ -13,91 +13,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/>
-
-  <style>
-    .blog-hero {
-        background: linear-gradient(90deg, var(--primary-dark), var(--primary-main));
-        color: var(--surface);
-        text-align: center;
-        padding: 4rem 1rem;
-        position: relative;
-        overflow: hidden;
-    }
-    .blog-hero::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(circle at top left, rgba(255,255,255,0.15), transparent 55%);
-        pointer-events: none;
-    }
-    .blog-hero .container { position: relative; z-index: 1; }
-    .filter-bar {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.75rem;
-        align-items: center;
-        margin-bottom: 1.5rem;
-    }
-    .filter-pill {
-        border-radius: 999px;
-        padding: 0.45rem 1.25rem;
-        border: 1px solid rgba(255,255,255,0.4);
-        color: var(--surface);
-        background: rgba(255,255,255,0.15);
-        cursor: pointer;
-        transition: background 0.2s ease, transform 0.2s ease;
-        font-size: 0.95rem;
-        font-weight: 500;
-    }
-    .filter-pill.active, .filter-pill:hover {
-        background: var(--surface);
-        color: var(--primary-dark);
-        transform: translateY(-2px);
-    }
-    .blog-card {
-        padding: 0;
-        overflow: hidden;
-        text-align: left;
-        transition: transform 0.3s ease;
-        background: var(--surface);
-    }
-    .blog-card:hover {
-        transform: translateY(-8px);
-        box-shadow: 0 15px 30px rgba(0,0,0,0.15);
-    }
-    .blog-card img {
-        height: 200px;
-        object-fit: cover;
-        width: 100%;
-    }
-    .card-content { padding: 1.5rem; }
-    .card-meta { font-size: 0.85rem; color: var(--primary-main); font-weight: 600; margin-bottom: 0.5rem; letter-spacing: 0.04em; text-transform: uppercase; }
-    .card-title { font-size: 1.5rem; margin-top: 0; margin-bottom: 0.5rem; line-height: 1.2; }
-    .card-excerpt { color: var(--base-600); font-size: 0.95rem; }
-    .insight-card {
-        border-radius: 1rem;
-        padding: 1.75rem;
-        background: var(--surface);
-        box-shadow: 0 12px 30px rgba(0,0,0,0.1);
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-    .newsletter-card {
-        border-radius: 1rem;
-        padding: 2rem;
-        background: linear-gradient(135deg, rgba(0,161,214,0.12), rgba(0,161,214,0.4));
-        backdrop-filter: blur(5px);
-        text-align: center;
-    }
-    .newsletter-card input {
-        width: 100%;
-        padding: 0.85rem 1rem;
-        border-radius: 0.75rem;
-        border: none;
-        margin-bottom: 1rem;
-    }
-  </style>
 </head>
 <body>
 
@@ -105,132 +20,148 @@
   <header class="site-header"></header>
 
   <main>
-    <!-- Page Header/Hero -->
-    <section class="blog-hero">
-      <div class="container">
-        <h1 style="color:var(--surface);">Solar Insights & Energy News</h1>
-        <p class="sub" style="color:var(--primary-light); max-width: 800px; margin: 0 auto; font-size: 1.15rem;">Your knowledge hub for PM Surya Ghar, technology comparisons, and maximizing your savings in Jharkhand.</p>
-        <div class="filter-bar" style="justify-content: center; margin-top: 2rem;">
-            <span class="filter-pill active">All</span>
-            <span class="filter-pill">Subsidy</span>
-            <span class="filter-pill">Technology</span>
-            <span class="filter-pill">Finance</span>
-            <span class="filter-pill">Green Hydrogen</span>
-            <span class="filter-pill">Maintenance</span>
+    <section class="page-hero" style="background:linear-gradient(135deg,rgba(15,23,42,0.94),rgba(59,130,246,0.85));">
+      <div class="container hero-inner">
+        <div class="hero-copy">
+          <span class="hero-eyebrow"><i class="fa-solid fa-newspaper"></i> Blog &amp; news</span>
+          <h1>Solar insights, subsidy updates, and hydrogen breakthroughs</h1>
+          <p class="lead" style="color:rgba(255,255,255,0.82);">Curated by Dakshayani engineers and policy experts to keep Jharkhand informed.</p>
+          <div class="tag-cloud">
+            <span class="tag-chip"><i class="fa-solid fa-sun"></i> PM Surya Ghar</span>
+            <span class="tag-chip"><i class="fa-solid fa-microchip"></i> Technology</span>
+            <span class="tag-chip"><i class="fa-solid fa-scale-balanced"></i> Compliance</span>
+            <span class="tag-chip"><i class="fa-solid fa-sack-dollar"></i> Finance</span>
+            <span class="tag-chip"><i class="fa-solid fa-flask"></i> Meera GH2</span>
+          </div>
+        </div>
+        <div class="hero-media" aria-hidden="true">
+          <img src="images/hero/hero large.png" alt="Dakshayani content team collaborating" loading="lazy" />
+          <div class="caption">Monthly content sprint · Ranchi studio</div>
         </div>
       </div>
     </section>
 
-    <section class="section" style="padding-bottom: 0;">
-      <div class="container grid cols-3" style="gap: 2rem; align-items: stretch;">
-        <div class="insight-card" style="background: var(--base-900); color: var(--surface);">
-            <span class="badge" style="background: rgba(255,255,255,0.1); color: var(--primary-light);">Editor's Pick</span>
-            <h2 style="margin: 0;">Jharkhand Rooftop Trends 2025</h2>
-            <p style="color: rgba(255,255,255,0.75);">Discover how net metering approvals have sped up by 32% and why hybrid inverters are gaining adoption across Ranchi.</p>
-            <a href="article-local-expertise.html" class="btn btn-secondary" style="align-self: flex-start; background: var(--surface); color: var(--base-900);">Read Analysis</a>
-        </div>
-        <div class="insight-card">
-            <h3 style="margin: 0;">Trending Topics</h3>
-            <ul style="list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem;">
-                <li><i class="fa-solid fa-arrow-trend-up" style="color: var(--primary-main); margin-right: 0.5rem;"></i>Payback myths around residential solar</li>
-                <li><i class="fa-solid fa-arrow-trend-up" style="color: var(--primary-main); margin-right: 0.5rem;"></i>Choosing between string vs. micro inverters</li>
-                <li><i class="fa-solid fa-arrow-trend-up" style="color: var(--primary-main); margin-right: 0.5rem;"></i>Battery readiness checklist for 2025</li>
-            </ul>
-        </div>
-        <div class="insight-card">
-            <h3 style="margin: 0;">Author Spotlight</h3>
-            <p style="color: var(--base-600);">Our content team includes certified energy auditors, policy researchers, and on-ground engineers who contribute first-hand learnings.</p>
-            <div style="display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem;">
-                <img src="images/team/prakash.jpg" alt="Prakash Kumar" style="width: 56px; height: 56px; border-radius: 999px; object-fit: cover;" onerror="this.style.display='none';">
-                <div>
-                    <strong>Prakash Kumar</strong>
-                    <p style="margin: 0; font-size: 0.9rem; color: var(--base-500);">Founder & EPC Strategist</p>
-                </div>
-            </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Blog Grid -->
     <section class="section">
+      <div class="container grid" style="gap:2rem;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));align-items:stretch;">
+        <article class="card" style="background:var(--base-900);color:var(--surface);">
+          <span class="badge" style="background:rgba(255,255,255,0.12);color:var(--primary-light);">Editor&#39;s pick</span>
+          <h2>Jharkhand rooftop trends for 2025</h2>
+          <p style="color:rgba(255,255,255,0.75);">Net-metering approvals are 32% faster and hybrid-ready inverters dominate new installs. See the data behind the surge.</p>
+          <a href="article-local-expertise.html" class="btn btn-secondary" style="align-self:flex-start;background:var(--surface);color:var(--base-900);">Read analysis</a>
+        </article>
+        <article class="card" style="display:grid;gap:1rem;">
+          <h3 class="mb-0">What readers are loving</h3>
+          <ul class="quote-list">
+            <li><i class="fa-solid fa-arrow-trend-up"></i>Payback myths debunked for residential solar</li>
+            <li><i class="fa-solid fa-arrow-trend-up"></i>String vs. micro-inverter showdown</li>
+            <li><i class="fa-solid fa-arrow-trend-up"></i>Battery readiness checklist for 2025 upgrades</li>
+          </ul>
+        </article>
+        <article class="card" style="display:grid;gap:1rem;">
+          <h3 class="mb-0">Author spotlight</h3>
+          <p class="mb-0" style="color:var(--base-600);">Insights are penned by certified energy auditors, subsidy specialists, and on-ground EPC managers.</p>
+          <div style="display:flex;align-items:center;gap:0.75rem;">
+            <img src="images/team.jpg" alt="Editorial team" style="width:56px;height:56px;border-radius:999px;object-fit:cover;">
+            <div>
+              <strong>Editorial Desk</strong>
+              <p class="mb-0" style="color:var(--base-500);font-size:0.9rem;">Dakshayani Knowledge Hub</p>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section alt">
       <div class="container">
-        <div class="head" style="margin-bottom: 2rem;">
-            <h2>Latest Articles</h2>
+        <div class="head">
+          <h2>Latest articles</h2>
+          <p class="sub">Fresh stories every fortnight covering policy, technology, and community success.</p>
         </div>
-        
-        <div class="grid cols-3">
-            
-            <!-- Article 1: PM Surya Ghar Deep Dive -->
-            <a href="article-pmsgy-deep-dive.html" class="card blog-card">
-                <img src="images/pmsgy.jpg" alt="PM Surya Ghar Yojana details" onerror="this.onerror=null; this.src='https://placehold.co/400x200/00A1D6/FFFFFF?text=Subsidy Guide';" />
-                <div class="card-content">
-                    <div class="card-meta">Subsidy Guide | 5 min read</div>
-                    <h3 class="card-title">Decoding the PM Surya Ghar Subsidy: Up to ₹78,000 Explained</h3>
-                    <p class="card-excerpt">A step-by-step guide on eligibility, application, and maximizing the benefits under the Muft Bijli Yojana in Jharkhand.</p>
-                </div>
-            </a>
-
-            <!-- Article 2: Meera GH2 -->
-            <a href="meera-gh2.html#blog" class="card blog-card">
-                <img src="images/hero/hero.png" alt="Green Hydrogen and Fuel Cell" onerror="this.onerror=null; this.src='https://placehold.co/400x200/004d40/FFFFFF?text=Green+Hydrogen';" />
-                <div class="card-content">
-                    <div class="card-meta">Innovation | Meera GH2</div>
-                    <h3 class="card-title">Green Hydrogen: The Next Big Leap in India's Energy Sector</h3>
-                    <p class="card-excerpt">An overview of Meera GH2's vision for hydrogen and the role of fuel cell technology in sustainable power.</p>
-                </div>
-            </a>
-
-            <!-- Article 3: Local Expertise -->
-            <a href="article-local-expertise.html" class="card blog-card">
-                <img src="images/residential pics real/IMG-20241028-WA0002.jpg" alt="Ranchi Rooftop Solar Installation" onerror="this.onerror=null; this.src='https://placehold.co/400x200/F59E0B/FFFFFF?text=Local+Solar';" />
-                <div class="card-content">
-                    <div class="card-meta">EPC Tips | Local Focus</div>
-                    <h3 class="card-title">Why Choosing a JREDA Authorized Local Vendor Matters</h3>
-                    <p class="card-excerpt">Understanding the importance of local experience and official authorization for seamless net-metering in Jharkhand.</p>
-                </div>
-            </a>
-            
-            <!-- Placeholder Articles -->
-            <a href="#" class="card blog-card">
-                <img src="https://placehold.co/400x200/E5E7EB/64748B?text=Article+Placeholder" alt="Placeholder Image" />
-                <div class="card-content">
-                    <div class="card-meta">Finance | Savings</div>
-                    <h3 class="card-title">The Ultimate ROI Guide: Solar vs. Traditional Investments</h3>
-                    <p class="card-excerpt">A comparison of solar returns against FDs and other common investment avenues.</p>
-                </div>
-            </a>
-             <a href="#" class="card blog-card">
-                <img src="https://placehold.co/400x200/E5E7EB/64748B?text=Article+Placeholder" alt="Placeholder Image" />
-                <div class="card-content">
-                    <div class="card-meta">Technology | Tier-1</div>
-                    <h3 class="card-title">UTL, Adani, Premier: Selecting the Best Solar Panels</h3>
-                    <p class="card-excerpt">A comparison of the top Tier-1 brands we use and their suitability for different installations.</p>
-                </div>
-            </a>
-            <a href="#" class="card blog-card">
-                <img src="https://placehold.co/400x200/E5E7EB/64748B?text=Article+Placeholder" alt="Placeholder Image" />
-                <div class="card-content">
-                    <div class="card-meta">Maintenance | Lifespan</div>
-                    <h3 class="card-title">Five Simple Steps to Maintain Your Solar System for 25 Years</h3>
-                    <p class="card-excerpt">Easy maintenance tips every homeowner needs to know to ensure peak performance.</p>
-                </div>
-            </a>
-
+        <div class="blog-grid">
+          <a href="article-pmsgy-deep-dive.html" class="blog-card">
+            <img src="images/pmsgy.jpg" alt="PM Surya Ghar subsidy details" loading="lazy" />
+            <div class="blog-card-body">
+              <span class="blog-card-meta">Subsidy · 5 min read</span>
+              <h3>Decoding PM Surya Ghar: ₹78,000 explained</h3>
+              <p>Eligibility, documents, and how our admin team expedites DISCOM approvals for Jharkhand homes.</p>
+            </div>
+          </a>
+          <a href="meera-gh2.html#roadmap" class="blog-card">
+            <img src="images/hero/hero.png" alt="Green hydrogen electrolyser" loading="lazy" />
+            <div class="blog-card-body">
+              <span class="blog-card-meta">Innovation · Meera GH2</span>
+              <h3>Green hydrogen pilots we&#39;re powering in 2025</h3>
+              <p>An inside look at the Meera GH2 roadmap, from campus labs to industrial-scale fuel cells.</p>
+            </div>
+          </a>
+          <a href="article-local-expertise.html" class="blog-card">
+            <img src="images/residential pics real/IMG-20241028-WA0002.jpg" alt="Rooftop solar installation in Ranchi" loading="lazy" />
+            <div class="blog-card-body">
+              <span class="blog-card-meta">EPC tips · Local focus</span>
+              <h3>Why local JREDA partners deliver smoother projects</h3>
+              <p>Learn how local expertise, festival décor controls, and our admin dashboard keep installs on track.</p>
+            </div>
+          </a>
+          <a href="calculator.html" class="blog-card">
+            <img src="images/finance.jpg" alt="Solar savings planning" loading="lazy" />
+            <div class="blog-card-body">
+              <span class="blog-card-meta">Finance · Tools</span>
+              <h3>Using our calculator to size systems the smart way</h3>
+              <p>Walkthrough of the three-input calculator and how it plugs into financing conversations.</p>
+            </div>
+          </a>
         </div>
-        
-        <div class="grid" style="grid-template-columns: 2fr 1fr; gap: 2rem; margin-top: 3rem; align-items: stretch;">
-            <div class="newsletter-card">
-                <h3 style="margin-bottom: 0.5rem;">Subscribe for Solar Briefings</h3>
-                <p style="color: var(--base-800); margin-bottom: 1rem;">A monthly round-up of policy alerts, project case studies, and financing tips.</p>
-                <input type="email" placeholder="Enter your email" aria-label="Email address" />
-                <button class="btn btn-primary" style="width: 100%;">Join the List</button>
-                <p style="font-size: 0.8rem; margin-top: 0.75rem; color: var(--base-700);">We respect your inbox. Unsubscribe anytime.</p>
-            </div>
-            <div class="insight-card" style="background: var(--surface);">
-                <h3 style="margin: 0;">Download Our EPC Checklist</h3>
-                <p style="color: var(--base-600);">Ensure your installer covers site survey, structural safety, and performance tests. Request the downloadable PDF with one click.</p>
-                <a href="contact.html" class="btn btn-secondary" style="align-self: flex-start;">Request Checklist</a>
-            </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container grid" style="gap:2.5rem;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
+        <article class="card" style="display:grid;gap:1rem;">
+          <h3 class="mb-0">Quick reads</h3>
+          <ul class="quote-list">
+            <li><i class="fa-solid fa-bolt"></i>Festival décor ideas that keep your panels safe</li>
+            <li><i class="fa-solid fa-bolt"></i>Checklist: documents before portal login</li>
+            <li><i class="fa-solid fa-bolt"></i>Top 5 financing questions answered by our advisors</li>
+          </ul>
+        </article>
+        <article class="card" style="display:grid;gap:1rem;">
+          <h3 class="mb-0">Resources</h3>
+          <ul class="quote-list">
+            <li><i class="fa-solid fa-file-lines"></i><a href="policies.html">Policies &amp; compliance index</a></li>
+            <li><i class="fa-solid fa-table-cells"></i><a href="calculator.html">Savings calculator workbook</a></li>
+            <li><i class="fa-solid fa-clipboard-check"></i><a href="projects.html">Project portfolio highlights</a></li>
+          </ul>
+        </article>
+        <article class="card" style="display:grid;gap:1rem;">
+          <h3 class="mb-0">Need a topic covered?</h3>
+          <p class="mb-0" style="color:var(--base-600);">Drop your questions and we&#39;ll feature them in our next solar briefing.</p>
+          <a href="contact.html" class="btn btn-primary" style="align-self:flex-start;">Suggest a topic</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="section alt">
+      <div class="container grid" style="gap:2rem;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:center;">
+        <div class="newsletter-panel">
+          <h3>Subscribe for solar briefings</h3>
+          <p style="color:var(--base-600);">Monthly policy alerts, project case studies, and financing tips straight to your inbox.</p>
+          <form>
+            <label class="sr-only" for="newsletter-email">Email address</label>
+            <input type="email" id="newsletter-email" placeholder="Enter your email" required />
+            <button type="submit" class="btn btn-primary">Join the list</button>
+          </form>
+          <p class="text-sm" style="color:var(--base-500);">We respect your inbox. Unsubscribe anytime.</p>
+        </div>
+        <div class="cta-panel" style="padding:2.5rem;">
+          <div>
+            <span class="hero-eyebrow" style="background:rgba(255,255,255,0.16);color:#fff;">Go deeper</span>
+            <h2 style="color:var(--surface);margin-bottom:0.5rem;">Request our EPC readiness checklist</h2>
+            <p class="lead" style="color:rgba(255,255,255,0.85);">Download the same checklist our project managers use before every installation.</p>
+          </div>
+          <div class="cta-actions">
+            <a href="contact.html" class="btn btn-primary">Request checklist</a>
+            <a href="projects.html" class="btn btn-secondary" style="background:transparent;border-color:rgba(255,255,255,0.45);color:var(--surface);">See recent installs</a>
+          </div>
         </div>
       </div>
     </section>

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Contact Dakshayani Enterprises | Get a Solar Quote</title>
-  <meta name="description" content="Get in touch with Dakshayani Enterprises for a free solar quote, site survey, or general inquiry. Based in Ranchi, serving Jharkhand."/>
+  <meta name="description" content="Get in touch with Dakshayani Enterprises for a free solar quote, site survey, or support. Based in Ranchi, serving Jharkhand."/>
 
   <link rel="icon" href="images/favicon.ico" />
   <link rel="stylesheet" href="style.css" />
@@ -12,247 +12,183 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/>
-
-  <style>
-    .contact-hero {
-        background: var(--base-900);
-        color: var(--surface);
-        text-align: center;
-        padding: 4rem 1rem;
-        position: relative;
-        overflow: hidden;
-    }
-    .contact-hero::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(circle at top right, rgba(0,161,214,0.25), transparent 60%);
-        pointer-events: none;
-    }
-    .contact-hero .container { position: relative; z-index: 1; }
-    .contact-form-card, .contact-info-card {
-        padding: 2rem;
-        border-radius: 1rem;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-        background: var(--surface);
-        height: 100%;
-    }
-    .form-group label {
-        display: block;
-        font-weight: 600;
-        margin-bottom: 0.3rem;
-        color: var(--base-700);
-    }
-    .form-group input, .form-group textarea, .form-group select {
-        width: 100%;
-        padding: 0.75rem;
-        border: 1px solid var(--base-300);
-        border-radius: 0.5rem;
-        font-size: 1rem;
-        transition: border-color 0.2s ease;
-    }
-    .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
-        border-color: var(--primary-main);
-        outline: none;
-        box-shadow: 0 0 0 2px rgba(0, 161, 214, 0.5);
-    }
-    .info-item {
-        display: flex;
-        align-items: flex-start;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-    }
-    .info-icon {
-        font-size: 1.5rem;
-        color: var(--primary-main);
-        flex-shrink: 0;
-    }
-    .grid.cols-2 { grid-template-columns: 2fr 1fr; }
-    .support-options {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1.5rem;
-        margin-top: 2rem;
-    }
-    .support-option {
-        padding: 1.5rem;
-        border-radius: 1rem;
-        background: var(--surface);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-    .support-option .icon {
-        width: 44px;
-        height: 44px;
-        border-radius: 999px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(0, 161, 214, 0.15);
-        color: var(--primary-main);
-        font-size: 1.2rem;
-    }
-    .contact-stats {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 1rem;
-        margin-top: 2rem;
-    }
-    .stat-card {
-        padding: 1.25rem;
-        background: rgba(0, 161, 214, 0.1);
-        border-radius: 0.75rem;
-        text-align: left;
-    }
-    @media (max-width: 920px) {
-        .grid.cols-2 { grid-template-columns: 1fr; }
-    }
-  </style>
 </head>
 <body>
 
   <header class="site-header"></header>
 
   <main>
-    <section class="contact-hero">
-      <div class="container">
-        <h1 style="color:var(--surface);">Get in Touch</h1>
-        <p class="sub" style="color:var(--primary-light); max-width: 800px; margin: 0 auto; font-size: 1.15rem;">Start your solar journey with a free site assessment and customized quote.</p>
+    <section class="page-hero" style="background:linear-gradient(135deg,rgba(15,23,42,0.92),rgba(20,83,45,0.85));">
+      <div class="container hero-inner">
+        <div class="hero-copy">
+          <span class="hero-eyebrow"><i class="fa-solid fa-envelope"></i> Quote / contact</span>
+          <h1>Let&#39;s design your next solar milestone</h1>
+          <p class="lead" style="color:rgba(255,255,255,0.85);">Share your load profile or subsidy query and our team will respond within one business day.</p>
+          <div class="hero-metrics">
+            <div class="hero-metric">
+              <span>24 hrs</span>
+              <span>Average response</span>
+            </div>
+            <div class="hero-metric">
+              <span>3 Teams</span>
+              <span>Sales · Engineering · Support</span>
+            </div>
+            <div class="hero-metric">
+              <span>100%</span>
+              <span>Portal-backed updates</span>
+            </div>
+          </div>
+        </div>
+        <div class="hero-media" aria-hidden="true">
+          <img src="images/team.jpg" alt="Customer success team assisting clients" loading="lazy" />
+          <div class="caption">Customer success desk · Ranchi</div>
+        </div>
       </div>
     </section>
 
     <section class="section alt">
-      <div class="container grid cols-2" style="gap: 2rem;">
-
-        <div class="contact-form-card">
-            <h2 style="margin-top: 0; font-size: 1.8rem;">Request a Free Quote</h2>
-            <form action="mailto:connect@dakshayani.co.in" method="POST" enctype="text/plain">
-                <div class="form-group">
-                    <label for="name">Full Name</label>
-                    <input type="text" id="name" name="Name" required />
-                </div>
-                <div class="form-group grid" style="grid-template-columns: 1fr 1fr; gap: 1rem;">
-                    <div>
-                        <label for="email">Email Address</label>
-                        <input type="email" id="email" name="Email" required />
-                    </div>
-                    <div>
-                        <label for="phone">Phone Number</label>
-                        <input type="tel" id="phone" name="Phone" required />
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="project-type">Type of Project</label>
-                    <select id="project-type" name="ProjectType" required>
-                        <option value="">Select an option</option>
-                        <option value="Residential">Residential (Home)</option>
-                        <option value="Commercial">Commercial (Business)</option>
-                        <option value="Industrial">Industrial (Factory/Plant)</option>
-                        <option value="General">General Inquiry</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="message">Your Message / Query</label>
-                    <textarea id="message" name="Message" rows="4" placeholder="Tell us about your estimated electricity bill or system requirement." required></textarea>
-                </div>
-                <button type="submit" class="btn btn-primary" style="width: 100%;">Submit Request</button>
-            </form>
+      <div class="container contact-grid">
+        <div class="form-card">
+          <h2 style="margin:0;">Request a free consultation</h2>
+          <form action="mailto:connect@dakshayani.co.in" method="POST" enctype="text/plain">
+            <div class="form-group">
+              <label for="name">Full name</label>
+              <input type="text" id="name" name="Name" required />
+            </div>
+            <div class="form-grid cols-2">
+              <div class="form-group">
+                <label for="email">Email address</label>
+                <input type="email" id="email" name="Email" required />
+              </div>
+              <div class="form-group">
+                <label for="phone">Phone number</label>
+                <input type="tel" id="phone" name="Phone" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="project-type">Project type</label>
+              <select id="project-type" name="ProjectType" required>
+                <option value="">Select an option</option>
+                <option value="Residential">Residential rooftop</option>
+                <option value="Commercial">Commercial / institutional</option>
+                <option value="Industrial">Industrial EPC</option>
+                <option value="Hydrogen">Meera GH2 / hydrogen</option>
+                <option value="General">General inquiry</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="message">How can we help?</label>
+              <textarea id="message" name="Message" rows="4" placeholder="Tell us about your site, energy bills, or subsidy stage." required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Submit request</button>
+            <p class="form-helper">We&#39;ll call or email within one working day. For urgent assistance, WhatsApp +91&nbsp;70702&nbsp;78178.</p>
+          </form>
         </div>
-
-        <div class="contact-info-card" style="background: var(--primary-bg);">
-            <h2 style="margin-top: 0; font-size: 1.8rem;">Contact Details</h2>
-            <p class="sub">Reach out to our local Ranchi team.</p>
-
-            <div class="info-item">
-                <div class="info-icon"><i class="fa-solid fa-location-dot"></i></div>
-                <div>
-                    <div style="font-weight: 700; margin-bottom: 0.2rem; font-size: 1rem; color: var(--base-900);">Office Address</div>
-                    <p style="color: var(--base-700);">Maa Tara, Kilburn Colony, Hinoo, Ranchi, Jharkhand – 834002</p>
-                </div>
+        <aside class="contact-detail-card">
+          <h2 style="margin:0;">Direct contact</h2>
+          <div class="contact-detail-item">
+            <span class="contact-detail-icon"><i class="fa-solid fa-phone"></i></span>
+            <div>
+              <strong>Phone / WhatsApp</strong>
+              <p class="mb-0">+91&nbsp;70702&nbsp;78178</p>
+              <p class="form-helper">Mon–Sat · 9 AM – 7 PM</p>
             </div>
-
-            <div class="info-item">
-                <div class="info-icon"><i class="fa-solid fa-phone"></i></div>
-                <div>
-                    <div style="font-weight: 700; margin-bottom: 0.2rem; font-size: 1rem; color: var(--base-900);">Call Us (Dakshayani Enterprises)</div>
-                    <p style="color: var(--base-700);"><a href="tel:+917070278178">+91-7070278178</a> / <a href="tel:+919852229487">9852229487</a></p>
-                </div>
+          </div>
+          <div class="contact-detail-item">
+            <span class="contact-detail-icon"><i class="fa-solid fa-envelope"></i></span>
+            <div>
+              <strong>Email</strong>
+              <p class="mb-0"><a href="mailto:connect@dakshayani.co.in">connect@dakshayani.co.in</a></p>
             </div>
-
-            <div class="info-item">
-                <div class="info-icon"><i class="fa-solid fa-envelope"></i></div>
-                <div>
-                    <div style="font-weight: 700; margin-bottom: 0.2rem; font-size: 1rem; color: var(--base-900);">Email Us</div>
-                    <p style="color: var(--base-700);"><a href="mailto:connect@dakshayani.co.in">connect@dakshayani.co.in</a> / <a href="mailto:d.entranchi@gmail.com">d.entranchi@gmail.com</a></p>
-                </div>
+          </div>
+          <div class="contact-detail-item">
+            <span class="contact-detail-icon"><i class="fa-solid fa-location-dot"></i></span>
+            <div>
+              <strong>Office</strong>
+              <p class="mb-0">Sadhbhav Complex, Harmu Housing Colony, Ranchi, Jharkhand</p>
             </div>
-
-            <div class="contact-stats">
-                <div class="stat-card">
-                    <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">24h</div>
-                    <p style="margin: 0; color: var(--base-600);">Average response time for new enquiries.</p>
-                </div>
-                <div class="stat-card">
-                    <div style="font-size: 2rem; font-weight: 700; color: var(--primary-dark);">500+</div>
-                    <p style="margin: 0; color: var(--base-600);">Projects supported with post-installation service.</p>
-                </div>
+          </div>
+          <div class="contact-detail-item">
+            <span class="contact-detail-icon"><i class="fa-solid fa-clock"></i></span>
+            <div>
+              <strong>Support timings</strong>
+              <p class="mb-0">Portal + WhatsApp support available all 7 days.</p>
             </div>
-        </div>
-
+          </div>
+        </aside>
       </div>
     </section>
 
-    <section class="section" style="padding-top: 0;">
-        <div class="container">
-            <div class="head" style="margin-bottom: 2rem;">
-                <h2>Choose the Support Channel that Fits You</h2>
-                <p class="sub">We combine digital convenience with local on-ground teams to keep your system running smoothly.</p>
-            </div>
-            <div class="support-options">
-                <div class="support-option">
-                    <div class="icon"><i class="fa-solid fa-comments"></i></div>
-                    <h3 style="margin: 0;">WhatsApp Support</h3>
-                    <p style="color: var(--base-600);">Send us photos, meter readings, or quick questions and get real-time responses.</p>
-                    <a href="https://wa.me/917070278178" class="btn btn-secondary" target="_blank" rel="noopener">Start Chat</a>
-                </div>
-                <div class="support-option">
-                    <div class="icon"><i class="fa-solid fa-headset"></i></div>
-                    <h3 style="margin: 0;">Dedicated Helpline</h3>
-                    <p style="color: var(--base-600);">Speak with our service desk from 9 AM – 7 PM IST, Monday to Saturday.</p>
-                    <a href="tel:+917070278178" class="btn btn-secondary">Call Now</a>
-                </div>
-                <div class="support-option">
-                    <div class="icon"><i class="fa-solid fa-calendar-check"></i></div>
-                    <h3 style="margin: 0;">Book a Site Visit</h3>
-                    <p style="color: var(--base-600);">Schedule preventive maintenance or inspection with our engineers.</p>
-                    <a href="projects.html#service" class="btn btn-secondary">Book Slot</a>
-                </div>
-                <div class="support-option">
-                    <div class="icon"><i class="fa-solid fa-file-signature"></i></div>
-                    <h3 style="margin: 0;">Document Upload</h3>
-                    <p style="color: var(--base-600);">Securely submit subsidy forms, invoices, and compliance paperwork.</p>
-                    <a href="mailto:documents@dakshayani.co.in" class="btn btn-secondary">Email Documents</a>
-                </div>
-            </div>
+    <section class="section">
+      <div class="container">
+        <div class="head">
+          <h2>Choose the right support lane</h2>
+          <p class="sub">We route every inquiry to the right specialist across sales, engineering, finance, or décor management.</p>
         </div>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <i class="fa-solid fa-house"></i>
+            <h3>Homeowners &amp; housing societies</h3>
+            <p>Book a rooftop survey, understand PM Surya Ghar subsidies, and receive a payback projection.</p>
+            <a href="calculator.html" class="btn btn-secondary" style="justify-content:flex-start;">Estimate savings</a>
+          </article>
+          <article class="feature-card">
+            <i class="fa-solid fa-building"></i>
+            <h3>Businesses &amp; institutions</h3>
+            <p>Schedule feasibility studies, tender support, and hybrid system design for petrol pumps, hospitals, or campuses.</p>
+            <a href="projects.html" class="btn btn-secondary" style="justify-content:flex-start;">View case studies</a>
+          </article>
+          <article class="feature-card">
+            <i class="fa-solid fa-network-wired"></i>
+            <h3>Partners, installers &amp; staff</h3>
+            <p>Access portal onboarding, décor control updates, and training resources for your team.</p>
+            <a href="login.html" class="btn btn-secondary" style="justify-content:flex-start;">Open portal</a>
+          </article>
+        </div>
+      </div>
     </section>
 
-    <section class="section" style="padding: 0;">
-        <div class="container">
-            <h2 class="head">Find Our Location</h2>
-            <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3663.5493281641693!2d85.31342949244146!3d23.33210482470317!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39f4e1b42931131b%3A0x168253316e81f0b1!2sDakshayani%20Enterprises!5e0!3m2!1sen!2sin!4v1759994224109!5m2!1sen!2sin" 
-            width="100%" 
-            height="450" 
-            style="border:0; border-radius: 1rem; margin-bottom: 3rem;" 
-            allowfullscreen="" 
-            loading="lazy" 
-            referrerpolicy="no-referrer-when-downgrade">
-            </iframe>
+    <section class="section alt">
+      <div class="container">
+        <div class="head">
+          <h2>Service benchmarks</h2>
+          <p class="sub">We measure every interaction to keep our support responsive and dependable.</p>
         </div>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-label">Response time</div>
+            <div class="stat-value">24 hrs</div>
+            <p class="mb-0">Average turnaround for new inquiries and quote requests.</p>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Customer satisfaction</div>
+            <div class="stat-value">98%</div>
+            <p class="mb-0">Portal tickets resolved with positive feedback in 2024.</p>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Projects delivered</div>
+            <div class="stat-value">500+</div>
+            <p class="mb-0">Rooftop and EPC systems energised across Jharkhand.</p>
+          </div>
+        </div>
+      </div>
     </section>
 
+    <section class="section">
+      <div class="container">
+        <div class="cta-panel">
+          <div>
+            <span class="hero-eyebrow" style="background:rgba(255,255,255,0.16);color:#fff;">Prefer a direct call?</span>
+            <h2 style="color:var(--surface);margin-bottom:0.5rem;">Speak with our solar advisors now</h2>
+            <p class="lead" style="color:rgba(255,255,255,0.82);">Dial +91&nbsp;70702&nbsp;78178 or drop your query via WhatsApp for instant support.</p>
+          </div>
+          <div class="cta-actions">
+            <a href="tel:+917070278178" class="btn btn-primary">Call +91&nbsp;70702&nbsp;78178</a>
+            <a href="https://wa.me/917070278178" class="btn btn-secondary" style="background:transparent;border-color:rgba(255,255,255,0.45);color:var(--surface);">Message on WhatsApp</a>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <footer class="site-footer"></footer>
