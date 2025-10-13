@@ -12,6 +12,119 @@ const PARTIALS = {
   footer: 'partials/footer.html',
 };
 
+const INLINE_PARTIALS = {
+  header: `
+    <div class="container header-inner">
+      <a href="index.html" class="brand" aria-label="Dakshayani Enterprises home">
+        <img src="images/logo/New dakshayani logo centered small.png" alt="Dakshayani Enterprises" class="brand-logo-em" />
+        <span class="brand-text">Dakshayani Enterprises</span>
+      </a>
+
+      <nav class="nav-desktop" aria-label="Primary navigation">
+        <a href="index.html" class="nav-link">Home</a>
+        <a href="about.html" class="nav-link">About Us</a>
+        <div class="nav-dropdown">
+          <button type="button" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">
+            Solutions
+            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+          </button>
+          <div class="nav-dropdown-menu" role="menu">
+            <a href="projects.html" class="nav-link" role="menuitem">Solar Projects</a>
+            <a href="pm-surya-ghar.html" class="nav-link" role="menuitem">PM Surya Ghar Subsidy</a>
+            <a href="meera-gh2.html" class="nav-link" role="menuitem">Meera GH2 Initiative</a>
+          </div>
+        </div>
+        <div class="nav-dropdown">
+          <button type="button" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">
+            Resources
+            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+          </button>
+          <div class="nav-dropdown-menu" role="menu">
+            <a href="calculator.html" class="nav-link" role="menuitem">Savings Calculator</a>
+            <a href="policies.html" class="nav-link" role="menuitem">Policies &amp; Compliance</a>
+            <a href="rewards.html" class="nav-link" role="menuitem">Rewards Program</a>
+            <a href="blog.html" class="nav-link" role="menuitem">Blog &amp; News</a>
+          </div>
+        </div>
+        <a href="contact.html" class="btn btn-secondary nav-link">Quote / Contact</a>
+        <a href="login.html" class="btn btn-primary nav-link">Portal Login</a>
+      </nav>
+
+      <button class="menu-btn" aria-label="Open navigation" aria-expanded="false" id="mobile-menu-button">
+        <i class="fas fa-bars"></i>
+      </button>
+    </div>
+
+    <nav id="mobile-menu" class="nav-mobile" aria-label="Mobile navigation">
+      <a href="index.html">Home</a>
+      <a href="about.html">About Us</a>
+      <a href="projects.html">Solar Projects</a>
+      <a href="pm-surya-ghar.html">PM Surya Ghar Subsidy</a>
+      <a href="meera-gh2.html">Meera GH2 Initiative</a>
+      <a href="calculator.html">Savings Calculator</a>
+      <a href="policies.html">Policies &amp; Compliance</a>
+      <a href="rewards.html">Rewards Program</a>
+      <a href="blog.html">Blog &amp; News</a>
+      <a href="login.html">User Portal Login</a>
+      <a href="contact.html" class="btn btn-primary nav-mobile-cta">Free Quote / Contact</a>
+    </nav>
+  `.trim(),
+  footer: `
+    <div class="container footer-content">
+      <div>
+        <div class="footer-brand">
+          <img src="images/logo/New dakshayani logo centered small.png" alt="Dakshayani Enterprises" class="brand-logo-em" />
+          <span class="brand-text">Dakshayani Enterprises</span>
+        </div>
+        <p class="text-sm">
+          Your trusted solar EPC partner in Ranchi, expanding clean energy access across Jharkhand,
+          Chhattisgarh, Odisha, and Uttar Pradesh with Tier-1 technology and transparent service.
+        </p>
+        <div class="footer-social" aria-label="Social links">
+          <a href="https://wa.me/917070278178" target="_blank" rel="noopener" aria-label="WhatsApp">
+            <i class="fa-brands fa-whatsapp"></i>
+          </a>
+          <a href="mailto:connect@dakshayani.co.in" aria-label="Email">
+            <i class="fa-solid fa-envelope"></i>
+          </a>
+          <a href="tel:+917070278178" aria-label="Call">
+            <i class="fa-solid fa-phone"></i>
+          </a>
+        </div>
+      </div>
+
+      <div>
+        <h4 class="font-bold text-lg">Solar &amp; Schemes</h4>
+        <ul class="footer-links">
+          <li><a href="pm-surya-ghar.html">PM Surya Ghar Yojana</a></li>
+          <li><a href="financing.html">Financing &amp; Loans</a></li>
+          <li><a href="projects.html">Residential Solutions</a></li>
+          <li><a href="projects.html#commercial">Commercial / Industrial</a></li>
+          <li><a href="calculator.html">Solar Savings Calculator</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h4 class="font-bold text-lg">Company</h4>
+        <ul class="footer-links">
+          <li><a href="about.html">About Dakshayani Enterprises</a></li>
+          <li><a href="meera-gh2.html">Meera GH2 (Hydrogen)</a></li>
+          <li><a href="blog.html">Blog &amp; News</a></li>
+          <li><a href="policies.html#terms">T&amp;C / Warranty</a></li>
+          <li><a href="contact.html">Contact &amp; Support</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="container footer-bottom">
+      <p>
+        &copy; <span data-current-year></span> Dakshayani Enterprises. All rights reserved.
+        Office: Maa Tara, Kilburn Colony, Hinoo, Ranchi, Jharkhand-834002.
+      </p>
+    </div>
+  `.trim(),
+};
+
 const FESTIVAL_THEMES = {
   default: {
     label: 'Standard décor',
@@ -124,11 +237,16 @@ function getPageKey(pathname = window.location.pathname) {
 /**
  * Fetch a HTML partial and inject it into the provided host element.
  */
+function getPartialKey(partialPath) {
+  return Object.entries(PARTIALS).find(([, path]) => path === partialPath)?.[0];
+}
+
 async function injectPartial(selector, partialPath) {
   const host = document.querySelector(selector);
   if (!host) return;
 
   const url = resolvePartialUrl(partialPath);
+  const partialKey = getPartialKey(partialPath);
 
   try {
     const response = await fetch(url, { cache: 'no-cache' });
@@ -141,6 +259,12 @@ async function injectPartial(selector, partialPath) {
     }
   } catch (error) {
     console.error(`Failed to load partial: ${url}`, error);
+    if (partialKey && INLINE_PARTIALS[partialKey]) {
+      host.innerHTML = INLINE_PARTIALS[partialKey];
+      if (partialKey === 'header') {
+        enhanceHeaderNavigation(host);
+      }
+    }
   }
 }
 
