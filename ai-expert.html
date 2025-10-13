@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Solar Expert | Dakshayani Enterprises</title>
+  <meta name="description" content="Chat with our AI-powered solar expert for instant answers about solar systems, subsidies, and installation queries."/>
+
+  <link rel="icon" href="images/favicon.ico" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/>
+
+  <style>
+    .ai-hero {
+        background: linear-gradient(135deg, var(--base-900), var(--base-700));
+        color: white;
+        text-align: center;
+        padding: 4rem 1rem;
+        position: relative;
+        overflow: hidden;
+    }
+    .ai-hero::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top right, rgba(0, 161, 214, 0.3), transparent 55%);
+        pointer-events: none;
+    }
+    .ai-hero .container { position: relative; z-index: 1; }
+    .chat-container {
+        max-width: 900px;
+        margin: 2rem auto;
+        border: 1px solid var(--base-200);
+        border-radius: 1rem;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        min-height: 500px;
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+    }
+    .chat-header {
+        background: var(--primary-500);
+        color: var(--base-900);
+        padding: 1rem;
+        border-top-left-radius: 1rem;
+        border-top-right-radius: 1rem;
+        font-weight: 700;
+        font-size: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .chat-body {
+        flex-grow: 1;
+        padding: 1.5rem;
+        overflow-y: auto;
+    }
+    .chat-input {
+        padding: 1rem;
+        border-top: 1px solid var(--base-200);
+        display: flex;
+        gap: 0.5rem;
+        background: var(--base-50);
+    }
+    .chat-input input {
+        flex-grow: 1;
+        padding: 0.75rem;
+        border: 1px solid var(--base-300);
+        border-radius: 0.75rem;
+        transition: border-color 0.2s ease;
+    }
+    .chat-input input:focus {
+        border-color: var(--primary-main);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(0, 161, 214, 0.15);
+    }
+    .suggestion-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+        justify-content: center;
+    }
+    .chip {
+        background: rgba(0, 161, 214, 0.1);
+        border-radius: 999px;
+        padding: 0.5rem 1rem;
+        font-size: 0.95rem;
+        color: var(--primary-dark);
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .chip:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(0, 161, 214, 0.2);
+    }
+    .knowledge-base {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+    }
+    .knowledge-card {
+        background: var(--surface);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+        border: 1px solid rgba(0,0,0,0.03);
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .kb-footer {
+        margin-top: auto;
+        font-size: 0.9rem;
+        color: var(--primary-dark);
+        font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER injected via script.js -->
+  <header class="site-header"></header>
+
+  <main>
+    <!-- Page Header/Hero -->
+    <section class="ai-hero">
+      <div class="container">
+        <h1 class="title" style="color:var(--surface);">Instant Solar Answers</h1>
+        <p class="sub" style="color:rgba(255,255,255,.9); max-width: 800px; margin: 0 auto;">Our AI Expert is here 24/7 to answer your solar questions based on real Jharkhand data and scheme rules.</p>
+      </div>
+    </section>
+
+    <!-- AI Chat Interface -->
+    <section class="section" style="padding-top: 2rem;">
+        <div class="container chat-container">
+            <div class="chat-header">
+                <i class="fa-solid fa-robot"></i>
+                Dakshayani AI Solar Expert
+            </div>
+            <div class="chat-body" id="chat-messages">
+                <!-- Initial Welcome Message -->
+                <div style="background: var(--base-100); padding: 1rem; border-radius: 0.75rem; margin-bottom: 1rem;">
+                    <p style="font-weight: 600; color: var(--base-900);">Hello! I am your AI Solar Expert. I can help you with:</p>
+                    <ul style="list-style-type: disc; margin-left: 1.5rem; font-size: 0.95rem; color: var(--base-600);">
+                        <li>PM Surya Ghar subsidy details.</li>
+                        <li>Recommended system size.</li>
+                        <li>General installation queries.</li>
+                    </ul>
+                    <p style="margin-top: 0.5rem;">Ask me anything, for example: "What is the subsidy for a 2kW system?"</p>
+                </div>
+            </div>
+            <form id="chat-form" class="chat-input">
+                <input type="text" id="user-input" placeholder="Ask your solar question here..." required />
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </form>
+        </div>
+    </section>
+
+    <section class="section alt">
+        <div class="container" style="max-width: 960px;">
+            <div class="head" style="margin-bottom: 1.5rem;">
+                <h2>Ask Smarter, Get Precise Answers</h2>
+                <p class="sub">Use these curated prompts to extract actionable insights for your project stage.</p>
+            </div>
+            <div class="suggestion-chips">
+                <span class="chip" data-prompt="What is the subsidy for a 3kW system in Ranchi?">3kW Subsidy Eligibility</span>
+                <span class="chip" data-prompt="How many units will a 5kW rooftop solar system generate monthly?">5kW Generation Estimate</span>
+                <span class="chip" data-prompt="List documents required for PM Surya Ghar application">Required Documents</span>
+                <span class="chip" data-prompt="Suggest inverter brands for a 20kW commercial plant">Inverter Suggestions</span>
+                <span class="chip" data-prompt="How do I monitor solar performance online?">Monitoring Setup</span>
+            </div>
+
+            <div class="knowledge-base">
+                <div class="knowledge-card">
+                    <div class="icon-large" style="color: var(--primary-main);"><i class="fa-solid fa-solar-panel"></i></div>
+                    <h3 style="margin: 0;">Sizing & ROI Calculator</h3>
+                    <p style="color: var(--base-600);">Provide your average monthly bill and let the AI calculate recommended capacity, subsidy break-up, and simple payback.</p>
+                    <div class="kb-footer">Prompt: "My bill is ₹3500. What system size suits me?"</div>
+                </div>
+                <div class="knowledge-card">
+                    <div class="icon-large" style="color: var(--primary-main);"><i class="fa-solid fa-file-lines"></i></div>
+                    <h3 style="margin: 0;">Policy & Compliance</h3>
+                    <p style="color: var(--base-600);">Get updated on DISCOM approvals, JREDA guidelines, and net metering timelines tailored to Jharkhand.</p>
+                    <div class="kb-footer">Prompt: "What documents are needed for net metering with JBVNL?"</div>
+                </div>
+                <div class="knowledge-card">
+                    <div class="icon-large" style="color: var(--primary-main);"><i class="fa-solid fa-wrench"></i></div>
+                    <h3 style="margin: 0;">O&M Playbook</h3>
+                    <p style="color: var(--base-600);">Ask about cleaning schedules, fault troubleshooting, or AMC plans backed by Dakshayani's field data.</p>
+                    <div class="kb-footer">Prompt: "How often should panels be cleaned during monsoon?"</div>
+                </div>
+                <div class="knowledge-card">
+                    <div class="icon-large" style="color: var(--primary-main);"><i class="fa-solid fa-seedling"></i></div>
+                    <h3 style="margin: 0;">Beyond Solar</h3>
+                    <p style="color: var(--base-600);">Explore hybrid setups with Meera GH2, EV charging integration, and energy storage possibilities.</p>
+                    <div class="kb-footer">Prompt: "Can I pair my rooftop system with hydrogen storage?"</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Script Placeholder for AI Logic (Requires API Key implementation) -->
+    <script>
+        // Placeholder for future AI integration (Gemini API logic)
+        const inputField = document.getElementById('user-input');
+        const chipButtons = document.querySelectorAll('.chip');
+
+        document.getElementById('chat-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const message = inputField.value.trim();
+
+            if (message) {
+                appendMessage('user', message);
+                inputField.value = '';
+
+                // Simulate AI Response (replace with actual Gemini API call)
+                appendMessage('ai', 'Thank you for your question. I am currently offline for live assistance. Please check back later, or contact our human experts at 7070278178 for immediate help!');
+            }
+        });
+
+        chipButtons.forEach(chip => {
+            chip.addEventListener('click', () => {
+                const prompt = chip.getAttribute('data-prompt');
+                if (prompt) {
+                    inputField.value = prompt;
+                    inputField.focus();
+                }
+            });
+        });
+
+        function appendMessage(sender, text) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageElement = document.createElement('div');
+            messageElement.style.marginBottom = '1rem';
+            messageElement.style.padding = '0.75rem 1rem';
+            messageElement.style.borderRadius = '0.75rem';
+            messageElement.style.maxWidth = '80%';
+
+            if (sender === 'user') {
+                messageElement.style.marginLeft = 'auto';
+                messageElement.style.background = 'var(--primary-500)';
+                messageElement.style.color = 'var(--base-900)';
+            } else { // ai
+                messageElement.style.marginRight = 'auto';
+                messageElement.style.background = 'var(--base-100)';
+                messageElement.style.color = 'var(--base-700)';
+            }
+
+            messageElement.textContent = text;
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll
+        }
+    </script>
+  </main>
+
+  <!-- FOOTER injected via script.js -->
+  <footer class="site-footer"></footer>
+
+  <!-- Partials loader script -->
+  <script src="script.js" defer></script>
+</body>
+</html>

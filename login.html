@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dakshayani Enterprises Portal Login</title>
+  <meta name="description" content="Sign in to the Dakshayani Enterprises admin, customer, employee, installer, or referral dashboards with the official demo accounts." />
+  <link rel="icon" href="images/favicon.ico" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: light;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2.5rem 1.25rem;
+      color: #0f172a;
+    }
+
+    .portal-shell {
+      width: min(100%, 960px);
+      background: #ffffff;
+      border-radius: 1.75rem;
+      box-shadow: 0 35px 60px -35px rgba(15, 23, 42, 0.55);
+      display: grid;
+      gap: 0;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      overflow: hidden;
+    }
+
+    .portal-info {
+      background: radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.15), transparent 55%),
+        radial-gradient(circle at 100% 0%, rgba(37, 99, 235, 0.15), transparent 55%),
+        #0f172a;
+      color: #f8fafc;
+      padding: 3rem 2.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 2.5rem;
+    }
+
+    .portal-info h1 {
+      font-size: clamp(1.8rem, 2.5vw, 2.6rem);
+      line-height: 1.15;
+      margin: 0 0 1rem;
+      font-weight: 700;
+    }
+
+    .portal-info p {
+      margin: 0;
+      color: rgba(226, 232, 240, 0.9);
+      font-size: 0.95rem;
+    }
+
+    .portal-card {
+      padding: 3rem 2.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    .login-form {
+      display: grid;
+      gap: 1rem;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 0.35rem;
+      font-size: 0.95rem;
+    }
+
+    input, select {
+      width: 100%;
+      border-radius: 0.85rem;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      padding: 0.85rem 1rem;
+      font-size: 1rem;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: rgba(37, 99, 235, 0.6);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+    }
+
+    button[type="submit"] {
+      border: none;
+      border-radius: 0.9rem;
+      background: linear-gradient(120deg, #2563eb, #1d4ed8);
+      color: #f8fafc;
+      font-weight: 600;
+      font-size: 1.05rem;
+      padding: 0.95rem 1.1rem;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    button[type="submit"]:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 30px -20px rgba(37, 99, 235, 0.65);
+    }
+
+    .demo-button {
+      font-size: 0.85rem;
+      color: #2563eb;
+      background: transparent;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .feedback {
+      border-radius: 0.85rem;
+      padding: 0.85rem 1rem;
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    .feedback.error {
+      display: block;
+      background: #fee2e2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+    }
+
+    .feedback.success {
+      display: block;
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      border-radius: 1rem;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 0.75rem 0.85rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    }
+
+    thead {
+      background: rgba(15, 23, 42, 0.04);
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    code {
+      background: rgba(15, 23, 42, 0.06);
+      padding: 0.15rem 0.4rem;
+      border-radius: 0.4rem;
+      font-size: 0.85rem;
+    }
+
+    .notice {
+      font-size: 0.85rem;
+      color: rgba(15, 23, 42, 0.65);
+      margin: 0;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 1.5rem 1rem;
+      }
+
+      .portal-shell {
+        border-radius: 1.25rem;
+      }
+
+      .portal-info, .portal-card {
+        padding: 2.25rem 1.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="portal-shell">
+    <aside class="portal-info">
+      <div>
+        <img src="images/logo/New dakshayani logo centered small.png" alt="Dakshayani Enterprises" style="width: 160px; height: auto; margin-bottom: 1.75rem;" />
+        <h1>Access your Dakshayani portal</h1>
+        <p>Use one of the official demo accounts below. The same credentials work online, on cPanel static hosting, and inside this download.</p>
+      </div>
+      <div>
+        <p class="notice">Need help deploying on cPanel? Open <code>PORTAL_INSTRUCTIONS.md</code> for the complete step-by-step guide.</p>
+      </div>
+    </aside>
+
+    <section class="portal-card">
+      <form data-login-form class="login-form" autocomplete="on">
+        <div>
+          <label for="login-email">Email address</label>
+          <input type="email" id="login-email" name="email" placeholder="you@dakshayani.in" autocomplete="username" required />
+        </div>
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+            <label for="login-password" style="margin: 0;">Password</label>
+            <button type="button" class="demo-button" data-fill-demo>Fill admin demo</button>
+          </div>
+          <input type="password" id="login-password" name="password" placeholder="Enter your password" autocomplete="current-password" required />
+        </div>
+        <div>
+          <label for="login-role">Choose a portal</label>
+          <select id="login-role" name="role" required>
+            <option value="admin">Administrator</option>
+            <option value="customer">Customer</option>
+            <option value="employee">Employee</option>
+            <option value="installer">Installer</option>
+            <option value="referrer">Referral partner</option>
+          </select>
+        </div>
+        <p class="feedback" data-login-feedback role="status" aria-live="assertive"></p>
+        <button type="submit">Log in</button>
+      </form>
+
+      <div>
+        <h2 style="margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 700; color: #0f172a;">Demo credentials (works offline)</h2>
+        <div style="overflow-x: auto; border-radius: 1rem; border: 1px solid rgba(15, 23, 42, 0.08);">
+          <table>
+            <thead>
+              <tr>
+                <th>Portal</th>
+                <th>Email</th>
+                <th>Password</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Administrator</td>
+                <td><code>admin@dakshayani.in</code></td>
+                <td><code>Admin@123</code></td>
+              </tr>
+              <tr>
+                <td>Customer</td>
+                <td><code>customer@dakshayani.in</code></td>
+                <td><code>Customer@123</code></td>
+              </tr>
+              <tr>
+                <td>Employee</td>
+                <td><code>employee@dakshayani.in</code></td>
+                <td><code>Employee@123</code></td>
+              </tr>
+              <tr>
+                <td>Installer</td>
+                <td><code>installer@dakshayani.in</code></td>
+                <td><code>Installer@123</code></td>
+              </tr>
+              <tr>
+                <td>Referral partner</td>
+                <td><code>referrer@dakshayani.in</code></td>
+                <td><code>Referrer@123</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="notice" style="margin-top: 0.75rem;">Select the matching role above, enter the email and password, and you will be redirected instantly to the corresponding dashboard.</p>
+      </div>
+    </section>
+  </div>
+
+  <script src="portal-demo-data.js"></script>
+  <script src="portal-auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Our Solutions & Projects | Dakshayani Enterprises</title>
+  <meta name="description" content="Explore our successful solar projects: residential rooftop, commercial installations (petrol pumps, schools), and industrial solutions in Jharkhand and neighboring states."/>
+
+  <link rel="icon" href="images/favicon.ico" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/>
+
+  <style>
+    .projects-hero {
+        background: var(--base-900);
+        color: var(--surface);
+        text-align: center;
+        padding: 4rem 1rem;
+    }
+    .project-card img {
+        height: 200px;
+        object-fit: cover;
+        width: 100%;
+        border-radius: .75rem;
+        margin-bottom: 1rem;
+    }
+    .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 768px) {
+        .grid.cols-3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="site-header"></header>
+
+  <main>
+    <section class="projects-hero">
+      <div class="container">
+        <h1 style="color:var(--surface);">Our Successful Solar Solutions</h1>
+        <p class="sub" style="color:var(--primary-light); max-width: 800px; margin: 0 auto; font-size: 1.15rem;">Bringing light and savings to homes, businesses, and industries across Jharkhand.</p>
+        <div style="margin-top: 1.5rem;">
+            <a href="#residential" class="btn btn-primary">Residential Solar</a>
+            <a href="#commercial" class="btn btn-secondary" style="margin-left: 1rem;">Commercial & Industrial</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="residential">
+      <div class="head container">
+        <h2>Residential Rooftop Solutions</h2>
+        <p class="sub">Empowering homeowners to eliminate electricity bills and earn from their unused rooftop space, especially under the PM Surya Ghar scheme.</p>
+      </div>
+      <div class="container grid cols-3">
+        <div class="card project-card">
+            <img src="images/residential pics real/WhatsApp Image 2024-10-23 at 19.12.01_da2e8f71.jpg" alt="Residential Solar Installation in Medininagar" loading="lazy" />
+            <h3 class="title">Medininagar Home (5kW)</h3>
+            <p>Grid-tied system maximizing consumption and utilizing the maximum subsidy under the PM Surya Ghar Yojana.</p>
+        </div>
+        <div class="card project-card">
+            <img src="images/residential pics real/WhatsApp Image 2024-09-14 at 12.36.19_d18b6860.jpg" alt="Residential Solar Installation in Ramgarh Cantonment" loading="lazy" />
+            <h3 class="title">Ramgarh Residence (3kW)</h3>
+            <p>High-efficiency mono panels installed for maximum output in a slightly shaded environment.</p>
+        </div>
+        <div class="card project-card">
+            <img src="images/residential pics real/WhatsApp Image 2025-02-05 at 07.56.36_16866250.jpg" alt="Flat Roof Solar Mounting in Ranchi" loading="lazy" />
+            <h3 class="title">Ranchi Flat Roof (7kW)</h3>
+            <p>Custom structural mounting design to ensure optimal tilt angle, maximizing energy capture and wind resistance.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="commercial">
+      <div class="head container">
+        <h2>Commercial & Industrial EPC</h2>
+        <p class="sub">Reducing OPEX and ensuring power security for factories, institutions, and commercial establishments.</p>
+      </div>
+      <div class="container grid cols-3">
+        <div class="card project-card">
+            <img src="images/pump.jpg" alt="Solar for Petrol Pump Canopy" loading="lazy" />
+            <h3 class="title">Petrol Pump (20kW)</h3>
+            <p>Installed on a canopy, significantly reducing grid dependence and diesel consumption for backup power.</p>
+        </div>
+        <div class="card project-card">
+            <img src="images/commercial industrial pics real/IMG-20231121-WA0000.jpg" alt="Industrial Solar Installation in Bokaro" loading="lazy" />
+            <h3 class="title">Bokaro Manufacturing Unit (100kW)</h3>
+            <p>Large-scale industrial installation designed for maximum energy offset and quick ROI in a high-load environment.</p>
+        </div>
+        <div class="card project-card">
+            <img src="images/other pics.jpg" alt="Solar for Educational Institute Rooftop" loading="lazy" />
+            <h3 class="title">Educational Institute (50kW)</h3>
+            <p>Zero-maintenance system providing reliable power for campus operations, including computer labs and AC loads.</p>
+        </div>
+      </div>
+    </section>
+    
+    <section class="section">
+        <div class="container head">
+            <h2>Need a Custom Solar Solution?</h2>
+            <p class="sub">Talk to our experts about your unique power needs for your home or facility.</p>
+            <a href="contact.html" class="btn btn-primary" style="margin-top: 1rem;">Start Your Project Inquiry</a>
+        </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer"></footer>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
