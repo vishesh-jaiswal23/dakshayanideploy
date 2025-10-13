@@ -149,12 +149,12 @@
       color: var(--muted);
     }
 
-    .timeline-list, .task-list {
+    .timeline-list, .task-list, .pipeline-list, .resource-grid {
       display: grid;
       gap: 0.75rem;
     }
 
-    .timeline-row, .task-row {
+    .timeline-row, .task-row, .pipeline-row, .resource-card, .reward-card {
       background: #ffffff;
       border-radius: 1rem;
       border: 1px solid var(--border);
@@ -172,10 +172,91 @@
       color: #0f172a;
     }
 
-    .timeline-date, .timeline-status, .task-status {
+    .timeline-date, .timeline-status, .task-status, .lead-meta {
       margin: 0;
       font-size: 0.85rem;
       color: var(--muted);
+    }
+
+    .pipeline-row {
+      gap: 0.5rem 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .lead-name {
+      font-weight: 600;
+      color: #0f172a;
+      margin: 0;
+    }
+
+    .lead-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border-radius: 999px;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: rgba(249, 115, 22, 0.16);
+      color: #c2410c;
+    }
+
+    .reward-card {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.6rem;
+      min-height: 160px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(120deg, #f97316, #fb923c);
+    }
+
+    .resource-grid {
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .resource-card {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.6rem;
+      min-height: 160px;
+    }
+
+    .resource-card h3 {
+      margin: 0;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .resource-actions {
+      margin-top: auto;
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .resource-actions a {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .resource-actions a:hover,
+    .resource-actions a:focus {
+      text-decoration: underline;
     }
 
     .details-grid {
@@ -240,6 +321,69 @@
     <section class="panel">
       <h2>Action checklist</h2>
       <div class="task-list" data-tasks></div>
+    </section>
+
+    <section class="panel">
+      <h2>Lead pipeline</h2>
+      <div class="pipeline-list">
+        <article class="pipeline-row">
+          <p class="lead-name">RF-882 · Manoj Sinha</p>
+          <p class="lead-meta">3 kW rooftop · Ranchi</p>
+          <span class="lead-badge">Follow-up today</span>
+        </article>
+        <article class="pipeline-row">
+          <p class="lead-name">RF-876 · Kavya Industries</p>
+          <p class="lead-meta">25 kW factory · Bokaro</p>
+          <span class="lead-badge">Site visit pending</span>
+        </article>
+        <article class="pipeline-row">
+          <p class="lead-name">RF-901 · Sneha Residency</p>
+          <p class="lead-meta">8 kW apartment · Jamshedpur</p>
+          <span class="lead-badge">Proposal shared</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Rewards progress</h2>
+      <article class="reward-card">
+        <p class="lead-name">This quarter's bonus target</p>
+        <p class="lead-meta">Close 6 qualified deals to unlock the additional ₹10,000 payout.</p>
+        <div class="progress-track" aria-hidden="true">
+          <div class="progress-fill" style="width: 66%"></div>
+        </div>
+        <p class="lead-meta">You have closed <strong>4 of 6</strong> required conversions.</p>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2>Marketing toolkit</h2>
+      <div class="resource-grid">
+        <article class="resource-card">
+          <h3>Referral pitch deck</h3>
+          <p class="lead-meta">Updated slides with October pricing and financing calculators.</p>
+          <div class="resource-actions">
+            <a href="#">Download PPT</a>
+            <a href="#">Share link</a>
+          </div>
+        </article>
+        <article class="resource-card">
+          <h3>Social media pack</h3>
+          <p class="lead-meta">Canva templates for Instagram, WhatsApp, and LinkedIn outreach.</p>
+          <div class="resource-actions">
+            <a href="#">Open Canva</a>
+            <a href="#">Request custom post</a>
+          </div>
+        </article>
+        <article class="resource-card">
+          <h3>Payment status</h3>
+          <p class="lead-meta">Next reward payout: 20 Oct · Bank account ending 5526.</p>
+          <div class="resource-actions">
+            <a href="#">View ledger</a>
+            <a href="#">Update bank</a>
+          </div>
+        </article>
+      </div>
     </section>
 
     <section class="panel">

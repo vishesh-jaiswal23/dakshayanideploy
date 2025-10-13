@@ -3,7 +3,25 @@
   const sessionKey = 'dakshayaniPortalSession';
   const demoData = window.DAKSHAYANI_PORTAL_DEMO || {};
   const dashboards = demoData.dashboards || {};
+  const demoUsers = Array.isArray(demoData.users) ? demoData.users : [];
   const role = document.body?.dataset?.role;
+
+  const roleLabels = {
+    admin: 'Administrator',
+    customer: 'Customer',
+    employee: 'Employee',
+    installer: 'Installer',
+    referrer: 'Referral partner'
+  };
+
+  const roleOptions = Object.entries(roleLabels).map(([value, label]) => ({ value, label }));
+
+  const statusLabels = {
+    active: 'Active',
+    suspended: 'Suspended'
+  };
+
+  const statusOptions = Object.entries(statusLabels).map(([value, label]) => ({ value, label }));
 
   if (!role) {
     return;
@@ -31,8 +49,30 @@
   const addInstallButton = siteSettingsPanel?.querySelector('[data-add-install]');
   const installTemplate = siteSettingsPanel?.querySelector('#install-form-template');
 
-  let adminControlsInitialised = false;
+  const userAdminPanel = document.querySelector('[data-user-admin-panel]');
+  const userListContainer = userAdminPanel?.querySelector('[data-user-list]');
+  const userPanelFeedback = userAdminPanel?.querySelector('[data-user-panel-feedback]');
+  const userStatsContainer = userAdminPanel?.querySelector('[data-user-stats]');
+  const userTotals = {
+    total: userStatsContainer?.querySelector('[data-user-total]'),
+    admin: userStatsContainer?.querySelector('[data-user-total-admin]'),
+    customer: userStatsContainer?.querySelector('[data-user-total-customer]'),
+    employee: userStatsContainer?.querySelector('[data-user-total-employee]'),
+    installer: userStatsContainer?.querySelector('[data-user-total-installer]'),
+    referrer: userStatsContainer?.querySelector('[data-user-total-referrer]')
+  };
+  const userFilterRole = userAdminPanel?.querySelector('[data-user-filter-role]');
+  const userSearchInput = userAdminPanel?.querySelector('[data-user-search]');
+  const userRefreshButton = userAdminPanel?.querySelector('[data-user-refresh]');
+  const userCreateForm = userAdminPanel?.querySelector('[data-user-create-form]');
+  const userCreateFeedback = userAdminPanel?.querySelector('[data-user-create-feedback]');
+
+  const dateFormatter = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+
+  let siteSettingsInitialised = false;
+  let userAdminInitialised = false;
   let currentSiteSettings = null;
+  let cachedUsers = [];
 
   let session = parseSession();
 
@@ -116,6 +156,32 @@
       console.warn('Unable to clear session', error);
     }
     session = null;
+  }
+
+  function setFormFeedback(target, tone, message) {
+    if (!target) return;
+    target.classList.add('form-feedback');
+    target.textContent = message || '';
+    if (tone) {
+      target.dataset.tone = tone;
+    } else {
+      delete target.dataset.tone;
+    }
+  }
+
+  function clearFormFeedback(target) {
+    setFormFeedback(target, null, '');
+  }
+
+  function formatDateTime(value) {
+    if (!value) {
+      return '—';
+    }
+    try {
+      return dateFormatter.format(new Date(value));
+    } catch (error) {
+      return '—';
+    }
   }
 
   function showStatus(message, type = 'info') {
@@ -401,11 +467,11 @@
     renderInstallRows(settings?.installs || []);
   }
 
-  async function initAdminControls() {
+  async function initSiteSettingsControls() {
     if (!siteSettingsForm) return;
 
-    if (!adminControlsInitialised) {
-      adminControlsInitialised = true;
+    if (!siteSettingsInitialised) {
+      siteSettingsInitialised = true;
       addInstallButton?.addEventListener('click', () => {
         createInstallRow();
       });
@@ -453,6 +519,536 @@
     } finally {
       toggleSiteSettingsDisabled(false);
     }
+  }
+
+  function setUserPanelFeedback(message, tone) {
+    if (!userPanelFeedback) return;
+    setFormFeedback(userPanelFeedback, tone, message || '');
+  }
+
+  function toggleUserCreateForm(disabled) {
+    if (!userCreateForm) return;
+    userCreateForm.querySelectorAll('input, select, button').forEach((element) => {
+      element.disabled = disabled;
+    });
+  }
+
+  function toggleUserCard(form, disabled) {
+    if (!form) return;
+    form.querySelectorAll('input, select, button').forEach((element) => {
+      element.disabled = disabled;
+    });
+  }
+
+  function computeLocalUserStats(users) {
+    const stats = { total: 0, roles: {} };
+    if (!Array.isArray(users)) {
+      return stats;
+    }
+    stats.total = users.length;
+    users.forEach((user) => {
+      const role = user.role || 'referrer';
+      stats.roles[role] = (stats.roles[role] || 0) + 1;
+    });
+    return stats;
+  }
+
+  function renderUserStats(stats) {
+    if (!userStatsContainer) return;
+    const totals = {
+      total: stats?.total || 0,
+      admin: stats?.roles?.admin || 0,
+      customer: stats?.roles?.customer || 0,
+      employee: stats?.roles?.employee || 0,
+      installer: stats?.roles?.installer || 0,
+      referrer: stats?.roles?.referrer || 0
+    };
+
+    Object.entries(totals).forEach(([key, value]) => {
+      const node = userTotals[key];
+      if (node) {
+        node.textContent = value;
+      }
+    });
+  }
+
+  function createTextInputGroup({ label, name, value = '', placeholder = '', type = 'text' }) {
+    const group = document.createElement('div');
+    group.className = 'form-group';
+    const labelEl = document.createElement('label');
+    labelEl.textContent = label;
+    group.appendChild(labelEl);
+    const input = document.createElement('input');
+    input.type = type;
+    input.name = name;
+    input.value = value || '';
+    if (placeholder) {
+      input.placeholder = placeholder;
+    }
+    group.appendChild(input);
+    return { group, input };
+  }
+
+  function createSelectGroup({ label, name, value, options }) {
+    const group = document.createElement('div');
+    group.className = 'form-group';
+    const labelEl = document.createElement('label');
+    labelEl.textContent = label;
+    group.appendChild(labelEl);
+    const select = document.createElement('select');
+    select.name = name;
+    options.forEach((option) => {
+      const opt = document.createElement('option');
+      opt.value = option.value;
+      opt.textContent = option.label;
+      if (option.value === value) {
+        opt.selected = true;
+      }
+      select.appendChild(opt);
+    });
+    group.appendChild(select);
+    return { group, select };
+  }
+
+  function upsertCachedUser(user) {
+    if (!user || !user.id) return;
+    const index = cachedUsers.findIndex((item) => item.id === user.id);
+    if (index === -1) {
+      cachedUsers.push(user);
+    } else {
+      cachedUsers[index] = { ...cachedUsers[index], ...user };
+    }
+  }
+
+  function roleLabel(value) {
+    return roleLabels[value] || value || 'Portal user';
+  }
+
+  function statusLabel(value) {
+    return statusLabels[value] || value || 'Active';
+  }
+
+  function createUserCard(user) {
+    const form = document.createElement('form');
+    form.className = 'user-card';
+    form.dataset.userId = user.id || '';
+    form.autocomplete = 'off';
+
+    const header = document.createElement('header');
+    const title = document.createElement('h3');
+    title.textContent = user.name || 'Portal user';
+    header.appendChild(title);
+
+    const badges = document.createElement('div');
+    const roleBadge = document.createElement('span');
+    roleBadge.className = 'badge';
+    roleBadge.dataset.role = user.role || 'referrer';
+    roleBadge.textContent = roleLabel(user.role);
+    badges.appendChild(roleBadge);
+
+    const statusBadge = document.createElement('span');
+    statusBadge.className = 'badge';
+    statusBadge.dataset.status = user.status || 'active';
+    statusBadge.textContent = statusLabel(user.status);
+    badges.appendChild(statusBadge);
+
+    header.appendChild(badges);
+    form.appendChild(header);
+
+    const meta = document.createElement('div');
+    meta.className = 'user-meta';
+    const emailLine = document.createElement('span');
+    emailLine.textContent = user.email || '—';
+    meta.appendChild(emailLine);
+    const createdLine = document.createElement('span');
+    createdLine.textContent = user.createdAt ? `Joined ${formatDateTime(user.createdAt)}` : 'Created from demo data';
+    meta.appendChild(createdLine);
+    form.appendChild(meta);
+
+    const fields = document.createElement('div');
+    fields.className = 'user-card-fields';
+
+    const nameField = createTextInputGroup({
+      label: 'Full name',
+      name: 'name',
+      value: user.name || '',
+      placeholder: 'Portal user'
+    });
+    fields.appendChild(nameField.group);
+
+    const phoneField = createTextInputGroup({
+      label: 'Phone',
+      name: 'phone',
+      value: user.phone || '',
+      placeholder: '+91 90000 00000',
+      type: 'tel'
+    });
+    fields.appendChild(phoneField.group);
+
+    const cityField = createTextInputGroup({
+      label: 'City',
+      name: 'city',
+      value: user.city || '',
+      placeholder: 'Ranchi'
+    });
+    fields.appendChild(cityField.group);
+
+    const roleField = createSelectGroup({
+      label: 'Role',
+      name: 'role',
+      value: user.role || 'referrer',
+      options: roleOptions
+    });
+    fields.appendChild(roleField.group);
+
+    const statusField = createSelectGroup({
+      label: 'Status',
+      name: 'status',
+      value: user.status || 'active',
+      options: statusOptions
+    });
+    fields.appendChild(statusField.group);
+
+    form.appendChild(fields);
+
+    const feedback = document.createElement('p');
+    feedback.className = 'form-feedback';
+    form.appendChild(feedback);
+
+    const actions = document.createElement('div');
+    actions.className = 'user-card-actions';
+
+    const saveButton = document.createElement('button');
+    saveButton.type = 'submit';
+    saveButton.className = 'btn-secondary';
+    saveButton.textContent = 'Save changes';
+    actions.appendChild(saveButton);
+
+    const resetButton = document.createElement('button');
+    resetButton.type = 'button';
+    resetButton.className = 'btn-link';
+    resetButton.textContent = 'Reset password';
+    resetButton.dataset.action = 'reset';
+    actions.appendChild(resetButton);
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'btn-ghost';
+    deleteButton.textContent = 'Delete';
+    deleteButton.dataset.action = 'delete';
+    actions.appendChild(deleteButton);
+
+    form.appendChild(actions);
+
+    form.addEventListener('submit', handleUserUpdate);
+    resetButton.addEventListener('click', () => handleUserResetPassword(form));
+    deleteButton.addEventListener('click', () => handleUserDelete(form));
+
+    return form;
+  }
+
+  function applyUserFilters() {
+    const roleFilterValue = userFilterRole?.value || '';
+    const query = userSearchInput?.value?.trim().toLowerCase() || '';
+    if (!Array.isArray(cachedUsers)) {
+      return [];
+    }
+    return cachedUsers.filter((user) => {
+      const matchesRole = !roleFilterValue || user.role === roleFilterValue;
+      if (!matchesRole) return false;
+      if (!query) return true;
+      const haystack = [user.name, user.email, user.phone, user.city]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+      return haystack.some((value) => value.includes(query));
+    });
+  }
+
+  function renderUserList(users, options = {}) {
+    if (!userListContainer) return;
+    const { disabled = false, reason = '' } = options;
+    userListContainer.innerHTML = '';
+
+    if (!users || !users.length) {
+      const empty = document.createElement('p');
+      empty.className = 'empty';
+      empty.textContent = 'No accounts match your filters yet.';
+      userListContainer.appendChild(empty);
+      if (disabled && reason) {
+        const note = document.createElement('p');
+        note.className = 'empty';
+        note.textContent = reason;
+        userListContainer.appendChild(note);
+      }
+      return;
+    }
+
+    users.forEach((user) => {
+      const form = createUserCard(user);
+      userListContainer.appendChild(form);
+      if (disabled) {
+        toggleUserCard(form, true);
+        const feedback = form.querySelector('.form-feedback');
+        if (feedback && reason) {
+          setFormFeedback(feedback, 'error', reason);
+        }
+      }
+    });
+  }
+
+  async function loadUsers() {
+    if (!userAdminPanel) return;
+    let keepDisabled = false;
+    setUserPanelFeedback('Loading accounts…', 'info');
+    toggleUserCreateForm(true);
+    if (userListContainer) {
+      userListContainer.querySelectorAll('form.user-card').forEach((form) => toggleUserCard(form, true));
+    }
+
+    try {
+      const response = await request('/api/admin/users');
+      cachedUsers = Array.isArray(response.users) ? response.users : [];
+      renderUserStats(response.stats || computeLocalUserStats(cachedUsers));
+      renderUserList(applyUserFilters());
+      setUserPanelFeedback(`Loaded ${cachedUsers.length} account${cachedUsers.length === 1 ? '' : 's'}.`, 'success');
+    } catch (error) {
+      if (error.status === 401) {
+        removeSession();
+        redirectToLogin();
+        return;
+      }
+      if (error.isNetworkError) {
+        keepDisabled = true;
+        useDemoUserAdmin('API offline. Showing demo accounts — changes are disabled.');
+      } else {
+        setUserPanelFeedback(error.message || 'Unable to load user accounts.', 'error');
+      }
+    } finally {
+      if (!keepDisabled) {
+        toggleUserCreateForm(false);
+        if (userListContainer) {
+          userListContainer.querySelectorAll('form.user-card').forEach((form) => toggleUserCard(form, false));
+        }
+      }
+    }
+  }
+
+  async function handleUserCreate(event) {
+    event.preventDefault();
+    if (!userCreateForm) return;
+
+    const formData = new FormData(userCreateForm);
+    const payload = {
+      name: formData.get('name'),
+      email: formData.get('email'),
+      phone: formData.get('phone'),
+      city: formData.get('city'),
+      role: formData.get('role'),
+      status: formData.get('status'),
+      password: formData.get('password')
+    };
+
+    toggleUserCreateForm(true);
+    setFormFeedback(userCreateFeedback, 'info', 'Creating account…');
+
+    try {
+      const response = await request('/api/admin/users', {
+        method: 'POST',
+        body: payload
+      });
+      setFormFeedback(userCreateFeedback, 'success', 'Account created. Share the temporary password securely.');
+      userCreateForm.reset();
+      const roleField = userCreateForm.querySelector('[name="role"]');
+      const statusField = userCreateForm.querySelector('[name="status"]');
+      if (roleField) roleField.value = 'referrer';
+      if (statusField) statusField.value = 'active';
+      if (response?.user) {
+        upsertCachedUser(response.user);
+      }
+      await loadUsers();
+    } catch (error) {
+      if (error.status === 401) {
+        removeSession();
+        redirectToLogin();
+        return;
+      }
+      setFormFeedback(userCreateFeedback, 'error', error.message || 'Unable to create this account.');
+    } finally {
+      toggleUserCreateForm(false);
+    }
+  }
+
+  async function handleUserUpdate(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const userId = form?.dataset?.userId;
+    if (!userId) return;
+
+    const formData = new FormData(form);
+    const payload = {
+      name: formData.get('name'),
+      phone: formData.get('phone'),
+      city: formData.get('city'),
+      role: formData.get('role'),
+      status: formData.get('status')
+    };
+
+    const feedback = form.querySelector('.form-feedback');
+    toggleUserCard(form, true);
+    setFormFeedback(feedback, 'info', 'Saving changes…');
+
+    let shouldReenable = true;
+
+    try {
+      const response = await request(`/api/admin/users/${encodeURIComponent(userId)}`, {
+        method: 'PUT',
+        body: payload
+      });
+      if (response?.user) {
+        upsertCachedUser(response.user);
+      }
+      renderUserStats(response?.stats || computeLocalUserStats(cachedUsers));
+      setFormFeedback(feedback, 'success', 'Account updated.');
+      shouldReenable = false;
+      await loadUsers();
+    } catch (error) {
+      if (error.status === 401) {
+        removeSession();
+        redirectToLogin();
+        return;
+      }
+      setFormFeedback(feedback, 'error', error.message || 'Unable to update this account.');
+    } finally {
+      if (shouldReenable) {
+        toggleUserCard(form, false);
+      }
+    }
+  }
+
+  async function handleUserDelete(form) {
+    const userId = form?.dataset?.userId;
+    if (!userId) return;
+    const userName = form.querySelector('h3')?.textContent || 'this account';
+    const confirmed = window.confirm(`Delete ${userName}? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    const feedback = form.querySelector('.form-feedback');
+    toggleUserCard(form, true);
+    setFormFeedback(feedback, 'info', 'Removing account…');
+
+    let shouldReenable = true;
+
+    try {
+      const response = await request(`/api/admin/users/${encodeURIComponent(userId)}`, {
+        method: 'DELETE'
+      });
+      cachedUsers = cachedUsers.filter((user) => user.id !== userId);
+      renderUserStats(response?.stats || computeLocalUserStats(cachedUsers));
+      setUserPanelFeedback(`${userName} removed from the portal.`, 'success');
+      renderUserList(applyUserFilters());
+      shouldReenable = false;
+    } catch (error) {
+      if (error.status === 401) {
+        removeSession();
+        redirectToLogin();
+        return;
+      }
+      setFormFeedback(feedback, 'error', error.message || 'Unable to delete this account.');
+    } finally {
+      if (shouldReenable) {
+        toggleUserCard(form, false);
+      }
+    }
+  }
+
+  async function handleUserResetPassword(form) {
+    const userId = form?.dataset?.userId;
+    if (!userId) return;
+    const password = window.prompt('Enter a new temporary password (minimum 8 characters):');
+    if (password === null) {
+      return;
+    }
+    if (!password || password.trim().length < 8) {
+      window.alert('Password must be at least 8 characters long.');
+      return;
+    }
+
+    const feedback = form.querySelector('.form-feedback');
+    toggleUserCard(form, true);
+    setFormFeedback(feedback, 'info', 'Resetting password…');
+
+    try {
+      await request(`/api/admin/users/${encodeURIComponent(userId)}/reset-password`, {
+        method: 'POST',
+        body: { password }
+      });
+      setFormFeedback(feedback, 'success', 'Password reset. Share the new password securely.');
+      setUserPanelFeedback('Password reset successfully.', 'success');
+    } catch (error) {
+      if (error.status === 401) {
+        removeSession();
+        redirectToLogin();
+        return;
+      }
+      setFormFeedback(feedback, 'error', error.message || 'Unable to reset the password.');
+    } finally {
+      toggleUserCard(form, false);
+    }
+  }
+
+  function useDemoUserAdmin(message) {
+    if (!userAdminPanel) return;
+    cachedUsers = demoUsers.map((user) => ({
+      id: user.id || `demo-${user.role}-${user.email}`,
+      name: user.name,
+      email: user.email,
+      phone: user.phone || '',
+      city: user.city || '',
+      role: user.role || 'referrer',
+      status: 'active',
+      createdAt: null
+    }));
+    renderUserStats(computeLocalUserStats(cachedUsers));
+    renderUserList(applyUserFilters(), {
+      disabled: true,
+      reason: 'Demo mode active. Start the API to manage real accounts.'
+    });
+    toggleUserCreateForm(true);
+    if (message) {
+      setUserPanelFeedback(message, 'error');
+    }
+  }
+
+  async function initUserAdminControls() {
+    if (!userAdminPanel) return;
+
+    if (!userAdminInitialised) {
+      userAdminInitialised = true;
+      userFilterRole?.addEventListener('change', () => {
+        renderUserList(applyUserFilters());
+      });
+      userSearchInput?.addEventListener('input', () => {
+        renderUserList(applyUserFilters());
+      });
+      userRefreshButton?.addEventListener('click', () => {
+        loadUsers();
+      });
+      if (userCreateForm) {
+        userCreateForm.addEventListener('submit', handleUserCreate);
+        userCreateForm.addEventListener('input', () => clearFormFeedback(userCreateFeedback));
+      }
+    }
+
+    if (session?.isDemo || !session?.token) {
+      useDemoUserAdmin('Offline demo mode active. Start the API to manage accounts.');
+      return;
+    }
+
+    await loadUsers();
+  }
+
+  async function initAdminControls() {
+    await Promise.all([initSiteSettingsControls(), initUserAdminControls()]);
   }
 
   function renderDashboard(data, source = 'live') {
@@ -509,9 +1105,12 @@
 
   if (session.isDemo || !session.token) {
     useDemoDashboard('Offline demo mode active. Start the API server to see live data.');
-    if (role === 'admin' && siteSettingsForm) {
-      toggleSiteSettingsDisabled(true);
-      showSettingsFeedback('Start the API server to load editable site décor controls.', 'error');
+    if (role === 'admin') {
+      useDemoUserAdmin('Offline demo mode active. Start the API server to manage accounts.');
+      if (siteSettingsForm) {
+        toggleSiteSettingsDisabled(true);
+        showSettingsFeedback('Start the API server to load editable site décor controls.', 'error');
+      }
     }
     return;
   }
