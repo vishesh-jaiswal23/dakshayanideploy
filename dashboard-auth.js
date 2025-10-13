@@ -1,7 +1,7 @@
 (function () {
+  const API_BASE = window.PORTAL_API_BASE || '';
   const sessionKey = 'dakshayaniPortalSession';
   const demoData = window.DAKSHAYANI_PORTAL_DEMO || {};
-  const users = Array.isArray(demoData.users) ? demoData.users : [];
   const dashboards = demoData.dashboards || {};
   const role = document.body?.dataset?.role;
 
@@ -16,21 +16,60 @@
   const headline = document.querySelector('[data-dashboard-headline]');
   const logoutButtons = document.querySelectorAll('[data-logout]');
 
-  function showStatus(message, type = 'info') {
-    if (!statusBar) return;
-    statusBar.textContent = message;
-    statusBar.dataset.tone = type;
-    statusBar.hidden = false;
+  let session = parseSession();
+
+  function resolveApi(path) {
+    if (!API_BASE) {
+      return path;
+    }
+    try {
+      return new URL(path, API_BASE).toString();
+    } catch (error) {
+      console.warn('Failed to resolve API URL', error);
+      return path;
+    }
   }
 
-  function hideStatus() {
-    if (!statusBar) return;
-    statusBar.hidden = true;
-    statusBar.textContent = '';
-  }
+  async function request(path, options = {}) {
+    const url = resolveApi(path);
+    const config = { method: 'GET', headers: {}, credentials: 'same-origin', ...options };
+    config.method = (config.method || 'GET').toUpperCase();
+    config.headers = { ...config.headers };
 
-  function redirectToLogin() {
-    window.location.href = 'login.html?loggedOut=1';
+    if (session?.token) {
+      config.headers['Authorization'] = `Bearer ${session.token}`;
+    }
+
+    if (config.body && typeof config.body !== 'string') {
+      config.body = JSON.stringify(config.body);
+      if (!config.headers['Content-Type']) {
+        config.headers['Content-Type'] = 'application/json';
+      }
+    }
+
+    let response;
+    try {
+      response = await fetch(url, config);
+    } catch (networkError) {
+      const error = new Error('Network error while contacting the portal API.');
+      error.isNetworkError = true;
+      throw error;
+    }
+
+    let data = {};
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      data = {};
+    }
+
+    if (!response.ok) {
+      const error = new Error(data.error || `Request failed with status ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+
+    return data;
   }
 
   function parseSession() {
@@ -43,13 +82,46 @@
     }
   }
 
-  function findUserByEmail(email) {
-    return users.find((user) => user.email.toLowerCase() === String(email || '').toLowerCase()) || null;
+  function storeSession(nextSession) {
+    session = nextSession;
+    try {
+      localStorage.setItem(sessionKey, JSON.stringify(session));
+    } catch (error) {
+      console.warn('Unable to persist updated session', error);
+    }
+  }
+
+  function removeSession() {
+    try {
+      localStorage.removeItem(sessionKey);
+    } catch (error) {
+      console.warn('Unable to clear session', error);
+    }
+    session = null;
+  }
+
+  function showStatus(message, type = 'info') {
+    if (!statusBar) return;
+    statusBar.textContent = message;
+    statusBar.dataset.tone = type;
+    statusBar.hidden = !message;
+  }
+
+  function hideStatus() {
+    if (!statusBar) return;
+    statusBar.hidden = true;
+    statusBar.textContent = '';
+    delete statusBar.dataset.tone;
+  }
+
+  function redirectToLogin() {
+    window.location.href = 'login.html?loggedOut=1';
   }
 
   function bindUserDetails(user) {
+    if (!user) return;
     const mapping = {
-      '[data-user-name]': user.name || 'Demo user',
+      '[data-user-name]': user.name || 'Portal user',
       '[data-user-email]': user.email,
       '[data-user-phone]': user.phone || 'Not shared',
       '[data-user-city]': user.city || '—',
@@ -120,46 +192,82 @@
     });
   }
 
-  function renderDashboard(data) {
+  function renderDashboard(data, source = 'live') {
     if (headline) {
-      headline.textContent = data.headline || 'Dashboard overview';
+      headline.textContent = data.headline || data.spotlight?.title || 'Dashboard overview';
     }
     renderMetrics(data.metrics || []);
     renderTimeline(data.timeline || []);
     renderTasks(data.tasks || []);
+
+    if (data.spotlight && data.spotlight.title) {
+      showStatus(`${data.spotlight.title}: ${data.spotlight.message}`, 'info');
+    } else if (source === 'demo') {
+      showStatus('You are viewing cached demo data because the API is offline.', 'info');
+    } else {
+      hideStatus();
+    }
+  }
+
+  function useDemoDashboard(message) {
+    const demo = dashboards[role];
+    if (!demo) {
+      showStatus(message || 'Demo data for this dashboard is missing. Contact the site maintainer.', 'error');
+      return;
+    }
+    renderDashboard(demo, 'demo');
+    if (message) {
+      showStatus(message, 'info');
+    }
   }
 
   function initLogout() {
     logoutButtons.forEach((button) => {
       button.addEventListener('click', () => {
-        localStorage.removeItem(sessionKey);
+        removeSession();
         redirectToLogin();
       });
     });
   }
 
-  const session = parseSession();
-  if (!session) {
+  if (!session || !session.user) {
     redirectToLogin();
     return;
   }
 
-  if (session.role !== role) {
+  if (session.user.role !== role) {
     showStatus('You opened the wrong portal for this login. Taking you back to the sign in page.', 'error');
-    setTimeout(() => redirectToLogin(), 600);
+    setTimeout(() => redirectToLogin(), 650);
     return;
   }
 
-  const user = findUserByEmail(session.email) || session;
-  bindUserDetails(user);
+  bindUserDetails(session.user);
+  initLogout();
 
-  const dashboard = dashboards[role];
-  if (!dashboard) {
-    showStatus('Demo data for this dashboard is missing. Contact the site maintainer.', 'error');
-  } else {
-    hideStatus();
-    renderDashboard(dashboard);
+  if (session.isDemo || !session.token) {
+    useDemoDashboard('Offline demo mode active. Start the API server to see live data.');
+    return;
   }
 
-  initLogout();
+  (async () => {
+    try {
+      const me = await request('/api/me');
+      if (me?.user) {
+        bindUserDetails(me.user);
+        storeSession({ ...session, user: { ...session.user, ...me.user }, isDemo: false });
+      }
+
+      const data = await request(`/api/dashboard/${role}`);
+      renderDashboard(data, 'live');
+    } catch (error) {
+      if (error.status === 401) {
+        removeSession();
+        redirectToLogin();
+      } else if (error.isNetworkError) {
+        useDemoDashboard('API offline detected. Showing cached demo insights.');
+      } else {
+        showStatus(error.message || 'Unable to load dashboard data.', 'error');
+      }
+    }
+  })();
 })();
