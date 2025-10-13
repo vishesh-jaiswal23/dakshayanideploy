@@ -149,12 +149,12 @@
       color: var(--muted);
     }
 
-    .timeline-list, .task-list {
+    .timeline-list, .task-list, .job-grid, .resource-grid, .checklist {
       display: grid;
       gap: 0.75rem;
     }
 
-    .timeline-row, .task-row {
+    .timeline-row, .task-row, .job-card, .resource-card, .checklist-item {
       background: #ffffff;
       border-radius: 1rem;
       border: 1px solid var(--border);
@@ -172,10 +172,95 @@
       color: #0f172a;
     }
 
-    .timeline-date, .timeline-status, .task-status {
+    .timeline-date, .timeline-status, .task-status, .job-meta {
       margin: 0;
       font-size: 0.85rem;
       color: var(--muted);
+    }
+
+    .job-grid {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .job-card {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+      min-height: 150px;
+    }
+
+    .job-card h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .job-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: rgba(14, 165, 233, 0.16);
+      color: #0ea5e9;
+    }
+
+    .checklist {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .checklist-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .checklist-item[data-state="done"] {
+      border-color: rgba(34, 197, 94, 0.28);
+    }
+
+    .checklist-item[data-state="action"] {
+      border-color: rgba(249, 115, 22, 0.35);
+      box-shadow: 0 14px 24px -22px rgba(249, 115, 22, 0.55);
+    }
+
+    .resource-grid {
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .resource-card {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.6rem;
+      min-height: 160px;
+    }
+
+    .resource-card h3 {
+      margin: 0;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .resource-actions {
+      margin-top: auto;
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .resource-actions a {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .resource-actions a:hover,
+    .resource-actions a:focus {
+      text-decoration: underline;
     }
 
     .details-grid {
@@ -240,6 +325,82 @@
     <section class="panel">
       <h2>Today's tasks</h2>
       <div class="task-list" data-tasks></div>
+    </section>
+
+    <section class="panel">
+      <h2>Today's crew plan</h2>
+      <div class="job-grid">
+        <article class="job-card">
+          <h3>Team A · Ranchi</h3>
+          <p class="job-meta">Lead: <strong>Sunita Singh</strong></p>
+          <p class="job-meta">Crew: 4 technicians · Crane slot 09:00–12:00</p>
+          <span class="job-badge">Install &amp; wiring</span>
+        </article>
+        <article class="job-card">
+          <h3>Team B · Bokaro</h3>
+          <p class="job-meta">Lead: <strong>Akash Mehra</strong></p>
+          <p class="job-meta">Crew: 3 technicians · Safety audit at 14:00</p>
+          <span class="job-badge">Commissioning</span>
+        </article>
+        <article class="job-card">
+          <h3>Team C · Jamshedpur</h3>
+          <p class="job-meta">Lead: <strong>Priya Das</strong></p>
+          <p class="job-meta">Crew: 5 technicians · Roof access cleared</p>
+          <span class="job-badge">Pre-install survey</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Site readiness checklist</h2>
+      <div class="checklist">
+        <article class="checklist-item" data-state="done">
+          <h3>Safety briefing</h3>
+          <p class="job-meta">Use the latest PPE inspection log shared yesterday.</p>
+        </article>
+        <article class="checklist-item" data-state="action">
+          <h3>Material receipts</h3>
+          <p class="job-meta">Awaiting POD upload for inverter batch INV-44521.</p>
+        </article>
+        <article class="checklist-item">
+          <h3>Quality photos</h3>
+          <p class="job-meta">Capture DC isolator close-ups after wiring run completion.</p>
+        </article>
+        <article class="checklist-item" data-state="done">
+          <h3>Permit display</h3>
+          <p class="job-meta">Work permits printed and carried by all supervisors.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Resources &amp; quick links</h2>
+      <div class="resource-grid">
+        <article class="resource-card">
+          <h3>Installation handbook</h3>
+          <p class="job-meta">Latest SOP for Dakshayani rooftop systems including torque specs.</p>
+          <div class="resource-actions">
+            <a href="#">Download PDF</a>
+            <a href="#">View change log</a>
+          </div>
+        </article>
+        <article class="resource-card">
+          <h3>Inventory tracker</h3>
+          <p class="job-meta">Live sheet of module, inverter, and BOS stock across warehouses.</p>
+          <div class="resource-actions">
+            <a href="#">Open tracker</a>
+            <a href="#">Report shortage</a>
+          </div>
+        </article>
+        <article class="resource-card">
+          <h3>Tool maintenance</h3>
+          <p class="job-meta">Submit service requests for crimpers, testers, and safety gear.</p>
+          <div class="resource-actions">
+            <a href="#">Book service</a>
+            <a href="#">Checklist</a>
+          </div>
+        </article>
+      </div>
     </section>
 
     <section class="panel">
