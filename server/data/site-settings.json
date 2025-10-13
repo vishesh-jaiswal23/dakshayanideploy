@@ -1,0 +1,51 @@
+{
+  "festivalTheme": "default",
+  "hero": {
+    "title": "Cut Your Electricity Bills. Power Your Future.",
+    "subtitle": "Join 500+ Jharkhand families saving lakhs with dependable rooftop and hybrid solar solutions designed around you.",
+    "primaryImage": "images/hero/hero.png",
+    "primaryAlt": "Dakshayani engineers installing a rooftop solar plant",
+    "primaryCaption": "Live commissioning | Ranchi",
+    "bubbleHeading": "24/7 monitoring",
+    "bubbleBody": "Hybrid + storage ready",
+    "gallery": [
+      {
+        "image": "images/team.jpg",
+        "caption": "Certified engineers"
+      },
+      {
+        "image": "images/finance.jpg",
+        "caption": "Finance desk"
+      }
+    ]
+  },
+  "installs": [
+    {
+      "id": "install-001",
+      "title": "6 kW PM Surya Ghar Rooftop",
+      "location": "Ranchi, Jharkhand",
+      "capacity": "6 kW",
+      "completedOn": "September 2024",
+      "image": "images/roof.jpg",
+      "summary": "Hybrid-ready rooftop array with remote monitoring for a duplex residence."
+    },
+    {
+      "id": "install-002",
+      "title": "25 kW Nursing Home Retrofit",
+      "location": "Jamshedpur, Jharkhand",
+      "capacity": "25 kW",
+      "completedOn": "August 2024",
+      "image": "images/hero.jpg",
+      "summary": "Tier-1 mono-PERC modules with zero downtime switchover for critical care loads."
+    },
+    {
+      "id": "install-003",
+      "title": "12 kW Agro Cold Storage",
+      "location": "Hazaribagh, Jharkhand",
+      "capacity": "12 kW",
+      "completedOn": "July 2024",
+      "image": "images/pump.jpg",
+      "summary": "Rooftop solar with battery support to power drip irrigation and cold storage."
+    }
+  ]
+}

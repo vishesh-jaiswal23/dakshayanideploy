@@ -8,14 +8,139 @@ const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const SITE_SETTINGS_FILE = path.join(DATA_DIR, 'site-settings.json');
 const STATIC_ROOT = path.join(__dirname, '..');
 
 const sessions = new Map();
+const ALLOWED_FESTIVAL_THEMES = new Set(['default', 'diwali', 'holi', 'christmas']);
 
 function ensureDataDirectory() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
+}
+
+function defaultSiteSettings() {
+  return {
+    festivalTheme: 'default',
+    hero: {
+      title: 'Cut Your Electricity Bills. Power Your Future.',
+      subtitle: 'Join 500+ Jharkhand families saving lakhs with dependable rooftop and hybrid solar solutions designed around you.',
+      primaryImage: 'images/hero/hero.png',
+      primaryAlt: 'Dakshayani engineers installing a rooftop solar plant',
+      primaryCaption: 'Live commissioning | Ranchi',
+      bubbleHeading: '24/7 monitoring',
+      bubbleBody: 'Hybrid + storage ready',
+      gallery: [
+        { image: 'images/team.jpg', caption: 'Certified engineers' },
+        { image: 'images/finance.jpg', caption: 'Finance desk' }
+      ]
+    },
+    installs: [
+      {
+        id: 'install-001',
+        title: '6 kW PM Surya Ghar Rooftop',
+        location: 'Ranchi, Jharkhand',
+        capacity: '6 kW',
+        completedOn: 'September 2024',
+        image: 'images/roof.jpg',
+        summary: 'Hybrid-ready rooftop array with remote monitoring for a duplex residence.'
+      },
+      {
+        id: 'install-002',
+        title: '25 kW Nursing Home Retrofit',
+        location: 'Jamshedpur, Jharkhand',
+        capacity: '25 kW',
+        completedOn: 'August 2024',
+        image: 'images/hero.jpg',
+        summary: 'Tier-1 mono-PERC modules with zero downtime switchover for critical care loads.'
+      },
+      {
+        id: 'install-003',
+        title: '12 kW Agro Cold Storage',
+        location: 'Hazaribagh, Jharkhand',
+        capacity: '12 kW',
+        completedOn: 'July 2024',
+        image: 'images/pump.jpg',
+        summary: 'Rooftop solar with battery support to power drip irrigation and cold storage.'
+      }
+    ]
+  };
+}
+
+function sanitizeSiteSettings(settings) {
+  if (!settings || typeof settings !== 'object') {
+    return defaultSiteSettings();
+  }
+
+  const defaults = defaultSiteSettings();
+  const hero = settings.hero && typeof settings.hero === 'object' ? settings.hero : {};
+  const gallery = Array.isArray(hero.gallery) ? hero.gallery : [];
+  const installs = Array.isArray(settings.installs) ? settings.installs : [];
+
+  return {
+    festivalTheme: typeof settings.festivalTheme === 'string' ? settings.festivalTheme : defaults.festivalTheme,
+    hero: {
+      title: typeof hero.title === 'string' ? hero.title : defaults.hero.title,
+      subtitle: typeof hero.subtitle === 'string' ? hero.subtitle : defaults.hero.subtitle,
+      primaryImage: typeof hero.primaryImage === 'string' ? hero.primaryImage : defaults.hero.primaryImage,
+      primaryAlt: typeof hero.primaryAlt === 'string' ? hero.primaryAlt : defaults.hero.primaryAlt,
+      primaryCaption: typeof hero.primaryCaption === 'string' ? hero.primaryCaption : defaults.hero.primaryCaption,
+      bubbleHeading: typeof hero.bubbleHeading === 'string' ? hero.bubbleHeading : defaults.hero.bubbleHeading,
+      bubbleBody: typeof hero.bubbleBody === 'string' ? hero.bubbleBody : defaults.hero.bubbleBody,
+      gallery: gallery
+        .slice(0, 6)
+        .map((item, index) => {
+          const fallback = defaults.hero.gallery[index] || defaults.hero.gallery[0];
+          return {
+            image: typeof item?.image === 'string' ? item.image : fallback.image,
+            caption: typeof item?.caption === 'string' ? item.caption : fallback.caption
+          };
+        })
+    },
+    installs: installs
+      .slice(0, 8)
+      .map((install, index) => {
+        const fallback = defaults.installs[index % defaults.installs.length];
+        return {
+          id: typeof install?.id === 'string' ? install.id : `install-${index + 1}`,
+          title: typeof install?.title === 'string' ? install.title : fallback.title,
+          location: typeof install?.location === 'string' ? install.location : fallback.location,
+          capacity: typeof install?.capacity === 'string' ? install.capacity : fallback.capacity,
+          completedOn: typeof install?.completedOn === 'string' ? install.completedOn : fallback.completedOn,
+          image: typeof install?.image === 'string' ? install.image : fallback.image,
+          summary: typeof install?.summary === 'string' ? install.summary : fallback.summary
+        };
+      })
+  };
+}
+
+function readSiteSettings() {
+  ensureDataDirectory();
+  if (!fs.existsSync(SITE_SETTINGS_FILE)) {
+    const defaults = defaultSiteSettings();
+    fs.writeFileSync(SITE_SETTINGS_FILE, JSON.stringify(defaults, null, 2));
+    return defaults;
+  }
+
+  const raw = fs.readFileSync(SITE_SETTINGS_FILE, 'utf8');
+  try {
+    const parsed = JSON.parse(raw || '{}');
+    const sanitized = sanitizeSiteSettings(parsed);
+    fs.writeFileSync(SITE_SETTINGS_FILE, JSON.stringify(sanitized, null, 2));
+    return sanitized;
+  } catch (error) {
+    console.error('Failed to parse site settings, resetting to defaults.', error);
+    const defaults = defaultSiteSettings();
+    fs.writeFileSync(SITE_SETTINGS_FILE, JSON.stringify(defaults, null, 2));
+    return defaults;
+  }
+}
+
+function writeSiteSettings(settings) {
+  const sanitized = sanitizeSiteSettings(settings);
+  fs.writeFileSync(SITE_SETTINGS_FILE, JSON.stringify(sanitized, null, 2));
+  return sanitized;
 }
 
 function createPasswordRecord(password) {
@@ -386,6 +511,60 @@ function handleApiRequest(req, res, url) {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/public/site-settings') {
+    const settings = readSiteSettings();
+    sendJson(res, 200, { settings: sanitizeSiteSettings(settings) });
+    return;
+  }
+
+  if (url.pathname === '/api/admin/site-settings') {
+    const user = getUserFromToken(req);
+    if (!user) {
+      sendJson(res, 401, { error: 'Unauthorised' });
+      return;
+    }
+    if (user.role !== 'admin') {
+      sendJson(res, 403, { error: 'You are not allowed to manage site settings.' });
+      return;
+    }
+
+    if (req.method === 'GET') {
+      const settings = readSiteSettings();
+      sendJson(res, 200, { settings: sanitizeSiteSettings(settings) });
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      collectRequestBody(req)
+        .then((body) => {
+          const current = readSiteSettings();
+          const next = { ...current };
+
+          if (body && typeof body === 'object') {
+            const candidateTheme = typeof body.festivalTheme === 'string' ? body.festivalTheme : current.festivalTheme;
+            next.festivalTheme = ALLOWED_FESTIVAL_THEMES.has(candidateTheme) ? candidateTheme : 'default';
+
+            if (body.hero && typeof body.hero === 'object') {
+              next.hero = {
+                ...current.hero,
+                ...body.hero,
+                gallery: Array.isArray(body.hero.gallery) ? body.hero.gallery : current.hero.gallery
+              };
+            }
+
+            if (Array.isArray(body.installs)) {
+              next.installs = body.installs.filter((install) => install && typeof install === 'object');
+            }
+          }
+
+          const saved = writeSiteSettings(next);
+          sendJson(res, 200, { settings: sanitizeSiteSettings(saved) });
+        })
+        .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
+      return;
+    }
+  }
+
   if (req.method === 'GET' && url.pathname.startsWith('/api/dashboard/')) {
     const user = getUserFromToken(req);
     if (!user) {
@@ -458,6 +637,7 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, HOST, () => {
   ensureDataDirectory();
   readUsers();
+  readSiteSettings();
   console.log(`Portal API and static server running at http://${HOST}:${PORT}`);
 });
 
