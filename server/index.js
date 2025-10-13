@@ -13,6 +13,8 @@ const STATIC_ROOT = path.join(__dirname, '..');
 
 const sessions = new Map();
 const ALLOWED_FESTIVAL_THEMES = new Set(['default', 'diwali', 'holi', 'christmas']);
+const ROLE_OPTIONS = ['admin', 'customer', 'employee', 'installer', 'referrer'];
+const USER_STATUSES = ['active', 'suspended'];
 
 function ensureDataDirectory() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -185,9 +187,39 @@ function writeUsers(users) {
 
 function seedUsers(existingUsers) {
   const users = Array.isArray(existingUsers) ? [...existingUsers] : [];
+
+  const ensureShape = (user) => {
+    if (!user || typeof user !== 'object') {
+      return;
+    }
+
+    if (!user.id) {
+      user.id = `usr-${crypto.randomUUID()}`;
+    }
+
+    if (!ROLE_OPTIONS.includes(user.role)) {
+      user.role = 'referrer';
+    }
+
+    user.status = USER_STATUSES.includes(user.status) ? user.status : 'active';
+
+    const createdAt = user.createdAt || new Date().toISOString();
+    user.createdAt = createdAt;
+    user.updatedAt = user.updatedAt || createdAt;
+    user.passwordChangedAt = user.passwordChangedAt || user.updatedAt;
+
+    if (!user.password || typeof user.password !== 'object' || !user.password.salt) {
+      user.password = createPasswordRecord('ChangeMe@123');
+    }
+  };
+
+  users.forEach(ensureShape);
+
   const ensureUser = (email, creator) => {
     if (!users.some(user => user.email.toLowerCase() === email.toLowerCase())) {
-      users.push(creator());
+      const user = creator();
+      ensureShape(user);
+      users.push(user);
     }
   };
 
@@ -198,8 +230,10 @@ function seedUsers(existingUsers) {
     phone: '+91 70000 00000',
     city: 'Ranchi',
     role: 'admin',
+    status: 'active',
     password: createPasswordRecord('Admin@123'),
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   }));
 
   ensureUser('customer@dakshayani.in', () => ({
@@ -209,8 +243,10 @@ function seedUsers(existingUsers) {
     phone: '+91 90000 00000',
     city: 'Jamshedpur',
     role: 'customer',
+    status: 'active',
     password: createPasswordRecord('Customer@123'),
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   }));
 
   ensureUser('employee@dakshayani.in', () => ({
@@ -220,8 +256,10 @@ function seedUsers(existingUsers) {
     phone: '+91 88000 00000',
     city: 'Bokaro',
     role: 'employee',
+    status: 'active',
     password: createPasswordRecord('Employee@123'),
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   }));
 
   ensureUser('installer@dakshayani.in', () => ({
@@ -231,8 +269,10 @@ function seedUsers(existingUsers) {
     phone: '+91 86000 00000',
     city: 'Dhanbad',
     role: 'installer',
+    status: 'active',
     password: createPasswordRecord('Installer@123'),
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   }));
 
   ensureUser('referrer@dakshayani.in', () => ({
@@ -242,11 +282,54 @@ function seedUsers(existingUsers) {
     phone: '+91 94000 00000',
     city: 'Hazaribagh',
     role: 'referrer',
+    status: 'active',
     password: createPasswordRecord('Referrer@123'),
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   }));
 
   return users;
+}
+
+function normaliseEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isValidPassword(password) {
+  return typeof password === 'string' && password.length >= 8;
+}
+
+function computeUserStats(users) {
+  const stats = { total: 0, roles: {} };
+  if (!Array.isArray(users)) {
+    return stats;
+  }
+  stats.total = users.length;
+  users.forEach((user) => {
+    const role = ROLE_OPTIONS.includes(user.role) ? user.role : 'other';
+    stats.roles[role] = (stats.roles[role] || 0) + 1;
+  });
+  return stats;
+}
+
+function prepareUsersForResponse(users) {
+  if (!Array.isArray(users)) {
+    return [];
+  }
+  return [...users]
+    .map((user) => sanitizeUser(user))
+    .sort((a, b) => {
+      const left = new Date(a.createdAt || 0).getTime();
+      const right = new Date(b.createdAt || 0).getTime();
+      return right - left;
+    });
+}
+
+function countActiveAdmins(users) {
+  if (!Array.isArray(users)) {
+    return 0;
+  }
+  return users.filter((user) => user.role === 'admin' && user.status !== 'suspended').length;
 }
 
 function sendJson(res, statusCode, payload) {
@@ -287,6 +370,15 @@ function createToken(userId) {
   const token = crypto.randomBytes(32).toString('hex');
   sessions.set(token, { userId, createdAt: Date.now() });
   return token;
+}
+
+function revokeSessionsForUser(userId) {
+  if (!userId) return;
+  for (const [token, session] of sessions.entries()) {
+    if (session.userId === userId) {
+      sessions.delete(token);
+    }
+  }
 }
 
 function getUserFromToken(req) {
@@ -453,14 +545,14 @@ function handleApiRequest(req, res, url) {
           sendJson(res, 400, { error: 'Name, email, and password are required.' });
           return;
         }
-        const normalisedEmail = String(email).trim().toLowerCase();
-        const allowedRoles = ['admin', 'customer', 'employee', 'installer', 'referrer'];
-        const roleValue = allowedRoles.includes(role) ? role : 'referrer';
+        const normalisedEmail = normaliseEmail(email);
+        const roleValue = ROLE_OPTIONS.includes(role) ? role : 'referrer';
         const users = readUsers();
         if (users.some(user => user.email.toLowerCase() === normalisedEmail)) {
           sendJson(res, 409, { error: 'An account with this email already exists.' });
           return;
         }
+        const timestamp = new Date().toISOString();
         const user = {
           id: `usr-${crypto.randomUUID()}`,
           name: String(name).trim(),
@@ -469,7 +561,10 @@ function handleApiRequest(req, res, url) {
           city: String(city || '').trim(),
           role: roleValue,
           password: createPasswordRecord(String(password)),
-          createdAt: new Date().toISOString()
+          status: 'active',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          passwordChangedAt: timestamp
         };
         users.push(user);
         writeUsers(users);
@@ -489,9 +584,13 @@ function handleApiRequest(req, res, url) {
           return;
         }
         const users = readUsers();
-        const user = users.find(u => u.email.toLowerCase() === String(email).trim().toLowerCase());
+        const user = users.find(u => u.email.toLowerCase() === normaliseEmail(email));
         if (!user || !verifyPassword(String(password), user.password)) {
           sendJson(res, 401, { error: 'Invalid credentials. Check your email and password.' });
+          return;
+        }
+        if (user.status && user.status !== 'active') {
+          sendJson(res, 403, { error: 'This account is suspended. Contact the administrator.' });
           return;
         }
         const token = createToken(user.id);
@@ -514,6 +613,208 @@ function handleApiRequest(req, res, url) {
   if (req.method === 'GET' && url.pathname === '/api/public/site-settings') {
     const settings = readSiteSettings();
     sendJson(res, 200, { settings: sanitizeSiteSettings(settings) });
+    return;
+  }
+
+  if (url.pathname === '/api/admin/users') {
+    const actor = getUserFromToken(req);
+    if (!actor) {
+      sendJson(res, 401, { error: 'Unauthorised' });
+      return;
+    }
+    if (actor.role !== 'admin') {
+      sendJson(res, 403, { error: 'You are not allowed to manage users.' });
+      return;
+    }
+
+    if (req.method === 'GET') {
+      const users = readUsers();
+      sendJson(res, 200, {
+        users: prepareUsersForResponse(users),
+        stats: computeUserStats(users),
+        refreshedAt: new Date().toISOString()
+      });
+      return;
+    }
+
+    if (req.method === 'POST') {
+      collectRequestBody(req)
+        .then((body) => {
+          const displayName = String(body?.name || '').trim();
+          const email = normaliseEmail(body?.email);
+          const password = body?.password;
+          const role = ROLE_OPTIONS.includes(body?.role) ? body.role : 'referrer';
+          const status = USER_STATUSES.includes(body?.status) ? body.status : 'active';
+          const phone = String(body?.phone || '').trim();
+          const city = String(body?.city || '').trim();
+
+          if (!displayName || !email) {
+            sendJson(res, 400, { error: 'Name and email are required.' });
+            return;
+          }
+
+          if (!isValidPassword(password)) {
+            sendJson(res, 400, { error: 'Password must be at least 8 characters long.' });
+            return;
+          }
+
+          const users = readUsers();
+          if (users.some((user) => user.email.toLowerCase() === email)) {
+            sendJson(res, 409, { error: 'An account with this email already exists.' });
+            return;
+          }
+
+          const timestamp = new Date().toISOString();
+          const user = {
+            id: `usr-${crypto.randomUUID()}`,
+            name: displayName,
+            email,
+            phone,
+            city,
+            role,
+            status,
+            password: createPasswordRecord(String(password)),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            passwordChangedAt: timestamp,
+            createdBy: actor.id
+          };
+
+          users.push(user);
+          writeUsers(users);
+          sendJson(res, 201, {
+            user: sanitizeUser(user),
+            stats: computeUserStats(users)
+          });
+        })
+        .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
+      return;
+    }
+
+    sendJson(res, 405, { error: 'Method not allowed.' });
+    return;
+  }
+
+  if (url.pathname.startsWith('/api/admin/users/')) {
+    const segments = url.pathname.split('/').filter(Boolean);
+    const userId = segments[3] ? decodeURIComponent(segments[3]) : null;
+    const action = segments[4] ? decodeURIComponent(segments[4]) : null;
+    if (!userId) {
+      sendNotFound(res);
+      return;
+    }
+
+    const actor = getUserFromToken(req);
+    if (!actor) {
+      sendJson(res, 401, { error: 'Unauthorised' });
+      return;
+    }
+    if (actor.role !== 'admin') {
+      sendJson(res, 403, { error: 'You are not allowed to manage users.' });
+      return;
+    }
+
+    const users = readUsers();
+    const index = users.findIndex((user) => user.id === userId);
+    if (index === -1) {
+      sendJson(res, 404, { error: 'User not found.' });
+      return;
+    }
+
+    const target = users[index];
+
+    if (action === 'reset-password') {
+      if (req.method !== 'POST') {
+        sendJson(res, 405, { error: 'Method not allowed.' });
+        return;
+      }
+
+      collectRequestBody(req)
+        .then((body) => {
+          const password = body?.password;
+          if (!isValidPassword(password)) {
+            sendJson(res, 400, { error: 'Password must be at least 8 characters long.' });
+            return;
+          }
+
+          const timestamp = new Date().toISOString();
+          target.password = createPasswordRecord(String(password));
+          target.passwordChangedAt = timestamp;
+          target.updatedAt = timestamp;
+          target.updatedBy = actor.id;
+          writeUsers(users);
+          revokeSessionsForUser(target.id);
+          sendJson(res, 200, { user: sanitizeUser(target) });
+        })
+        .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
+      return;
+    }
+
+    if (action) {
+      sendNotFound(res);
+      return;
+    }
+
+    if (req.method === 'PUT') {
+      collectRequestBody(req)
+        .then((body) => {
+          const nextName = String((body?.name ?? target.name) || '').trim();
+          const nextPhone = String((body?.phone ?? target.phone) || '').trim();
+          const nextCity = String((body?.city ?? target.city) || '').trim();
+          const nextRole = ROLE_OPTIONS.includes(body?.role) ? body.role : target.role;
+          const nextStatus = USER_STATUSES.includes(body?.status) ? body.status : target.status;
+
+          const activeAdmins = countActiveAdmins(users);
+          const targetIsActiveAdmin = target.role === 'admin' && target.status !== 'suspended';
+          const demotingAdmin = targetIsActiveAdmin && (nextRole !== 'admin' || nextStatus !== 'active');
+
+          if (demotingAdmin && activeAdmins <= 1) {
+            sendJson(res, 400, { error: 'At least one active admin account must remain.' });
+            return;
+          }
+
+          if (target.id === actor.id && nextStatus !== 'active') {
+            sendJson(res, 400, { error: 'You cannot suspend your own admin account.' });
+            return;
+          }
+
+          target.name = nextName || target.name;
+          target.phone = nextPhone;
+          target.city = nextCity;
+          target.role = nextRole;
+          target.status = nextStatus;
+          target.updatedAt = new Date().toISOString();
+          target.updatedBy = actor.id;
+
+          writeUsers(users);
+          revokeSessionsForUser(target.id);
+          sendJson(res, 200, {
+            user: sanitizeUser(target),
+            stats: computeUserStats(users)
+          });
+        })
+        .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      if (target.id === actor.id) {
+        sendJson(res, 400, { error: 'You cannot delete your own account.' });
+        return;
+      }
+      if (target.role === 'admin' && countActiveAdmins(users) <= 1) {
+        sendJson(res, 400, { error: 'At least one active admin account must remain.' });
+        return;
+      }
+
+      const removed = users.splice(index, 1)[0];
+      writeUsers(users);
+      revokeSessionsForUser(removed.id);
+      sendJson(res, 200, { stats: computeUserStats(users) });
+      return;
+    }
+
+    sendJson(res, 405, { error: 'Method not allowed.' });
     return;
   }
 
