@@ -1920,6 +1920,32 @@ textarea:focus {
   outline: none;
 }
 
+.form-alert {
+  display: none;
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+
+.form-alert.is-visible {
+  display: block;
+}
+
+.form-alert.is-success {
+  background: rgba(22, 163, 74, 0.12);
+  border-color: rgba(22, 163, 74, 0.3);
+  color: #166534;
+}
+
+.form-alert.is-error {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.3);
+  color: #b91c1c;
+}
+
 /* ============================================================
    Auth / Portal Pages
    ============================================================ */

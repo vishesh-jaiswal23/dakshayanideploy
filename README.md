@@ -18,6 +18,13 @@ This project includes a static marketing site alongside a lightweight Node.js se
    ```
    The service listens on `http://localhost:4000` by default.
 
+### WhatsApp quick connect
+
+The homepage "Get Your Free Solar Consultation" form now opens WhatsApp directly on submit.
+After a visitor fills out their name, phone, city, and project type, the site launches a
+chat with `+91 70702 78178` and pre-fills those details into the message so your team can
+continue the conversation instantly.
+
 ### API quick check
 Use the seeded demo credentials to make sure everything is wired correctly:
 ```bash

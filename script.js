@@ -607,10 +607,89 @@ async function initSiteSettings() {
   applySiteSettings(settings);
 }
 
+function setupLeadForm() {
+  const form = document.getElementById('homepage-lead-form');
+  if (!form) {
+    return;
+  }
+
+  const alertEl = document.getElementById('homepage-lead-form-alert');
+  const submitButton = form.querySelector('button[type="submit"]');
+
+  const setAlert = (message, variant) => {
+    if (!alertEl) {
+      return;
+    }
+
+    alertEl.textContent = message || '';
+    alertEl.classList.remove('is-success', 'is-error', 'is-visible');
+
+    if (message) {
+      alertEl.classList.add('is-visible');
+      if (variant === 'success') {
+        alertEl.classList.add('is-success');
+      } else if (variant === 'error') {
+        alertEl.classList.add('is-error');
+      }
+    }
+  };
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.setAttribute('aria-busy', 'true');
+    }
+
+    const formData = new FormData(form);
+    const payload = {
+      name: String(formData.get('name') || '').trim(),
+      phone: String(formData.get('phone') || '').trim(),
+      city: String(formData.get('city') || '').trim(),
+      projectType: String(formData.get('projectType') || '').trim(),
+      leadSource: String(formData.get('leadSource') || 'Website Homepage').trim(),
+    };
+
+    if (!payload.name || !payload.phone || !payload.city || !payload.projectType) {
+      setAlert('Please complete every field before submitting the form.', 'error');
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.removeAttribute('aria-busy');
+      }
+      return;
+    }
+
+    const messageLines = [
+      'Hello Dakshayani Enterprises!',
+      `Name: ${payload.name}`,
+      `Phone: ${payload.phone}`,
+      `City: ${payload.city}`,
+      `Project Type: ${payload.projectType}`,
+      `Source: ${payload.leadSource}`,
+    ];
+    const whatsappUrl = `https://wa.me/917070278178?text=${encodeURIComponent(messageLines.join('\n'))}`;
+
+    const popup = window.open(whatsappUrl, '_blank');
+    if (!popup) {
+      window.location.href = whatsappUrl;
+    }
+
+    setAlert('Opening WhatsApp… please send us your message there!', 'success');
+    form.reset();
+
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.removeAttribute('aria-busy');
+    }
+  });
+}
+
 // Wait for the document to be interactive before injecting content.
 document.addEventListener('DOMContentLoaded', () => {
   injectPartial('header.site-header', PARTIALS.header);
   injectPartial('footer.site-footer', PARTIALS.footer);
   stampCurrentYear();
   initSiteSettings();
+  setupLeadForm();
 });

@@ -404,29 +404,30 @@
 
         <div class="form-card">
           <h3 class="text-2xl font-bold">Get Your Free Solar Consultation</h3>
-          <form action="YOUR_APPSHEET_FORM_LINK" method="POST" class="mt-4">
+          <form id="homepage-lead-form" class="mt-4" novalidate>
             <div class="form-group">
               <label class="form-label" for="lead-name">Full Name</label>
-              <input type="text" id="lead-name" name="Name" class="form-control" placeholder="Full Name" required />
+              <input type="text" id="lead-name" name="name" class="form-control" placeholder="Full Name" required />
             </div>
             <div class="form-group">
               <label class="form-label" for="lead-phone">Phone Number</label>
-              <input type="tel" id="lead-phone" name="Phone" class="form-control" placeholder="Phone Number" required />
+              <input type="tel" id="lead-phone" name="phone" class="form-control" placeholder="Phone Number" required />
             </div>
             <div class="form-group">
               <label class="form-label" for="lead-city">City</label>
-              <input type="text" id="lead-city" name="City" class="form-control" placeholder="City (e.g., Ranchi, Bokaro, Raipur)" required />
+              <input type="text" id="lead-city" name="city" class="form-control" placeholder="City (e.g., Ranchi, Bokaro, Raipur)" required />
             </div>
             <div class="form-group">
               <label class="form-label" for="lead-type">Project Type</label>
-              <select id="lead-type" name="ProjectType" class="form-control" required>
+              <select id="lead-type" name="projectType" class="form-control" required>
                 <option value="">Select Project Type</option>
                 <option value="Residential">Residential (PM Surya Ghar)</option>
                 <option value="Commercial">Commercial / Industrial</option>
                 <option value="General Inquiry">General Inquiry</option>
               </select>
             </div>
-            <input type="hidden" name="LeadSource" value="Website Homepage" />
+            <input type="hidden" name="leadSource" value="Website Homepage" />
+            <div id="homepage-lead-form-alert" class="form-alert" role="status" aria-live="polite"></div>
             <button type="submit" class="btn btn-primary btn-block mt-4">
               <i class="fa-solid fa-arrow-right"></i>
               Send Inquiry
