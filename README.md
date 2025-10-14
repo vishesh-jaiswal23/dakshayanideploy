@@ -18,6 +18,32 @@ This project includes a static marketing site alongside a lightweight Node.js se
    ```
    The service listens on `http://localhost:4000` by default.
 
+### Forward consultation leads to WhatsApp
+
+The homepage "Get Your Free Solar Consultation" form can forward every submission to a
+WhatsApp chat using Meta's Cloud API. Configure the following environment variables before
+starting the server (for example via a `.env` loader or inline with the `npm start` command):
+
+| Variable | Purpose |
+| --- | --- |
+| `WHATSAPP_PHONE_NUMBER_ID` | The phone number ID from your Meta app |
+| `WHATSAPP_ACCESS_TOKEN` | A permanent or temporary access token with the `whatsapp_business_messaging` permission |
+| `WHATSAPP_RECIPIENT_NUMBER` | The WhatsApp number (in international format) that should receive the lead alert |
+
+Example:
+
+```bash
+WHATSAPP_PHONE_NUMBER_ID=1234567890 \
+WHATSAPP_ACCESS_TOKEN="EAAG..." \
+WHATSAPP_RECIPIENT_NUMBER=917070278178 \
+npm start
+```
+
+When the variables are present the server posts a WhatsApp text message containing the name,
+phone, city, project type, and timestamp as soon as someone submits the consultation form.
+If the integration is not configured, the visitor will see a friendly error message and the
+request will not leave the server.
+
 ### API quick check
 Use the seeded demo credentials to make sure everything is wired correctly:
 ```bash

@@ -167,6 +167,7 @@ const FESTIVAL_THEMES = {
 };
 
 const SITE_SETTINGS_ENDPOINT = '/api/public/site-settings';
+const LEAD_FORM_ENDPOINT = '/api/leads/whatsapp';
 const DEFAULT_SITE_SETTINGS = {
   festivalTheme: 'default',
   hero: {
@@ -607,10 +608,97 @@ async function initSiteSettings() {
   applySiteSettings(settings);
 }
 
+function setupLeadForm() {
+  const form = document.getElementById('homepage-lead-form');
+  if (!form) {
+    return;
+  }
+
+  const alertEl = document.getElementById('homepage-lead-form-alert');
+  const submitButton = form.querySelector('button[type="submit"]');
+
+  const setAlert = (message, variant) => {
+    if (!alertEl) {
+      return;
+    }
+
+    alertEl.textContent = message || '';
+    alertEl.classList.remove('is-success', 'is-error', 'is-visible');
+
+    if (message) {
+      alertEl.classList.add('is-visible');
+      if (variant === 'success') {
+        alertEl.classList.add('is-success');
+      } else if (variant === 'error') {
+        alertEl.classList.add('is-error');
+      }
+    }
+  };
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.setAttribute('aria-busy', 'true');
+    }
+
+    setAlert('Sending your details…');
+
+    const formData = new FormData(form);
+    const payload = {
+      name: String(formData.get('name') || '').trim(),
+      phone: String(formData.get('phone') || '').trim(),
+      city: String(formData.get('city') || '').trim(),
+      projectType: String(formData.get('projectType') || '').trim(),
+      leadSource: String(formData.get('leadSource') || 'Website Homepage').trim(),
+    };
+
+    if (!payload.name || !payload.phone || !payload.city || !payload.projectType) {
+      setAlert('Please complete every field before submitting the form.', 'error');
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.removeAttribute('aria-busy');
+      }
+      return;
+    }
+
+    try {
+      const response = await fetch(LEAD_FORM_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const message = result?.error || 'Unable to send your details right now. Please try again later.';
+        setAlert(message, 'error');
+        return;
+      }
+
+      setAlert('Thank you! Our solar specialist will reach out on WhatsApp shortly.', 'success');
+      form.reset();
+    } catch (error) {
+      console.error('Failed to submit lead form', error);
+      setAlert('We could not send your details. Please refresh and try again.', 'error');
+    } finally {
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.removeAttribute('aria-busy');
+      }
+    }
+  });
+}
+
 // Wait for the document to be interactive before injecting content.
 document.addEventListener('DOMContentLoaded', () => {
   injectPartial('header.site-header', PARTIALS.header);
   injectPartial('footer.site-footer', PARTIALS.footer);
   stampCurrentYear();
   initSiteSettings();
+  setupLeadForm();
 });

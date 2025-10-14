@@ -2,6 +2,7 @@ const http = require('http');
 const path = require('path');
 const fs = require('fs');
 const { URL } = require('url');
+const https = require('https');
 const crypto = require('crypto');
 
 const PORT = process.env.PORT || 4000;
@@ -10,6 +11,11 @@ const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SITE_SETTINGS_FILE = path.join(DATA_DIR, 'site-settings.json');
 const STATIC_ROOT = path.join(__dirname, '..');
+
+const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || '';
+const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || '';
+const WHATSAPP_RECIPIENT_NUMBER =
+  process.env.WHATSAPP_RECIPIENT_NUMBER || process.env.WHATSAPP_RECIPIENT || '';
 
 const sessions = new Map();
 const ALLOWED_FESTIVAL_THEMES = new Set(['default', 'diwali', 'holi', 'christmas']);
@@ -366,6 +372,85 @@ function collectRequestBody(req) {
   });
 }
 
+function isWhatsAppConfigured() {
+  return (
+    Boolean(WHATSAPP_PHONE_NUMBER_ID) &&
+    Boolean(WHATSAPP_ACCESS_TOKEN) &&
+    Boolean(WHATSAPP_RECIPIENT_NUMBER)
+  );
+}
+
+function buildWhatsAppLeadMessage(lead) {
+  const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  const lines = [
+    '*New Solar Consultation Lead*',
+    `Name: ${lead.name}`,
+    `Phone: ${lead.phone}`,
+    `City: ${lead.city}`,
+    `Project Type: ${lead.projectType}`,
+  ];
+
+  if (lead.leadSource) {
+    lines.push(`Source: ${lead.leadSource}`);
+  }
+
+  lines.push(`Received: ${timestamp}`);
+  return lines.join('\n');
+}
+
+function sendWhatsAppLeadNotification(lead) {
+  return new Promise((resolve, reject) => {
+    if (!isWhatsAppConfigured()) {
+      reject(new Error('WhatsApp integration is not configured.'));
+      return;
+    }
+
+    const recipient = String(WHATSAPP_RECIPIENT_NUMBER).replace(/[^+\d]/g, '');
+    const message = buildWhatsAppLeadMessage(lead);
+    const payload = JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: recipient,
+      type: 'text',
+      text: {
+        preview_url: false,
+        body: message,
+      },
+    });
+
+    const request = https.request(
+      `https://graph.facebook.com/v20.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      },
+      (response) => {
+        const chunks = [];
+        response.on('data', (chunk) => chunks.push(chunk));
+        response.on('end', () => {
+          const body = Buffer.concat(chunks).toString('utf8');
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            resolve(body);
+          } else {
+            const error = new Error(
+              `WhatsApp API responded with status ${response.statusCode}: ${body}`
+            );
+            error.statusCode = response.statusCode;
+            reject(error);
+          }
+        });
+      }
+    );
+
+    request.on('error', reject);
+    request.write(payload);
+    request.end();
+  });
+}
+
 function createToken(userId) {
   const token = crypto.randomBytes(32).toString('hex');
   sessions.set(token, { userId, createdAt: Date.now() });
@@ -613,6 +698,53 @@ function handleApiRequest(req, res, url) {
   if (req.method === 'GET' && url.pathname === '/api/public/site-settings') {
     const settings = readSiteSettings();
     sendJson(res, 200, { settings: sanitizeSiteSettings(settings) });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/leads/whatsapp') {
+    collectRequestBody(req)
+      .then((body) => {
+        const name = String(body?.name || '').trim();
+        const phone = String(body?.phone || '').trim();
+        const city = String(body?.city || '').trim();
+        const projectType = String(body?.projectType || '').trim();
+        const leadSource = String(body?.leadSource || 'Website Homepage').trim();
+
+        if (!name || !phone || !city || !projectType) {
+          sendJson(res, 400, { error: 'Name, phone, city, and project type are required.' });
+          return;
+        }
+
+        if (!isWhatsAppConfigured()) {
+          sendJson(res, 503, {
+            error: 'WhatsApp integration is not configured on the server. Please contact support.',
+          });
+          return;
+        }
+
+        const lead = {
+          name: name.replace(/\s+/g, ' ').trim(),
+          phone,
+          city: city.replace(/\s+/g, ' ').trim(),
+          projectType,
+          leadSource,
+        };
+
+        sendWhatsAppLeadNotification(lead)
+          .then(() => {
+            sendJson(res, 200, { message: 'Lead forwarded to WhatsApp successfully.' });
+          })
+          .catch((error) => {
+            console.error('Failed to forward lead to WhatsApp', error);
+            const statusCode = error?.statusCode || 502;
+            const message =
+              statusCode === 401 || statusCode === 403
+                ? 'WhatsApp authentication failed. Verify the server access token.'
+                : 'Unable to forward the lead to WhatsApp at this time. Please try again later.';
+            sendJson(res, 502, { error: message });
+          });
+      })
+      .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
     return;
   }
 
