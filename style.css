@@ -1751,6 +1751,26 @@ p {
   color: var(--base-600);
 }
 
+.testimonial-card .author {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.testimonial-card .author-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: var(--shadow-soft);
+  border: 2px solid rgba(148, 163, 184, 0.25);
+}
+
+.testimonial-card .author-info {
+  display: grid;
+  gap: 0.25rem;
+}
+
 /* ============================================================
    Impact + Media Sections
    ============================================================ */
