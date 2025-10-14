@@ -167,6 +167,7 @@ const FESTIVAL_THEMES = {
 };
 
 const SITE_SETTINGS_ENDPOINT = '/api/public/site-settings';
+const LEAD_FORM_ENDPOINT = '/api/leads/whatsapp';
 const DEFAULT_SITE_SETTINGS = {
   festivalTheme: 'default',
   hero: {
