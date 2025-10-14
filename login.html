@@ -91,6 +91,27 @@
       background: linear-gradient(180deg, rgba(248, 250, 252, 0.7), #ffffff 45%);
     }
 
+    .back-home-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #1d4ed8;
+      text-decoration: none;
+      transition: color 0.2s ease, transform 0.2s ease;
+    }
+
+    .back-home-link i {
+      font-size: 0.85rem;
+    }
+
+    .back-home-link:hover,
+    .back-home-link:focus-visible {
+      color: #0f172a;
+      transform: translateX(-2px);
+    }
+
     .form-stack {
       display: grid;
       gap: 1.75rem;
@@ -325,6 +346,10 @@
     </aside>
 
     <section class="portal-card">
+      <a href="index.html" class="back-home-link">
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+        <span>Back to Dakshayani Enterprises</span>
+      </a>
       <div class="form-stack">
         <div class="form-section">
           <h2>Welcome back</h2>
