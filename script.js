@@ -179,37 +179,37 @@ const DEFAULT_SITE_SETTINGS = {
     bubbleHeading: '24/7 monitoring',
     bubbleBody: 'Hybrid + storage ready',
     gallery: [
-      { image: 'images/team.jpg', caption: 'Certified engineers' },
+      { image: 'images/residential pics real/IMG-20230407-WA0011.jpg', caption: 'Residential handover' },
       { image: 'images/finance.jpg', caption: 'Finance desk' }
     ]
   },
   installs: [
     {
       id: 'install-001',
-      title: '6 kW PM Surya Ghar Rooftop',
+      title: '8 kW Duplex Rooftop',
       location: 'Ranchi, Jharkhand',
-      capacity: '6 kW',
-      completedOn: 'September 2024',
-      image: 'images/roof.jpg',
-      summary: 'Hybrid-ready rooftop array with remote monitoring for a duplex residence.'
+      capacity: '8 kW',
+      completedOn: 'October 2024',
+      image: 'images/residential pics real/IMG-20241028-WA0002.jpg',
+      summary: 'Sun-tracking friendly design for an east-west duplex with surge protection and earthing upgrades.'
     },
     {
       id: 'install-002',
-      title: '25 kW Nursing Home Retrofit',
-      location: 'Jamshedpur, Jharkhand',
-      capacity: '25 kW',
+      title: '35 kW Manufacturing Retrofit',
+      location: 'Adityapur, Jharkhand',
+      capacity: '35 kW',
       completedOn: 'August 2024',
-      image: 'images/hero.jpg',
-      summary: 'Tier-1 mono-PERC modules with zero downtime switchover for critical care loads.'
+      image: 'images/residential pics real/WhatsApp Image 2025-02-10 at 17.44.29_6f1624c9.jpg',
+      summary: 'Retrofit on light-gauge roofing with optimisers to balance shading across production bays.'
     },
     {
       id: 'install-003',
-      title: '12 kW Agro Cold Storage',
-      location: 'Hazaribagh, Jharkhand',
-      capacity: '12 kW',
+      title: 'Solar Irrigation Pump Cluster',
+      location: 'Khunti, Jharkhand',
+      capacity: '15 HP',
       completedOn: 'July 2024',
       image: 'images/pump.jpg',
-      summary: 'Rooftop solar with battery support to power drip irrigation and cold storage.'
+      summary: 'High-efficiency AC pump with remote diagnostics energising micro-irrigation for farmers.'
     }
   ]
 };
