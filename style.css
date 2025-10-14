@@ -402,9 +402,21 @@ p {
   text-align: left;
 }
 
-.nav-desktop .nav-link.active,
-.nav-desktop .nav-link:hover,
-.nav-desktop .nav-link:focus-visible {
+.nav-desktop .btn-secondary {
+  color: var(--surface);
+  background: var(--accent-blue-dark);
+  box-shadow: 0 12px 26px rgba(30, 58, 138, 0.25);
+}
+
+.nav-desktop .btn-secondary:hover,
+.nav-desktop .btn-secondary:focus-visible {
+  color: var(--surface);
+  background: var(--base-700);
+}
+
+.nav-desktop .nav-link:not(.btn-secondary).active,
+.nav-desktop .nav-link:not(.btn-secondary):hover,
+.nav-desktop .nav-link:not(.btn-secondary):focus-visible {
   color: var(--accent-blue-dark);
   background: rgba(59, 130, 246, 0.12);
 }
