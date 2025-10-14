@@ -635,15 +635,13 @@ function setupLeadForm() {
     }
   };
 
-  form.addEventListener('submit', async (event) => {
+  form.addEventListener('submit', (event) => {
     event.preventDefault();
 
     if (submitButton) {
       submitButton.disabled = true;
       submitButton.setAttribute('aria-busy', 'true');
     }
-
-    setAlert('Sending your details…');
 
     const formData = new FormData(form);
     const payload = {
@@ -663,33 +661,27 @@ function setupLeadForm() {
       return;
     }
 
-    try {
-      const response = await fetch(LEAD_FORM_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+    const messageLines = [
+      'Hello Dakshayani Enterprises!',
+      `Name: ${payload.name}`,
+      `Phone: ${payload.phone}`,
+      `City: ${payload.city}`,
+      `Project Type: ${payload.projectType}`,
+      `Source: ${payload.leadSource}`,
+    ];
+    const whatsappUrl = `https://wa.me/917070278178?text=${encodeURIComponent(messageLines.join('\n'))}`;
 
-      const result = await response.json().catch(() => ({}));
+    const popup = window.open(whatsappUrl, '_blank');
+    if (!popup) {
+      window.location.href = whatsappUrl;
+    }
 
-      if (!response.ok) {
-        const message = result?.error || 'Unable to send your details right now. Please try again later.';
-        setAlert(message, 'error');
-        return;
-      }
+    setAlert('Opening WhatsApp… please send us your message there!', 'success');
+    form.reset();
 
-      setAlert('Thank you! Our solar specialist will reach out on WhatsApp shortly.', 'success');
-      form.reset();
-    } catch (error) {
-      console.error('Failed to submit lead form', error);
-      setAlert('We could not send your details. Please refresh and try again.', 'error');
-    } finally {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.removeAttribute('aria-busy');
-      }
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.removeAttribute('aria-busy');
     }
   });
 }
