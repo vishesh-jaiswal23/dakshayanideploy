@@ -50,7 +50,7 @@
       <div class="container contact-grid">
         <div class="form-card">
           <h2 style="margin:0;">Request a free consultation</h2>
-          <form action="mailto:connect@dakshayani.co.in" method="POST" enctype="text/plain">
+          <form id="contactForm">
             <div class="form-group">
               <label for="name">Full name</label>
               <input type="text" id="name" name="Name" required />
@@ -80,6 +80,23 @@
               <label for="message">How can we help?</label>
               <textarea id="message" name="Message" rows="4" placeholder="Tell us about your site, energy bills, or subsidy stage." required></textarea>
             </div>
+            <fieldset class="form-group" style="border:none;padding:0;">
+              <legend style="font-weight:600;margin-bottom:0.5rem;">Preferred channel</legend>
+              <div class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.75rem;">
+                <label class="btn btn-secondary" style="margin:0;display:flex;align-items:center;gap:0.5rem;justify-content:center;cursor:pointer;">
+                  <input type="radio" name="ContactChannel" value="whatsapp" required style="accent-color:#14532d;" />
+                  WhatsApp
+                </label>
+                <label class="btn btn-secondary" style="margin:0;display:flex;align-items:center;gap:0.5rem;justify-content:center;cursor:pointer;">
+                  <input type="radio" name="ContactChannel" value="sms" required style="accent-color:#14532d;" />
+                  SMS
+                </label>
+                <label class="btn btn-secondary" style="margin:0;display:flex;align-items:center;gap:0.5rem;justify-content:center;cursor:pointer;">
+                  <input type="radio" name="ContactChannel" value="email" required style="accent-color:#14532d;" />
+                  Email
+                </label>
+              </div>
+            </fieldset>
             <button type="submit" class="btn btn-primary">Submit request</button>
             <p class="form-helper">We&#39;ll call or email within one working day. For urgent assistance, WhatsApp +91&nbsp;70702&nbsp;78178.</p>
           </form>
@@ -193,6 +210,52 @@
 
   <footer class="site-footer"></footer>
 
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const form = document.getElementById('contactForm');
+      if (!form) return;
+
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        const formData = new FormData(form);
+        const name = (formData.get('Name') || '').trim();
+        const email = (formData.get('Email') || '').trim();
+        const phone = (formData.get('Phone') || '').trim();
+        const projectType = formData.get('ProjectType') || '';
+        const message = (formData.get('Message') || '').trim();
+        const channel = formData.get('ContactChannel');
+
+        if (!channel) {
+          form.reportValidity();
+          return;
+        }
+
+        const summary = [
+          `Name: ${name}`,
+          `Email: ${email}`,
+          `Phone: ${phone}`,
+          `Project type: ${projectType}`,
+          '',
+          'Message:',
+          message
+        ].join('\n');
+
+        let targetUrl = '';
+
+        if (channel === 'whatsapp') {
+          targetUrl = `https://wa.me/917070278178?text=${encodeURIComponent(summary)}`;
+        } else if (channel === 'sms') {
+          targetUrl = `sms:7070278178?body=${encodeURIComponent(summary)}`;
+        } else {
+          const subject = encodeURIComponent(`New solar inquiry from ${name || 'Dakshayani contact form'}`);
+          targetUrl = `mailto:connect@dakshayani.co.in?subject=${subject}&body=${encodeURIComponent(summary)}`;
+        }
+
+        window.location.href = targetUrl;
+      });
+    });
+  </script>
   <script src="script.js" defer></script>
 </body>
 </html>
