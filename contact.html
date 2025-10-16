@@ -136,6 +136,96 @@
       </div>
     </section>
 
+    <section class="section" id="service-complaints">
+      <div class="container">
+        <div class="head">
+          <h2>Register a service complaint</h2>
+          <p class="sub">Raise an issue with your solar system and our service desk will log it over WhatsApp, email, and the Dakshayani helpdesk so nothing slips through.</p>
+        </div>
+        <div class="complaint-layout">
+          <div class="form-card complaint-card">
+            <form id="complaintForm">
+              <div class="form-grid cols-2">
+                <div class="form-group">
+                  <label for="complaintName">Customer name</label>
+                  <input type="text" id="complaintName" name="ComplaintName" required />
+                </div>
+                <div class="form-group">
+                  <label for="complaintPhone">Phone number</label>
+                  <input type="tel" id="complaintPhone" name="ComplaintPhone" required />
+                </div>
+              </div>
+              <div class="form-grid cols-2">
+                <div class="form-group">
+                  <label for="complaintEmail">Email address <span class="form-helper">(optional)</span></label>
+                  <input type="email" id="complaintEmail" name="ComplaintEmail" placeholder="name@example.com" />
+                </div>
+                <div class="form-group">
+                  <label for="installType">Installation category</label>
+                  <select id="installType" name="InstallType" required>
+                    <option value="">Select an installation type</option>
+                    <option value="pmsgby">PM Surya Ghar Muft Bijli Yojana</option>
+                    <option value="private">Non-PMSGMBY private installations</option>
+                    <option value="government">Government installations</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group is-hidden" id="applicationNumberGroup" data-field="application-number">
+                <label for="applicationNumber">PM Surya Ghar application number</label>
+                <input type="text" id="applicationNumber" name="ApplicationNumber" placeholder="e.g. PMSBY-1234567" />
+              </div>
+              <div class="form-group">
+                <label for="siteAddress">Site address</label>
+                <textarea id="siteAddress" name="SiteAddress" rows="2" placeholder="Installation location, city, landmark" required></textarea>
+              </div>
+              <div class="form-group">
+                <label for="systemSize">Solar plant size</label>
+                <input type="text" id="systemSize" name="SystemSize" placeholder="e.g. 5 kW rooftop" required />
+              </div>
+              <fieldset class="form-group" style="border:none;padding:0;">
+                <legend style="font-weight:600;margin-bottom:0.5rem;">What is affected?</legend>
+                <div class="issue-grid">
+                  <label class="issue-chip"><input type="checkbox" name="issueType" value="solar-panels" data-label="Solar panels" /> Solar panels</label>
+                  <label class="issue-chip"><input type="checkbox" name="issueType" value="inverter" data-label="Inverter" /> Inverter</label>
+                  <label class="issue-chip"><input type="checkbox" name="issueType" value="battery" data-label="Battery bank" /> Batteries / storage</label>
+                  <label class="issue-chip"><input type="checkbox" name="issueType" value="wiring" data-label="Wiring" /> Wiring</label>
+                  <label class="issue-chip"><input type="checkbox" name="issueType" value="earthing" data-label="Earthing" /> Earthing</label>
+                  <label class="issue-chip"><input type="checkbox" name="issueType" value="net-metering" data-label="Net metering" /> Net metering</label>
+                  <label class="issue-chip"><input type="checkbox" name="issueType" value="monitoring" data-label="Monitoring / portal" /> Monitoring / portal</label>
+                </div>
+              </fieldset>
+              <div class="form-group">
+                <label for="uniqueIssue">Describe the issue</label>
+                <textarea id="uniqueIssue" name="UniqueIssue" rows="4" placeholder="Explain the problem, error codes, downtime duration, photos shared, etc."></textarea>
+                <p class="form-helper">Pick at least one affected area or describe the concern in detail so we can route the ticket correctly.</p>
+              </div>
+              <div class="form-group">
+                <label for="preferredContact">Preferred update channel</label>
+                <select id="preferredContact" name="PreferredContact">
+                  <option value="">No preference</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="call">Phone call</option>
+                  <option value="email">Email</option>
+                </select>
+              </div>
+              <p class="form-helper form-error is-hidden" id="complaintError" role="alert"></p>
+              <div class="complaint-actions">
+                <button type="button" class="btn btn-primary" id="complaintSendWhatsApp"><i class="fa-brands fa-whatsapp"></i> Send via WhatsApp</button>
+                <button type="button" class="btn btn-secondary" id="complaintSendEmail"><i class="fa-solid fa-envelope"></i> Send email ticket</button>
+              </div>
+            </form>
+          </div>
+          <aside class="support-note">
+            <h3>Need immediate help?</h3>
+            <p class="mb-2">Our service desk logs every complaint to WhatsApp <strong>+91&nbsp;81024&nbsp;01427</strong> and emails <strong>dakshayani.pmsgy@gmail.com</strong> (cc <strong>connect@dakshayani.co.in</strong>).</p>
+            <p class="mb-2">You can also call <strong>+91&nbsp;81024&nbsp;01427</strong>, but if the call doesn&rsquo;t connect please still log the complaint here so it is registered.</p>
+            <p class="mb-2">Screenshots or meter readings shared over WhatsApp help us triage faster. Our technicians prioritise PM Surya Ghar subsidy plants, followed by private and government installations.</p>
+            <p class="form-helper mb-0">Average acknowledgment time: under 2 working hours during 9 AM&ndash;7 PM.</p>
+          </aside>
+        </div>
+      </div>
+    </section>
+
     <section class="section">
       <div class="container">
         <div class="head">
@@ -213,47 +303,176 @@
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       const form = document.getElementById('contactForm');
-      if (!form) return;
+      if (form) {
+        form.addEventListener('submit', function (event) {
+          event.preventDefault();
 
-      form.addEventListener('submit', function (event) {
-        event.preventDefault();
+          const formData = new FormData(form);
+          const name = (formData.get('Name') || '').trim();
+          const email = (formData.get('Email') || '').trim();
+          const phone = (formData.get('Phone') || '').trim();
+          const projectType = formData.get('ProjectType') || '';
+          const message = (formData.get('Message') || '').trim();
+          const channel = formData.get('ContactChannel');
 
-        const formData = new FormData(form);
-        const name = (formData.get('Name') || '').trim();
-        const email = (formData.get('Email') || '').trim();
-        const phone = (formData.get('Phone') || '').trim();
-        const projectType = formData.get('ProjectType') || '';
-        const message = (formData.get('Message') || '').trim();
-        const channel = formData.get('ContactChannel');
+          if (!channel) {
+            form.reportValidity();
+            return;
+          }
 
-        if (!channel) {
-          form.reportValidity();
-          return;
-        }
+          const summary = [
+            `Name: ${name}`,
+            `Email: ${email}`,
+            `Phone: ${phone}`,
+            `Project type: ${projectType}`,
+            '',
+            'Message:',
+            message
+          ].join('\n');
 
-        const summary = [
-          `Name: ${name}`,
-          `Email: ${email}`,
-          `Phone: ${phone}`,
-          `Project type: ${projectType}`,
-          '',
-          'Message:',
-          message
-        ].join('\n');
+          let targetUrl = '';
 
-        let targetUrl = '';
+          if (channel === 'whatsapp') {
+            targetUrl = `https://wa.me/917070278178?text=${encodeURIComponent(summary)}`;
+          } else if (channel === 'sms') {
+            targetUrl = `sms:7070278178?body=${encodeURIComponent(summary)}`;
+          } else {
+            const subject = encodeURIComponent(`New solar inquiry from ${name || 'Dakshayani contact form'}`);
+            targetUrl = `mailto:connect@dakshayani.co.in?subject=${subject}&body=${encodeURIComponent(summary)}`;
+          }
 
-        if (channel === 'whatsapp') {
-          targetUrl = `https://wa.me/917070278178?text=${encodeURIComponent(summary)}`;
-        } else if (channel === 'sms') {
-          targetUrl = `sms:7070278178?body=${encodeURIComponent(summary)}`;
+          window.location.href = targetUrl;
+        });
+      }
+
+      const complaintForm = document.getElementById('complaintForm');
+      if (!complaintForm) {
+        return;
+      }
+
+      const installType = complaintForm.querySelector('#installType');
+      const applicationGroup = complaintForm.querySelector('#applicationNumberGroup');
+      const applicationInput = complaintForm.querySelector('#applicationNumber');
+      const complaintError = document.getElementById('complaintError');
+      const issueInputs = complaintForm.querySelectorAll('input[name="issueType"]');
+      const whatsappButton = document.getElementById('complaintSendWhatsApp');
+      const emailButton = document.getElementById('complaintSendEmail');
+
+      const toggleApplicationField = () => {
+        const isPmsgby = installType && installType.value === 'pmsgby';
+        if (!applicationGroup || !applicationInput) return;
+
+        if (isPmsgby) {
+          applicationGroup.classList.remove('is-hidden');
+          applicationInput.setAttribute('required', 'required');
         } else {
-          const subject = encodeURIComponent(`New solar inquiry from ${name || 'Dakshayani contact form'}`);
-          targetUrl = `mailto:connect@dakshayani.co.in?subject=${subject}&body=${encodeURIComponent(summary)}`;
+          applicationGroup.classList.add('is-hidden');
+          applicationInput.removeAttribute('required');
+          applicationInput.value = '';
+        }
+      };
+
+      const clearError = () => {
+        if (complaintError) {
+          complaintError.textContent = '';
+          complaintError.classList.add('is-hidden');
+        }
+      };
+
+      const showError = (message) => {
+        if (!complaintError) return;
+        complaintError.textContent = message;
+        complaintError.classList.remove('is-hidden');
+      };
+
+      const buildComplaintSummary = () => {
+        const formData = new FormData(complaintForm);
+        const name = (formData.get('ComplaintName') || '').trim();
+        const phone = (formData.get('ComplaintPhone') || '').trim();
+        const email = (formData.get('ComplaintEmail') || '').trim();
+        const installValue = formData.get('InstallType') || '';
+        const installLabel = installType && installType.options[installType.selectedIndex] ? installType.options[installType.selectedIndex].textContent.trim() : installValue;
+        const applicationNumber = (formData.get('ApplicationNumber') || '').trim();
+        const siteAddress = (formData.get('SiteAddress') || '').trim();
+        const systemSize = (formData.get('SystemSize') || '').trim();
+        const preferredContact = (formData.get('PreferredContact') || '').trim();
+        const uniqueIssue = (formData.get('UniqueIssue') || '').trim();
+        const selectedIssues = Array.from(issueInputs)
+          .filter((input) => input.checked)
+          .map((input) => input.dataset.label || input.value);
+
+        if (!selectedIssues.length && !uniqueIssue) {
+          showError('Select an affected component or describe the issue so we can register your complaint.');
+          return null;
         }
 
-        window.location.href = targetUrl;
+        clearError();
+
+        const summaryLines = [
+          'Dakshayani service complaint',
+          `Installation category: ${installLabel || 'Not specified'}`,
+          `Customer name: ${name}`,
+          `Phone: ${phone}`,
+        ];
+
+        if (email) {
+          summaryLines.push(`Email: ${email}`);
+        }
+
+        if (installValue === 'pmsgby' && applicationNumber) {
+          summaryLines.push(`PM Surya Ghar application #: ${applicationNumber}`);
+        }
+
+        summaryLines.push(`Site address: ${siteAddress || 'Not provided'}`);
+        summaryLines.push(`Solar plant size: ${systemSize || 'Not provided'}`);
+
+        if (selectedIssues.length) {
+          summaryLines.push('', 'Affected components:', `- ${selectedIssues.join('\n- ')}`);
+        }
+
+        if (uniqueIssue) {
+          summaryLines.push('', 'Issue details:', uniqueIssue);
+        }
+
+        if (preferredContact) {
+          summaryLines.push('', `Preferred updates via: ${preferredContact}`);
+        }
+
+        summaryLines.push('', 'Logged via Dakshayani website');
+
+        return summaryLines.join('\n');
+      };
+
+      if (installType) {
+        installType.addEventListener('change', toggleApplicationField);
+        toggleApplicationField();
+      }
+
+      complaintForm.addEventListener('submit', function (event) {
+        event.preventDefault();
       });
+
+      complaintForm.addEventListener('input', clearError);
+      complaintForm.addEventListener('change', clearError);
+
+      if (whatsappButton) {
+        whatsappButton.addEventListener('click', function () {
+          const summary = buildComplaintSummary();
+          if (!summary) return;
+          const url = `https://wa.me/918102401427?text=${encodeURIComponent(summary)}`;
+          window.open(url, '_blank');
+        });
+      }
+
+      if (emailButton) {
+        emailButton.addEventListener('click', function () {
+          const summary = buildComplaintSummary();
+          if (!summary) return;
+          const subject = encodeURIComponent('Solar service complaint');
+          const mailto = `mailto:dakshayani.pmsgy@gmail.com?cc=connect@dakshayani.co.in&subject=${subject}&body=${encodeURIComponent(summary)}`;
+          window.location.href = mailto;
+        });
+      }
     });
   </script>
   <script src="script.js" defer></script>
