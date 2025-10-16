@@ -46,7 +46,7 @@ const INLINE_PARTIALS = {
             <a href="blog.html" class="nav-link" role="menuitem">Blog &amp; News</a>
           </div>
         </div>
-        <a href="contact.html" class="btn btn-secondary nav-link">Quote / Contact</a>
+        <a href="contact.html" class="btn btn-secondary nav-link">Consult / Complaint / Connect</a>
         <a href="login.html" class="btn btn-primary nav-link">Portal Login</a>
       </nav>
 
@@ -66,7 +66,7 @@ const INLINE_PARTIALS = {
       <a href="rewards.html">Rewards Program</a>
       <a href="blog.html">Blog &amp; News</a>
       <a href="login.html">User Portal Login</a>
-      <a href="contact.html" class="btn btn-primary nav-mobile-cta">Free Quote / Contact</a>
+      <a href="contact.html" class="btn btn-primary nav-mobile-cta">Free Consult / Complaint / Connect</a>
     </nav>
   `.trim(),
   footer: `
