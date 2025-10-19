@@ -56,10 +56,6 @@ const INLINE_PARTIALS = {
         </nav>
 
         <div class="nav-actions" role="group" aria-label="Header quick actions">
-          <button type="button" class="btn btn-ghost" data-open-quick-drawer aria-haspopup="dialog" aria-controls="quick-access-panel">
-            <i class="fa-solid fa-ellipsis"></i>
-            <span>Quick Access</span>
-          </button>
           <a href="contact.html" class="btn btn-secondary nav-link" data-nav-consult>
             Consult / Complaint / Connect
           </a>
@@ -102,14 +98,6 @@ const INLINE_PARTIALS = {
         </div>
         <div class="nav-mobile-divider" role="presentation"></div>
         <div class="nav-mobile-section" aria-label="Quick actions">
-          <button type="button" class="nav-mobile-action" data-open-quick-drawer data-close-mobile aria-haspopup="dialog" aria-controls="quick-access-panel">
-            <i class="fa-solid fa-ellipsis"></i>
-            <span>Quick Access</span>
-          </button>
-          <button type="button" class="nav-mobile-action" data-open-search data-close-mobile aria-haspopup="dialog">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <span>Search Knowledge Hub</span>
-          </button>
           <button type="button" class="nav-mobile-action" data-open-login-modal data-close-mobile>
             <i class="fa-solid fa-right-to-bracket"></i>
             <span>Portal Login</span>
@@ -118,12 +106,15 @@ const INLINE_PARTIALS = {
         </div>
       </nav>
 
-      <div class="quick-access-overlay" data-quick-drawer hidden>
-        <div class="quick-access-backdrop" data-close-quick></div>
-        <aside class="quick-access-panel" role="dialog" aria-modal="true" aria-labelledby="quick-access-title" id="quick-access-panel" tabindex="-1">
+      <div class="floating-support" data-floating-actions>
+        <button type="button" class="floating-support__toggle" data-floating-toggle aria-expanded="false" aria-controls="quick-access-panel" aria-haspopup="true">
+          <span class="sr-only">Open support &amp; tools</span>
+          <i class="fa-solid fa-headset" aria-hidden="true"></i>
+        </button>
+        <aside class="quick-access-panel" role="dialog" aria-labelledby="quick-access-title" id="quick-access-panel" data-floating-menu hidden tabindex="-1" aria-hidden="true">
           <header class="quick-access-header">
             <h2 id="quick-access-title">Support &amp; Tools</h2>
-            <button type="button" class="quick-access-close" data-close-quick aria-label="Close quick access panel">
+            <button type="button" class="quick-access-close" data-floating-close aria-label="Close support panel">
               <i class="fa-solid fa-xmark"></i>
             </button>
           </header>
@@ -155,9 +146,9 @@ const INLINE_PARTIALS = {
                     <span>Switch English / हिंदी</span>
                   </button>
                 </div>
-                <button type="button" class="quick-access-link" data-open-search data-close-quick data-no-focus-return aria-haspopup="dialog">
+                <button type="button" class="quick-access-link" data-open-search data-close-floating>
                   <i class="fa-solid fa-magnifying-glass"></i>
-                  <span>Open Site Search</span>
+                  <span>Search Knowledge Hub</span>
                 </button>
               </div>
             </section>
@@ -514,7 +505,7 @@ function enhanceHeaderNavigation(headerEl) {
   setupLanguageToggle(headerEl);
   setupStickyHeader(headerEl);
   setupWhatsAppCTA(headerEl);
-  setupQuickAccessDrawer(headerEl);
+  setupFloatingSupport(headerEl);
 }
 
 function loadGoogleTranslateScript() {
@@ -595,65 +586,92 @@ function setupWhatsAppCTA(headerEl) {
   });
 }
 
-function setupQuickAccessDrawer(headerEl) {
-  const drawer = headerEl.querySelector('[data-quick-drawer]');
-  const openers = headerEl.querySelectorAll('[data-open-quick-drawer]');
-  if (!drawer || !openers.length) {
+function setupFloatingSupport(headerEl) {
+  const container = headerEl.querySelector('[data-floating-actions]');
+  if (!container) {
     return;
   }
 
-  const panel = drawer.querySelector('.quick-access-panel');
-  const closers = drawer.querySelectorAll('[data-close-quick]');
-  let lastFocusedElement = null;
+  const toggle = container.querySelector('[data-floating-toggle]');
+  const panel = container.querySelector('[data-floating-menu]');
+  if (!toggle || !panel) {
+    return;
+  }
 
-  const closeDrawer = ({ restoreFocus = true } = {}) => {
-    if (drawer.hidden) {
-      return;
+  const closeButtons = container.querySelectorAll('[data-floating-close]');
+  const autoClosers = container.querySelectorAll('[data-close-floating]');
+  let lastFocusedElement = null;
+  let hideTimer = null;
+
+  const setHiddenState = (hidden) => {
+    if (hidden) {
+      panel.setAttribute('aria-hidden', 'true');
+      hideTimer = window.setTimeout(() => {
+        panel.hidden = true;
+      }, 220);
+    } else {
+      if (hideTimer) {
+        window.clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+      panel.hidden = false;
+      panel.setAttribute('aria-hidden', 'false');
     }
-    drawer.classList.remove('is-visible');
-    document.body.classList.remove('quick-drawer-open');
-    setTimeout(() => {
-      drawer.hidden = true;
-      if (restoreFocus && lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-        lastFocusedElement.focus();
-      }
-      if (!restoreFocus) {
-        lastFocusedElement = null;
-      }
-    }, 280);
   };
 
-  const openDrawer = () => {
-    if (!drawer.hidden && drawer.classList.contains('is-visible')) {
+  const closePanel = ({ restoreFocus = true } = {}) => {
+    if (!container.classList.contains('is-open')) {
+      return;
+    }
+    container.classList.remove('is-open');
+    toggle.setAttribute('aria-expanded', 'false');
+    setHiddenState(true);
+    if (restoreFocus && lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+      lastFocusedElement.focus();
+    }
+    if (!restoreFocus) {
+      lastFocusedElement = null;
+    }
+  };
+
+  const openPanel = () => {
+    if (container.classList.contains('is-open')) {
       return;
     }
     lastFocusedElement = document.activeElement;
-    drawer.hidden = false;
+    setHiddenState(false);
+    container.classList.add('is-open');
+    toggle.setAttribute('aria-expanded', 'true');
     requestAnimationFrame(() => {
-      drawer.classList.add('is-visible');
-      document.body.classList.add('quick-drawer-open');
-      panel?.focus();
+      panel.focus();
     });
   };
 
-  openers.forEach((button) => {
-    button.addEventListener('click', () => openDrawer());
-  });
-
-  closers.forEach((button) => {
-    const restoreFocus = !button.hasAttribute('data-no-focus-return');
-    button.addEventListener('click', () => closeDrawer({ restoreFocus }));
-  });
-
-  drawer.addEventListener('click', (event) => {
-    if (event.target === drawer || event.target.classList.contains('quick-access-backdrop')) {
-      closeDrawer({ restoreFocus: true });
+  toggle.addEventListener('click', () => {
+    if (container.classList.contains('is-open')) {
+      closePanel();
+    } else {
+      openPanel();
     }
   });
 
-  window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !drawer.hidden) {
-      closeDrawer({ restoreFocus: true });
+  closeButtons.forEach((button) => {
+    button.addEventListener('click', () => closePanel());
+  });
+
+  autoClosers.forEach((button) => {
+    button.addEventListener('click', () => closePanel({ restoreFocus: false }));
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!container.contains(event.target)) {
+      closePanel({ restoreFocus: false });
+    }
+  });
+
+  container.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closePanel();
     }
   });
 }
