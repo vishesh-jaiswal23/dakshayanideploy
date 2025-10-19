@@ -1,0 +1,47 @@
+[
+  {
+    "id": "blog-optimising-rooftop-solar",
+    "type": "article",
+    "title": "Optimising Rooftop Solar Output in Jharkhand",
+    "url": "blog.html#optimising-rooftop-solar",
+    "excerpt": "Tips from Dakshayani engineers on tilt, orientation, and maintenance to maximise production.",
+    "tags": ["blog", "residential", "performance"],
+    "publishedOn": "2024-10-02"
+  },
+  {
+    "id": "faq-net-metering",
+    "type": "faq",
+    "title": "How does Jharkhand net metering work?",
+    "url": "knowledge-hub.html#faq-net-metering",
+    "excerpt": "Understand approvals, discom paperwork, and subsidy alignment for net metering.",
+    "tags": ["faq", "policy", "customer"],
+    "publishedOn": "2024-09-18"
+  },
+  {
+    "id": "project-adityapur",
+    "type": "project",
+    "title": "35 kW Manufacturing Retrofit – Adityapur",
+    "url": "case-studies.html#adityapur",
+    "excerpt": "Upgraded LT panel, optimisers, and workforce training for a fabrication client.",
+    "tags": ["project", "commercial"],
+    "publishedOn": "2024-08-12"
+  },
+  {
+    "id": "guide-solar-financing",
+    "type": "article",
+    "title": "Solar Financing Pathways for MSMEs",
+    "url": "knowledge-hub.html#guide-solar-financing",
+    "excerpt": "Breakdown of RESCO, CAPEX, and state incentives for micro and small enterprises.",
+    "tags": ["guide", "finance", "commercial"],
+    "publishedOn": "2024-11-05"
+  },
+  {
+    "id": "faq-installation-timeline",
+    "type": "faq",
+    "title": "What is the typical Dakshayani installation timeline?",
+    "url": "knowledge-hub.html#faq-installation-timeline",
+    "excerpt": "Discovery, design, execution, commissioning, and post-handover support milestones.",
+    "tags": ["faq", "process"],
+    "publishedOn": "2024-09-01"
+  }
+]
