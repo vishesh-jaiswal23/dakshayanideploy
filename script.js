@@ -15,36 +15,6 @@ const PARTIALS = {
 const INLINE_PARTIALS = {
   header: `
     <header class="global-header" data-component="global-header">
-      <div class="header-bar">
-        <div class="container header-bar-inner">
-          <div class="header-contact" role="list">
-            <a href="tel:+917070278178" class="header-link" role="listitem">
-              <i class="fa-solid fa-phone"></i>
-              <span>+91 70702 78178</span>
-            </a>
-            <a href="mailto:connect@dakshayani.co.in" class="header-link" role="listitem">
-              <i class="fa-solid fa-envelope"></i>
-              <span>connect@dakshayani.co.in</span>
-            </a>
-            <button type="button" class="header-link" data-open-whatsapp role="listitem">
-              <i class="fa-brands fa-whatsapp"></i>
-              <span>WhatsApp Support</span>
-            </button>
-          </div>
-          <div class="header-tools">
-            <div id="google_translate_element" class="translate-widget" aria-label="Toggle language"></div>
-            <button type="button" class="header-tool" data-toggle-language>
-              <i class="fa-solid fa-language"></i>
-              <span>English / हिंदी</span>
-            </button>
-            <button type="button" class="header-tool" data-open-search aria-haspopup="dialog">
-              <i class="fa-solid fa-magnifying-glass"></i>
-              <span>Search</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
       <div class="container header-inner">
         <a href="index.html" class="brand" aria-label="Dakshayani Enterprises home">
           <img src="images/logo/New dakshayani logo centered small.png" alt="Dakshayani Enterprises" class="brand-logo-em" />
@@ -53,7 +23,6 @@ const INLINE_PARTIALS = {
 
         <nav class="nav-desktop" aria-label="Primary navigation">
           <a href="index.html" class="nav-link">Home</a>
-          <a href="govt-epc.html" class="nav-link">Govt. EPC &amp; Infrastructure</a>
           <a href="about.html" class="nav-link">About Us</a>
           <div class="nav-dropdown">
             <button type="button" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">
@@ -62,13 +31,13 @@ const INLINE_PARTIALS = {
             </button>
             <div class="nav-dropdown-menu" role="menu">
               <a href="projects.html" class="nav-link" role="menuitem">Solar Projects</a>
+              <a href="govt-epc.html" class="nav-link" role="menuitem">Govt. EPC &amp; Infrastructure</a>
               <a href="case-studies.html" class="nav-link" role="menuitem">Case Studies</a>
               <a href="pm-surya-ghar.html" class="nav-link" role="menuitem">PM Surya Ghar Subsidy</a>
               <a href="meera-gh2.html" class="nav-link" role="menuitem">Meera GH2 Initiative</a>
               <a href="e-mobility.html" class="nav-link" role="menuitem">E-Mobility &amp; Charging</a>
             </div>
           </div>
-          <a href="innovation-tech.html" class="nav-link">Innovation &amp; Tech</a>
           <div class="nav-dropdown">
             <button type="button" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">
               Knowledge Hub
@@ -76,6 +45,7 @@ const INLINE_PARTIALS = {
             </button>
             <div class="nav-dropdown-menu" role="menu">
               <a href="knowledge-hub.html" class="nav-link" role="menuitem">Knowledge Hub</a>
+              <a href="innovation-tech.html" class="nav-link" role="menuitem">Innovation &amp; Tech</a>
               <a href="blog.html" class="nav-link" role="menuitem">Blog &amp; Insights</a>
               <a href="calculator.html" class="nav-link" role="menuitem">Solar Calculator</a>
               <a href="ai-expert.html" class="nav-link" role="menuitem">Viaan AI Expert</a>
@@ -85,7 +55,11 @@ const INLINE_PARTIALS = {
           <a href="projects.html#testimonials" class="nav-link">Testimonials</a>
         </nav>
 
-        <div class="nav-actions" role="group" aria-label="Portal actions">
+        <div class="nav-actions" role="group" aria-label="Header quick actions">
+          <button type="button" class="btn btn-ghost" data-open-quick-drawer aria-haspopup="dialog" aria-controls="quick-access-panel">
+            <i class="fa-solid fa-ellipsis"></i>
+            <span>Quick Access</span>
+          </button>
           <a href="contact.html" class="btn btn-secondary nav-link" data-nav-consult>
             Consult / Complaint / Connect
           </a>
@@ -100,20 +74,96 @@ const INLINE_PARTIALS = {
       </div>
 
       <nav id="mobile-menu" class="nav-mobile" aria-label="Mobile navigation">
-        <a href="index.html">Home</a>
-        <a href="govt-epc.html">Govt. EPC &amp; Infrastructure</a>
-        <a href="about.html">About Us</a>
-        <a href="projects.html">Solar Projects</a>
-        <a href="case-studies.html">Case Studies</a>
-        <a href="pm-surya-ghar.html">PM Surya Ghar Subsidy</a>
-        <a href="meera-gh2.html">Meera GH2 Initiative</a>
-        <a href="e-mobility.html">E-Mobility &amp; Charging</a>
-        <a href="calculator.html">Solar Calculator</a>
-        <a href="knowledge-hub.html">Knowledge Hub</a>
-        <a href="blog.html">Blog &amp; News</a>
-        <a href="login.html">Portal Login</a>
-        <a href="contact.html" class="btn btn-primary nav-mobile-cta">Consult / Complaint / Connect</a>
+        <div class="nav-mobile-section" aria-label="Primary pages">
+          <a href="index.html">Home</a>
+          <a href="about.html">About Us</a>
+          <a href="projects.html">Projects Overview</a>
+          <a href="case-studies.html">Case Studies</a>
+          <a href="projects.html#testimonials">Testimonials</a>
+        </div>
+        <div class="nav-mobile-divider" role="presentation"></div>
+        <div class="nav-mobile-section" aria-label="Solutions">
+          <p class="nav-mobile-label">Solutions</p>
+          <a href="projects.html">Solar Projects</a>
+          <a href="govt-epc.html">Govt. EPC &amp; Infrastructure</a>
+          <a href="pm-surya-ghar.html">PM Surya Ghar Subsidy</a>
+          <a href="meera-gh2.html">Meera GH2 Initiative</a>
+          <a href="e-mobility.html">E-Mobility &amp; Charging</a>
+        </div>
+        <div class="nav-mobile-divider" role="presentation"></div>
+        <div class="nav-mobile-section" aria-label="Knowledge Hub">
+          <p class="nav-mobile-label">Knowledge Hub</p>
+          <a href="knowledge-hub.html">Knowledge Hub</a>
+          <a href="innovation-tech.html">Innovation &amp; Tech</a>
+          <a href="blog.html">Blog &amp; Insights</a>
+          <a href="calculator.html">Solar Calculator</a>
+          <a href="ai-expert.html">Viaan AI Expert</a>
+          <a href="policies.html">Policies &amp; Compliance</a>
+        </div>
+        <div class="nav-mobile-divider" role="presentation"></div>
+        <div class="nav-mobile-section" aria-label="Quick actions">
+          <button type="button" class="nav-mobile-action" data-open-quick-drawer data-close-mobile aria-haspopup="dialog" aria-controls="quick-access-panel">
+            <i class="fa-solid fa-ellipsis"></i>
+            <span>Quick Access</span>
+          </button>
+          <button type="button" class="nav-mobile-action" data-open-search data-close-mobile aria-haspopup="dialog">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <span>Search Knowledge Hub</span>
+          </button>
+          <button type="button" class="nav-mobile-action" data-open-login-modal data-close-mobile>
+            <i class="fa-solid fa-right-to-bracket"></i>
+            <span>Portal Login</span>
+          </button>
+          <a href="contact.html" class="btn btn-primary nav-mobile-cta" data-close-mobile>Consult / Complaint / Connect</a>
+        </div>
       </nav>
+
+      <div class="quick-access-overlay" data-quick-drawer hidden>
+        <div class="quick-access-backdrop" data-close-quick></div>
+        <aside class="quick-access-panel" role="dialog" aria-modal="true" aria-labelledby="quick-access-title" id="quick-access-panel" tabindex="-1">
+          <header class="quick-access-header">
+            <h2 id="quick-access-title">Support &amp; Tools</h2>
+            <button type="button" class="quick-access-close" data-close-quick aria-label="Close quick access panel">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </header>
+          <div class="quick-access-body">
+            <section class="quick-access-group" aria-label="Contact options">
+              <h3>Talk with us</h3>
+              <div class="quick-access-actions">
+                <a href="tel:+917070278178" class="quick-access-link" aria-label="Call Dakshayani Enterprises">
+                  <i class="fa-solid fa-phone"></i>
+                  <span>Call +91 70702 78178</span>
+                </a>
+                <a href="mailto:connect@dakshayani.co.in" class="quick-access-link" aria-label="Email Dakshayani Enterprises">
+                  <i class="fa-solid fa-envelope"></i>
+                  <span>Email connect@dakshayani.co.in</span>
+                </a>
+                <button type="button" class="quick-access-link" data-open-whatsapp aria-label="Chat on WhatsApp">
+                  <i class="fa-brands fa-whatsapp"></i>
+                  <span>WhatsApp Support</span>
+                </button>
+              </div>
+            </section>
+            <section class="quick-access-group" aria-label="Language and search">
+              <h3>Tools</h3>
+              <div class="quick-access-actions">
+                <div class="quick-access-language">
+                  <div id="google_translate_element" class="translate-widget" aria-label="Select language"></div>
+                  <button type="button" class="quick-access-toggle" data-toggle-language>
+                    <i class="fa-solid fa-language"></i>
+                    <span>Switch English / हिंदी</span>
+                  </button>
+                </div>
+                <button type="button" class="quick-access-link" data-open-search data-close-quick data-no-focus-return aria-haspopup="dialog">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <span>Open Site Search</span>
+                </button>
+              </div>
+            </section>
+          </div>
+        </aside>
+      </div>
     </header>
 
     <div class="site-search-overlay" data-site-search hidden>
@@ -464,6 +514,7 @@ function enhanceHeaderNavigation(headerEl) {
   setupLanguageToggle(headerEl);
   setupStickyHeader(headerEl);
   setupWhatsAppCTA(headerEl);
+  setupQuickAccessDrawer(headerEl);
 }
 
 function loadGoogleTranslateScript() {
@@ -541,6 +592,69 @@ function setupWhatsAppCTA(headerEl) {
         window.location.href = url;
       }
     });
+  });
+}
+
+function setupQuickAccessDrawer(headerEl) {
+  const drawer = headerEl.querySelector('[data-quick-drawer]');
+  const openers = headerEl.querySelectorAll('[data-open-quick-drawer]');
+  if (!drawer || !openers.length) {
+    return;
+  }
+
+  const panel = drawer.querySelector('.quick-access-panel');
+  const closers = drawer.querySelectorAll('[data-close-quick]');
+  let lastFocusedElement = null;
+
+  const closeDrawer = ({ restoreFocus = true } = {}) => {
+    if (drawer.hidden) {
+      return;
+    }
+    drawer.classList.remove('is-visible');
+    document.body.classList.remove('quick-drawer-open');
+    setTimeout(() => {
+      drawer.hidden = true;
+      if (restoreFocus && lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+        lastFocusedElement.focus();
+      }
+      if (!restoreFocus) {
+        lastFocusedElement = null;
+      }
+    }, 280);
+  };
+
+  const openDrawer = () => {
+    if (!drawer.hidden && drawer.classList.contains('is-visible')) {
+      return;
+    }
+    lastFocusedElement = document.activeElement;
+    drawer.hidden = false;
+    requestAnimationFrame(() => {
+      drawer.classList.add('is-visible');
+      document.body.classList.add('quick-drawer-open');
+      panel?.focus();
+    });
+  };
+
+  openers.forEach((button) => {
+    button.addEventListener('click', () => openDrawer());
+  });
+
+  closers.forEach((button) => {
+    const restoreFocus = !button.hasAttribute('data-no-focus-return');
+    button.addEventListener('click', () => closeDrawer({ restoreFocus }));
+  });
+
+  drawer.addEventListener('click', (event) => {
+    if (event.target === drawer || event.target.classList.contains('quick-access-backdrop')) {
+      closeDrawer({ restoreFocus: true });
+    }
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !drawer.hidden) {
+      closeDrawer({ restoreFocus: true });
+    }
   });
 }
 
