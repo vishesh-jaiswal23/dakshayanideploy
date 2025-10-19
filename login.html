@@ -123,6 +123,18 @@
       gap: 1.75rem;
     }
 
+    .field-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .field-label-row label {
+      margin: 0;
+    }
+
     @media (min-width: 720px) {
       .form-stack {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -287,6 +299,38 @@
       font-weight: 600;
     }
 
+    .input-with-toggle {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-with-toggle input {
+      flex: 1;
+      padding-right: 4.5rem;
+    }
+
+    .password-toggle {
+      position: absolute;
+      right: 0.75rem;
+      border: none;
+      background: transparent;
+      color: #1d4ed8;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.75rem;
+      transition: color 0.2s ease, background 0.2s ease;
+    }
+
+    .password-toggle:hover,
+    .password-toggle:focus-visible {
+      color: #0f172a;
+      background: rgba(37, 99, 235, 0.08);
+      outline: none;
+    }
+
     .fieldset-grid {
       display: grid;
       gap: 1rem;
@@ -297,6 +341,65 @@
       height: 1px;
       background: rgba(148, 163, 184, 0.25);
       margin: 0.5rem 0;
+    }
+
+    .quick-demo {
+      border-radius: 1rem;
+      background: rgba(37, 99, 235, 0.05);
+      padding: 1rem 1.1rem;
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .quick-demo-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin: 0;
+      color: #1d4ed8;
+    }
+
+    .quick-demo-grid {
+      display: grid;
+      gap: 0.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+
+    .quick-demo-button {
+      border: 1px solid rgba(37, 99, 235, 0.25);
+      background: #ffffff;
+      border-radius: 0.9rem;
+      padding: 0.75rem 0.85rem;
+      display: grid;
+      gap: 0.3rem;
+      text-align: left;
+      cursor: pointer;
+      color: #0f172a;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: border 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    }
+
+    .quick-demo-button:hover,
+    .quick-demo-button:focus-visible {
+      border-color: #1d4ed8;
+      box-shadow: 0 12px 24px -18px rgba(37, 99, 235, 0.8);
+      transform: translateY(-1px);
+      outline: none;
+    }
+
+    .quick-demo-button.is-active {
+      border-color: #1d4ed8;
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(37, 99, 235, 0.08));
+    }
+
+    .quick-demo-label {
+      display: block;
+    }
+
+    .quick-demo-credentials {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: rgba(15, 23, 42, 0.65);
     }
 
     .otp-row {
@@ -371,6 +474,10 @@
       .portal-card {
         padding: 2.5rem 1.85rem;
       }
+
+      .quick-demo-grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      }
     }
   </style>
 </head>
@@ -422,11 +529,53 @@
               <input type="email" id="login-email" name="email" placeholder="you@dakshayani.in" autocomplete="username" required />
             </div>
             <div>
-              <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
-                <label for="login-password" style="margin: 0;">Password</label>
-                <button type="button" class="demo-button" data-fill-demo>Fill admin demo</button>
+              <div class="field-label-row">
+                <label for="login-password">Password</label>
+                <button type="button" class="demo-button" data-fill-demo data-demo-role="admin">Fill admin demo</button>
               </div>
-              <input type="password" id="login-password" name="password" placeholder="Enter your password" autocomplete="current-password" required />
+              <div class="input-with-toggle">
+                <input
+                  type="password"
+                  id="login-password"
+                  name="password"
+                  placeholder="Enter your password"
+                  autocomplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  data-password-toggle="login-password"
+                  aria-controls="login-password"
+                  aria-pressed="false"
+                >Show</button>
+              </div>
+            </div>
+            <div class="quick-demo" role="group" aria-labelledby="quick-demo-heading">
+              <p id="quick-demo-heading" class="quick-demo-title">Quick demo logins</p>
+              <div class="quick-demo-grid">
+                <button type="button" class="quick-demo-button" data-demo-role="admin" aria-pressed="false">
+                  <span class="quick-demo-label">Administrator</span>
+                  <span class="quick-demo-credentials">admin@dakshayani.in • Admin@123</span>
+                </button>
+                <button type="button" class="quick-demo-button" data-demo-role="customer" aria-pressed="false">
+                  <span class="quick-demo-label">Customer</span>
+                  <span class="quick-demo-credentials">customer@dakshayani.in • Customer@123</span>
+                </button>
+                <button type="button" class="quick-demo-button" data-demo-role="employee" aria-pressed="false">
+                  <span class="quick-demo-label">Employee</span>
+                  <span class="quick-demo-credentials">employee@dakshayani.in • Employee@123</span>
+                </button>
+                <button type="button" class="quick-demo-button" data-demo-role="installer" aria-pressed="false">
+                  <span class="quick-demo-label">Installer</span>
+                  <span class="quick-demo-credentials">installer@dakshayani.in • Installer@123</span>
+                </button>
+                <button type="button" class="quick-demo-button" data-demo-role="referrer" aria-pressed="false">
+                  <span class="quick-demo-label">Referral partner</span>
+                  <span class="quick-demo-credentials">referrer@dakshayani.in • Referrer@123</span>
+                </button>
+              </div>
+              <p class="form-note" data-demo-helper>Tap a role to autofill the demo credentials.</p>
             </div>
             <div class="otp-row" data-otp-row hidden>
               <label for="login-otp">One-time password</label>
@@ -495,7 +644,23 @@
             </div>
             <div>
               <label for="signup-password">Create password</label>
-              <input type="password" id="signup-password" name="password" placeholder="Minimum 8 characters" autocomplete="new-password" required />
+              <div class="input-with-toggle">
+                <input
+                  type="password"
+                  id="signup-password"
+                  name="password"
+                  placeholder="Minimum 8 characters"
+                  autocomplete="new-password"
+                  required
+                />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  data-password-toggle="signup-password"
+                  aria-controls="signup-password"
+                  aria-pressed="false"
+                >Show</button>
+              </div>
               <div class="password-meter" data-password-meter>
                 <div class="password-meter-bar" data-password-meter-bar></div>
                 <span class="password-meter-label" data-password-meter-label>Password strength</span>
@@ -503,7 +668,23 @@
             </div>
             <div>
               <label for="signup-password-confirm">Confirm password</label>
-              <input type="password" id="signup-password-confirm" name="confirmPassword" placeholder="Re-type password" autocomplete="new-password" required />
+              <div class="input-with-toggle">
+                <input
+                  type="password"
+                  id="signup-password-confirm"
+                  name="confirmPassword"
+                  placeholder="Re-type password"
+                  autocomplete="new-password"
+                  required
+                />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  data-password-toggle="signup-password-confirm"
+                  aria-controls="signup-password-confirm"
+                  aria-pressed="false"
+                >Show</button>
+              </div>
             </div>
             <label class="consent-checkbox">
               <input type="checkbox" name="consent" value="yes" required />
@@ -526,7 +707,7 @@
         <h2 style="margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 700; color: #0f172a;">How to log in</h2>
         <ol style="margin: 0 0 1.35rem 1.25rem; color: rgba(15, 23, 42, 0.75); font-size: 0.95rem; display: grid; gap: 0.55rem;">
           <li>Pick the matching role from the <strong>Choose a portal</strong> dropdown (Admin, Customer, Employee, Installer, or Referral partner).</li>
-          <li>Enter the email address and password for that role. You can click <strong>Fill admin demo</strong> to auto-fill the administrator credentials.</li>
+          <li>Enter the email address and password for that role. You can tap one of the <strong>Quick demo</strong> tiles or the <strong>Fill admin demo</strong> button to auto-fill credentials instantly.</li>
           <li>Hit <strong>Log in</strong>. A success message appears and the portal redirects you to the correct dashboard.</li>
           <li>If the backend API is offline (for example on static cPanel hosting), the same form validates the demo accounts right in your browser.</li>
         </ol>
