@@ -59,7 +59,7 @@ const INLINE_PARTIALS = {
           <a href="contact.html" class="btn btn-secondary nav-link" data-nav-consult>
             Consult / Complaint / Connect
           </a>
-          <a href="login.html" class="btn btn-primary" aria-label="Go to portal login">
+          <a href="login.html" class="btn btn-primary btn-small" aria-label="Go to portal login">
             Portal Login
           </a>
         </div>
