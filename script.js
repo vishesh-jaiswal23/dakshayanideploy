@@ -14,60 +14,184 @@ const PARTIALS = {
 
 const INLINE_PARTIALS = {
   header: `
-    <div class="container header-inner">
-      <a href="index.html" class="brand" aria-label="Dakshayani Enterprises home">
-        <img src="images/logo/New dakshayani logo centered small.png" alt="Dakshayani Enterprises" class="brand-logo-em" />
-        <span class="brand-text">Dakshayani Enterprises</span>
-      </a>
+    <header class="global-header" data-component="global-header">
+      <div class="container header-inner">
+        <a href="index.html" class="brand" aria-label="Dakshayani Enterprises home">
+          <img src="images/logo/New dakshayani logo centered small.png" alt="Dakshayani Enterprises" class="brand-logo-em" />
+          <span class="brand-text">Dakshayani Enterprises</span>
+        </a>
 
-      <nav class="nav-desktop" aria-label="Primary navigation">
-        <a href="index.html" class="nav-link">Home</a>
-        <a href="about.html" class="nav-link">About Us</a>
-        <div class="nav-dropdown">
-          <button type="button" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">
-            Solutions
-            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
-          </button>
-          <div class="nav-dropdown-menu" role="menu">
-            <a href="projects.html" class="nav-link" role="menuitem">Solar Projects</a>
-            <a href="pm-surya-ghar.html" class="nav-link" role="menuitem">PM Surya Ghar Subsidy</a>
-            <a href="meera-gh2.html" class="nav-link" role="menuitem">Meera GH2 Initiative</a>
+        <nav class="nav-desktop" aria-label="Primary navigation">
+          <a href="index.html" class="nav-link">Home</a>
+          <a href="about.html" class="nav-link">About Us</a>
+          <div class="nav-dropdown">
+            <button type="button" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">
+              Solutions
+              <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+            </button>
+            <div class="nav-dropdown-menu" role="menu">
+              <a href="projects.html" class="nav-link" role="menuitem">Solar Projects</a>
+              <a href="govt-epc.html" class="nav-link" role="menuitem">Govt. EPC &amp; Infrastructure</a>
+              <a href="case-studies.html" class="nav-link" role="menuitem">Case Studies</a>
+              <a href="pm-surya-ghar.html" class="nav-link" role="menuitem">PM Surya Ghar Subsidy</a>
+              <a href="meera-gh2.html" class="nav-link" role="menuitem">Meera GH2 Initiative</a>
+              <a href="e-mobility.html" class="nav-link" role="menuitem">E-Mobility &amp; Charging</a>
+            </div>
           </div>
-        </div>
-        <div class="nav-dropdown">
-          <button type="button" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">
-            Resources
-            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
-          </button>
-          <div class="nav-dropdown-menu" role="menu">
-            <a href="calculator.html" class="nav-link" role="menuitem">Savings Calculator</a>
-            <a href="policies.html" class="nav-link" role="menuitem">Policies &amp; Compliance</a>
-            <a href="rewards.html" class="nav-link" role="menuitem">Rewards Program</a>
-            <a href="blog.html" class="nav-link" role="menuitem">Blog &amp; News</a>
+          <div class="nav-dropdown">
+            <button type="button" class="nav-link nav-dropdown-toggle" aria-haspopup="true" aria-expanded="false">
+              Knowledge Hub
+              <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+            </button>
+            <div class="nav-dropdown-menu" role="menu">
+              <a href="knowledge-hub.html" class="nav-link" role="menuitem">Knowledge Hub</a>
+              <a href="innovation-tech.html" class="nav-link" role="menuitem">Innovation &amp; Tech</a>
+              <a href="blog.html" class="nav-link" role="menuitem">Blog &amp; Insights</a>
+              <a href="calculator.html" class="nav-link" role="menuitem">Solar Calculator</a>
+              <a href="ai-expert.html" class="nav-link" role="menuitem">Viaan AI Expert</a>
+              <a href="policies.html" class="nav-link" role="menuitem">Policies &amp; Compliance</a>
+            </div>
           </div>
+          <a href="projects.html#testimonials" class="nav-link">Testimonials</a>
+        </nav>
+
+        <div class="nav-actions" role="group" aria-label="Header quick actions">
+          <button type="button" class="btn btn-ghost" data-open-quick-drawer aria-haspopup="dialog" aria-controls="quick-access-panel">
+            <i class="fa-solid fa-ellipsis"></i>
+            <span>Quick Access</span>
+          </button>
+          <a href="contact.html" class="btn btn-secondary nav-link" data-nav-consult>
+            Consult / Complaint / Connect
+          </a>
+          <button type="button" class="btn btn-primary" data-open-login-modal>
+            Portal Login
+          </button>
         </div>
-        <a href="contact.html" class="btn btn-secondary nav-link">Consult / Complaint / Connect</a>
-        <a href="login.html" class="btn btn-primary nav-link">Portal Login</a>
+
+        <button class="menu-btn" aria-label="Open navigation" aria-expanded="false" id="mobile-menu-button">
+          <i class="fas fa-bars"></i>
+        </button>
+      </div>
+
+      <nav id="mobile-menu" class="nav-mobile" aria-label="Mobile navigation">
+        <div class="nav-mobile-section" aria-label="Primary pages">
+          <a href="index.html">Home</a>
+          <a href="about.html">About Us</a>
+          <a href="projects.html">Projects Overview</a>
+          <a href="case-studies.html">Case Studies</a>
+          <a href="projects.html#testimonials">Testimonials</a>
+        </div>
+        <div class="nav-mobile-divider" role="presentation"></div>
+        <div class="nav-mobile-section" aria-label="Solutions">
+          <p class="nav-mobile-label">Solutions</p>
+          <a href="projects.html">Solar Projects</a>
+          <a href="govt-epc.html">Govt. EPC &amp; Infrastructure</a>
+          <a href="pm-surya-ghar.html">PM Surya Ghar Subsidy</a>
+          <a href="meera-gh2.html">Meera GH2 Initiative</a>
+          <a href="e-mobility.html">E-Mobility &amp; Charging</a>
+        </div>
+        <div class="nav-mobile-divider" role="presentation"></div>
+        <div class="nav-mobile-section" aria-label="Knowledge Hub">
+          <p class="nav-mobile-label">Knowledge Hub</p>
+          <a href="knowledge-hub.html">Knowledge Hub</a>
+          <a href="innovation-tech.html">Innovation &amp; Tech</a>
+          <a href="blog.html">Blog &amp; Insights</a>
+          <a href="calculator.html">Solar Calculator</a>
+          <a href="ai-expert.html">Viaan AI Expert</a>
+          <a href="policies.html">Policies &amp; Compliance</a>
+        </div>
+        <div class="nav-mobile-divider" role="presentation"></div>
+        <div class="nav-mobile-section" aria-label="Quick actions">
+          <button type="button" class="nav-mobile-action" data-open-quick-drawer data-close-mobile aria-haspopup="dialog" aria-controls="quick-access-panel">
+            <i class="fa-solid fa-ellipsis"></i>
+            <span>Quick Access</span>
+          </button>
+          <button type="button" class="nav-mobile-action" data-open-search data-close-mobile aria-haspopup="dialog">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <span>Search Knowledge Hub</span>
+          </button>
+          <button type="button" class="nav-mobile-action" data-open-login-modal data-close-mobile>
+            <i class="fa-solid fa-right-to-bracket"></i>
+            <span>Portal Login</span>
+          </button>
+          <a href="contact.html" class="btn btn-primary nav-mobile-cta" data-close-mobile>Consult / Complaint / Connect</a>
+        </div>
       </nav>
 
-      <button class="menu-btn" aria-label="Open navigation" aria-expanded="false" id="mobile-menu-button">
-        <i class="fas fa-bars"></i>
-      </button>
-    </div>
+      <div class="quick-access-overlay" data-quick-drawer hidden>
+        <div class="quick-access-backdrop" data-close-quick></div>
+        <aside class="quick-access-panel" role="dialog" aria-modal="true" aria-labelledby="quick-access-title" id="quick-access-panel" tabindex="-1">
+          <header class="quick-access-header">
+            <h2 id="quick-access-title">Support &amp; Tools</h2>
+            <button type="button" class="quick-access-close" data-close-quick aria-label="Close quick access panel">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </header>
+          <div class="quick-access-body">
+            <section class="quick-access-group" aria-label="Contact options">
+              <h3>Talk with us</h3>
+              <div class="quick-access-actions">
+                <a href="tel:+917070278178" class="quick-access-link" aria-label="Call Dakshayani Enterprises">
+                  <i class="fa-solid fa-phone"></i>
+                  <span>Call +91 70702 78178</span>
+                </a>
+                <a href="mailto:connect@dakshayani.co.in" class="quick-access-link" aria-label="Email Dakshayani Enterprises">
+                  <i class="fa-solid fa-envelope"></i>
+                  <span>Email connect@dakshayani.co.in</span>
+                </a>
+                <button type="button" class="quick-access-link" data-open-whatsapp aria-label="Chat on WhatsApp">
+                  <i class="fa-brands fa-whatsapp"></i>
+                  <span>WhatsApp Support</span>
+                </button>
+              </div>
+            </section>
+            <section class="quick-access-group" aria-label="Language and search">
+              <h3>Tools</h3>
+              <div class="quick-access-actions">
+                <div class="quick-access-language">
+                  <div id="google_translate_element" class="translate-widget" aria-label="Select language"></div>
+                  <button type="button" class="quick-access-toggle" data-toggle-language>
+                    <i class="fa-solid fa-language"></i>
+                    <span>Switch English / हिंदी</span>
+                  </button>
+                </div>
+                <button type="button" class="quick-access-link" data-open-search data-close-quick data-no-focus-return aria-haspopup="dialog">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <span>Open Site Search</span>
+                </button>
+              </div>
+            </section>
+          </div>
+        </aside>
+      </div>
+    </header>
 
-    <nav id="mobile-menu" class="nav-mobile" aria-label="Mobile navigation">
-      <a href="index.html">Home</a>
-      <a href="about.html">About Us</a>
-      <a href="projects.html">Solar Projects</a>
-      <a href="pm-surya-ghar.html">PM Surya Ghar Subsidy</a>
-      <a href="meera-gh2.html">Meera GH2 Initiative</a>
-      <a href="calculator.html">Savings Calculator</a>
-      <a href="policies.html">Policies &amp; Compliance</a>
-      <a href="rewards.html">Rewards Program</a>
-      <a href="blog.html">Blog &amp; News</a>
-      <a href="login.html">User Portal Login</a>
-      <a href="contact.html" class="btn btn-primary nav-mobile-cta">Free Consult / Complaint / Connect</a>
-    </nav>
+    <div class="site-search-overlay" data-site-search hidden>
+      <div class="site-search-backdrop" data-close-search></div>
+      <div class="site-search-dialog" role="dialog" aria-modal="true" aria-labelledby="site-search-title">
+        <form class="site-search-form" data-site-search-form>
+          <div class="site-search-header">
+            <h2 id="site-search-title">Search Dakshayani Knowledge Hub</h2>
+            <button type="button" class="site-search-close" data-close-search aria-label="Close search">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+          <div class="site-search-input">
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input type="search" name="q" placeholder="Search blogs, FAQs, case studies…" aria-label="Search site content" required />
+            <select name="segment" aria-label="Filter by segment">
+              <option value="">All segments</option>
+              <option value="residential">Residential</option>
+              <option value="commercial">Commercial</option>
+              <option value="agriculture">Agriculture</option>
+            </select>
+          </div>
+          <div class="site-search-results" data-site-search-results>
+            <p class="site-search-empty">Type to explore Dakshayani insights, project learnings, and FAQs.</p>
+          </div>
+        </form>
+      </div>
+    </div>
   `.trim(),
   footer: `
     <div class="container footer-content">
@@ -124,6 +248,14 @@ const INLINE_PARTIALS = {
     </div>
   `.trim(),
 };
+
+const LANGUAGE_STORAGE_KEY = 'dakshayaniLanguagePreference';
+const SITE_SEARCH_ENDPOINT = '/api/public/search';
+let translateScriptRequested = false;
+let translateReadyResolver = null;
+const translateReady = new Promise((resolve) => {
+  translateReadyResolver = resolve;
+});
 
 const FESTIVAL_THEMES = {
   default: {
@@ -365,10 +497,292 @@ function enhanceHeaderNavigation(headerEl) {
     link.addEventListener('click', () => closeMenu());
   });
 
+  mobileMenu.querySelectorAll('[data-close-mobile]').forEach((control) => {
+    if (control.tagName === 'A') {
+      return;
+    }
+    control.addEventListener('click', () => closeMenu());
+  });
+
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       closeMenu();
     }
+  });
+
+  setupGlobalSearch(headerEl);
+  setupLanguageToggle(headerEl);
+  setupStickyHeader(headerEl);
+  setupWhatsAppCTA(headerEl);
+  setupQuickAccessDrawer(headerEl);
+}
+
+function loadGoogleTranslateScript() {
+  if (translateScriptRequested) {
+    return;
+  }
+  translateScriptRequested = true;
+  const script = document.createElement('script');
+  script.src = 'https://translate.google.com/translate_a/element.js?cb=initDakshayaniTranslate';
+  script.defer = true;
+  script.onerror = () => {
+    console.warn('Unable to load Google Translate script.');
+  };
+  document.head.appendChild(script);
+}
+
+function applyStoredLanguagePreference() {
+  const stored = window.localStorage?.getItem?.(LANGUAGE_STORAGE_KEY);
+  if (!stored) {
+    return;
+  }
+  setGoogleLanguage(stored);
+}
+
+function setGoogleLanguage(language) {
+  const combo = document.querySelector('.goog-te-combo');
+  if (!combo) {
+    return;
+  }
+  const normalised = language === 'hi' ? 'hi' : 'en';
+  if (combo.value !== normalised) {
+    combo.value = normalised;
+    combo.dispatchEvent(new Event('change'));
+  }
+  document.documentElement.setAttribute('lang', normalised);
+  try {
+    window.localStorage?.setItem?.(LANGUAGE_STORAGE_KEY, normalised);
+  } catch (error) {
+    console.warn('Unable to persist language preference', error);
+  }
+}
+
+function setupLanguageToggle(headerEl) {
+  const toggleButtons = headerEl.querySelectorAll('[data-toggle-language]');
+  if (!toggleButtons.length) {
+    return;
+  }
+
+  loadGoogleTranslateScript();
+
+  toggleButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      translateReady
+        .then(() => {
+          const combo = document.querySelector('.goog-te-combo');
+          const next = combo && combo.value === 'hi' ? 'en' : 'hi';
+          setGoogleLanguage(next);
+        })
+        .catch((error) => console.warn('Translator not initialised', error));
+    });
+  });
+
+  translateReady.then(() => {
+    applyStoredLanguagePreference();
+  });
+}
+
+function setupWhatsAppCTA(headerEl) {
+  const whatsappTriggers = headerEl.querySelectorAll('[data-open-whatsapp]');
+  whatsappTriggers.forEach((button) => {
+    button.addEventListener('click', () => {
+      const url = 'https://wa.me/917070278178?text=Hello%20Dakshayani%20team%2C%20I%20need%20support%20with%20my%20solar%20project.';
+      const popup = window.open(url, '_blank');
+      if (!popup) {
+        window.location.href = url;
+      }
+    });
+  });
+}
+
+function setupQuickAccessDrawer(headerEl) {
+  const drawer = headerEl.querySelector('[data-quick-drawer]');
+  const openers = headerEl.querySelectorAll('[data-open-quick-drawer]');
+  if (!drawer || !openers.length) {
+    return;
+  }
+
+  const panel = drawer.querySelector('.quick-access-panel');
+  const closers = drawer.querySelectorAll('[data-close-quick]');
+  let lastFocusedElement = null;
+
+  const closeDrawer = ({ restoreFocus = true } = {}) => {
+    if (drawer.hidden) {
+      return;
+    }
+    drawer.classList.remove('is-visible');
+    document.body.classList.remove('quick-drawer-open');
+    setTimeout(() => {
+      drawer.hidden = true;
+      if (restoreFocus && lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+        lastFocusedElement.focus();
+      }
+      if (!restoreFocus) {
+        lastFocusedElement = null;
+      }
+    }, 280);
+  };
+
+  const openDrawer = () => {
+    if (!drawer.hidden && drawer.classList.contains('is-visible')) {
+      return;
+    }
+    lastFocusedElement = document.activeElement;
+    drawer.hidden = false;
+    requestAnimationFrame(() => {
+      drawer.classList.add('is-visible');
+      document.body.classList.add('quick-drawer-open');
+      panel?.focus();
+    });
+  };
+
+  openers.forEach((button) => {
+    button.addEventListener('click', () => openDrawer());
+  });
+
+  closers.forEach((button) => {
+    const restoreFocus = !button.hasAttribute('data-no-focus-return');
+    button.addEventListener('click', () => closeDrawer({ restoreFocus }));
+  });
+
+  drawer.addEventListener('click', (event) => {
+    if (event.target === drawer || event.target.classList.contains('quick-access-backdrop')) {
+      closeDrawer({ restoreFocus: true });
+    }
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !drawer.hidden) {
+      closeDrawer({ restoreFocus: true });
+    }
+  });
+}
+
+function setupStickyHeader(headerEl) {
+  const root = headerEl.closest('.global-header') || headerEl;
+  if (!root) {
+    return;
+  }
+  const handleScroll = () => {
+    if (window.scrollY > 24) {
+      root.classList.add('is-sticky');
+    } else {
+      root.classList.remove('is-sticky');
+    }
+  };
+  handleScroll();
+  window.addEventListener('scroll', handleScroll, { passive: true });
+}
+
+function setupGlobalSearch(headerEl) {
+  const overlay = document.querySelector('[data-site-search]');
+  const form = overlay ? overlay.querySelector('[data-site-search-form]') : null;
+  const openers = headerEl.querySelectorAll('[data-open-search]');
+  const closers = overlay ? overlay.querySelectorAll('[data-close-search]') : [];
+  const resultsHost = overlay ? overlay.querySelector('[data-site-search-results]') : null;
+  if (!overlay || !form || !resultsHost) {
+    return;
+  }
+
+  const input = form.querySelector('input[name="q"]');
+  const segmentSelect = form.querySelector('select[name="segment"]');
+
+  const closeSearch = () => {
+    overlay.hidden = true;
+    document.body.classList.remove('site-search-open');
+    form.reset();
+    resultsHost.innerHTML = '<p class="site-search-empty">Type to explore Dakshayani insights, project learnings, and FAQs.</p>';
+  };
+
+  const openSearch = () => {
+    overlay.hidden = false;
+    document.body.classList.add('site-search-open');
+    setTimeout(() => {
+      input?.focus();
+    }, 60);
+  };
+
+  openers.forEach((button) => {
+    button.addEventListener('click', () => openSearch());
+  });
+
+  closers.forEach((button) => {
+    button.addEventListener('click', () => closeSearch());
+  });
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      closeSearch();
+    }
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !overlay.hidden) {
+      closeSearch();
+    }
+  });
+
+  const renderResults = (items = [], query = '') => {
+    if (!items.length) {
+      resultsHost.innerHTML = `<p class="site-search-empty">No results for <strong>${query}</strong>. Try a different keyword.</p>`;
+      return;
+    }
+    const list = document.createElement('ul');
+    list.className = 'site-search-list';
+    items.forEach((item) => {
+      const entry = document.createElement('li');
+      entry.className = 'site-search-item';
+      entry.innerHTML = `
+        <a href="${item.url}" class="site-search-link">
+          <span class="site-search-type">${item.type}</span>
+          <span class="site-search-title">${item.title}</span>
+          <span class="site-search-excerpt">${item.excerpt || ''}</span>
+          <span class="site-search-tags">${(item.tags || []).join(' • ')}</span>
+        </a>
+      `;
+      list.appendChild(entry);
+    });
+    resultsHost.innerHTML = '';
+    resultsHost.appendChild(list);
+  };
+
+  const setLoading = (state) => {
+    if (state) {
+      resultsHost.innerHTML = '<p class="site-search-loading">Looking up Dakshayani Knowledge Hub…</p>';
+    }
+  };
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const query = String(input?.value || '').trim();
+    const segment = String(segmentSelect?.value || '').trim();
+    if (!query) {
+      renderResults([], query);
+      return;
+    }
+
+    const params = new URLSearchParams({ q: query });
+    if (segment) {
+      params.append('segment', segment);
+    }
+    params.append('limit', '25');
+
+    setLoading(true);
+
+    fetch(`${SITE_SEARCH_ENDPOINT}?${params.toString()}`)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Search failed with status ${response.status}`);
+        }
+        return response.json();
+      })
+      .then((data) => {
+        renderResults(data.results || [], query);
+      })
+      .catch((error) => {
+        console.error('Search request failed', error);
+        resultsHost.innerHTML = '<p class="site-search-empty">Unable to load search results at the moment.</p>';
+      });
   });
 }
 
@@ -685,6 +1099,30 @@ function setupLeadForm() {
     }
   });
 }
+
+window.initDakshayaniTranslate = function initDakshayaniTranslate() {
+  try {
+    /* global google */
+    if (window.google && google.translate) {
+      new google.translate.TranslateElement(
+        {
+          pageLanguage: 'en',
+          includedLanguages: 'en,hi',
+          autoDisplay: false,
+          layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+        },
+        'google_translate_element'
+      );
+    }
+  } catch (error) {
+    console.warn('Google Translate initialisation failed', error);
+  }
+  if (typeof translateReadyResolver === 'function') {
+    translateReadyResolver();
+    translateReadyResolver = null;
+  }
+  applyStoredLanguagePreference();
+};
 
 // Wait for the document to be interactive before injecting content.
 document.addEventListener('DOMContentLoaded', () => {

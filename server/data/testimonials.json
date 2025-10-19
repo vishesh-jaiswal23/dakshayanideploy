@@ -1,0 +1,29 @@
+[
+  {
+    "id": "google-asha",
+    "source": "Google Reviews",
+    "rating": 5,
+    "author": "Asha Verma",
+    "role": "Homeowner - Ranchi",
+    "content": "Dakshayani delivered a seamless 8 kW installation with remote monitoring that helped us cut bills by 78%.",
+    "profileUrl": "https://g.page/r/CXV7DakshayaniReview"
+  },
+  {
+    "id": "facebook-rakesh",
+    "source": "Facebook",
+    "rating": 4.8,
+    "author": "Rakesh Sharma",
+    "role": "Factory Owner - Adityapur",
+    "content": "Their team retrofitted our plant without disrupting production. Transparent reporting and GA4 dashboards impress.",
+    "profileUrl": "https://facebook.com/dakshayani/reviews"
+  },
+  {
+    "id": "google-jaya",
+    "source": "Google Reviews",
+    "rating": 5,
+    "author": "Jaya Ekka",
+    "role": "Farmer Collective - Khunti",
+    "content": "We now monitor our irrigation pumps from mobile. Subsidy paperwork and maintenance are handled end-to-end.",
+    "profileUrl": "https://g.page/r/DakshayaniPumpReview"
+  }
+]

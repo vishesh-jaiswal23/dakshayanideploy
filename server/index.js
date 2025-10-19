@@ -5,12 +5,37 @@ const { URL } = require('url');
 const https = require('https');
 const crypto = require('crypto');
 
+const globalFetch = typeof fetch === 'function'
+  ? fetch.bind(globalThis)
+  : null;
+
 const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SITE_SETTINGS_FILE = path.join(DATA_DIR, 'site-settings.json');
+const SEARCH_INDEX_FILE = path.join(DATA_DIR, 'search-index.json');
+const KNOWLEDGE_FILE = path.join(DATA_DIR, 'knowledge-articles.json');
+const TESTIMONIALS_FILE = path.join(DATA_DIR, 'testimonials.json');
+const CASE_STUDIES_FILE = path.join(DATA_DIR, 'case-studies.json');
+const TICKETS_FILE = path.join(DATA_DIR, 'tickets.json');
 const STATIC_ROOT = path.join(__dirname, '..');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'change-me';
+const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-too';
+const GOOGLE_SOLAR_API_KEY = process.env.GOOGLE_SOLAR_API_KEY || '';
+const GOOGLE_RECAPTCHA_SECRET = process.env.GOOGLE_RECAPTCHA_SECRET || '';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const GOOGLE_CHAT_WEBHOOK_URL = process.env.GOOGLE_CHAT_WEBHOOK_URL || '';
+const ENABLE_DEMO_MODE = /^true$/i.test(process.env.ENABLE_DEMO_MODE || 'true');
+const ENABLE_DEBUG_LOGS = /^true$/i.test(process.env.ENABLE_DEBUG_LOGS || 'false');
+const ALLOWED_ORIGINS = new Set(
+  String(process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
 
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || '';
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || '';
@@ -18,6 +43,7 @@ const WHATSAPP_RECIPIENT_NUMBER =
   process.env.WHATSAPP_RECIPIENT_NUMBER || process.env.WHATSAPP_RECIPIENT || '';
 
 const sessions = new Map();
+const otpChallenges = new Map();
 const ALLOWED_FESTIVAL_THEMES = new Set(['default', 'diwali', 'holi', 'christmas']);
 const ROLE_OPTIONS = ['admin', 'customer', 'employee', 'installer', 'referrer'];
 const USER_STATUSES = ['active', 'suspended'];
@@ -26,6 +52,292 @@ function ensureDataDirectory() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
+}
+
+function logDebug(...args) {
+  if (ENABLE_DEBUG_LOGS) {
+    console.log('[debug]', ...args);
+  }
+}
+
+function readJsonFile(filePath, fallback) {
+  ensureDataDirectory();
+  try {
+    if (!fs.existsSync(filePath)) {
+      if (typeof fallback !== 'undefined') {
+        fs.writeFileSync(filePath, JSON.stringify(fallback, null, 2));
+        return fallback;
+      }
+      return fallback;
+    }
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (error) {
+    console.error('Failed to read JSON file', filePath, error);
+    if (typeof fallback !== 'undefined') {
+      try {
+        fs.writeFileSync(filePath, JSON.stringify(fallback, null, 2));
+      } catch (writeError) {
+        console.error('Unable to write fallback JSON file', filePath, writeError);
+      }
+      return fallback;
+    }
+    return fallback;
+  }
+}
+
+function writeJsonFile(filePath, data) {
+  ensureDataDirectory();
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+}
+
+function httpsJsonRequest(options, body = null) {
+  return new Promise((resolve, reject) => {
+    const request = https.request(options, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf8');
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          if (!text) {
+            resolve({});
+            return;
+          }
+          try {
+            resolve(JSON.parse(text));
+          } catch (error) {
+            reject(error);
+          }
+        } else {
+          const error = new Error(`HTTP ${response.statusCode}: ${text}`);
+          error.statusCode = response.statusCode;
+          reject(error);
+        }
+      });
+    });
+    request.on('error', reject);
+    if (body) {
+      request.write(body);
+    }
+    request.end();
+  });
+}
+
+function base64UrlEncode(value) {
+  return Buffer.from(JSON.stringify(value))
+    .toString('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+}
+
+function signJwt(payload, options = {}) {
+  const header = { alg: 'HS256', typ: 'JWT', ...options.header };
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const expiresIn = options.expiresIn || 60 * 60 * 6;
+  const body = {
+    iat: issuedAt,
+    exp: issuedAt + expiresIn,
+    ...payload,
+  };
+  const encodedHeader = base64UrlEncode(header);
+  const encodedBody = base64UrlEncode(body);
+  const signature = crypto
+    .createHmac('sha256', JWT_SECRET)
+    .update(`${encodedHeader}.${encodedBody}`)
+    .digest('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+  return `${encodedHeader}.${encodedBody}.${signature}`;
+}
+
+function verifyJwt(token) {
+  if (!token || typeof token !== 'string') {
+    return null;
+  }
+  const segments = token.split('.');
+  if (segments.length !== 3) {
+    return null;
+  }
+  const [encodedHeader, encodedBody, signature] = segments;
+  const expectedSignature = crypto
+    .createHmac('sha256', JWT_SECRET)
+    .update(`${encodedHeader}.${encodedBody}`)
+    .digest('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+    return null;
+  }
+  const payload = JSON.parse(Buffer.from(encodedBody, 'base64').toString('utf8'));
+  if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+    return null;
+  }
+  return payload;
+}
+
+function issueAuthTokens(user) {
+  if (!user || !user.id) {
+    throw new Error('Cannot issue tokens for missing user');
+  }
+  const sessionToken = createToken(user.id);
+  const jwt = signJwt({
+    sub: user.id,
+    role: user.role,
+    email: user.email,
+  });
+  return { sessionToken, jwt };
+}
+
+function createOtpChallenge(email) {
+  const normalisedEmail = normaliseEmail(email);
+  if (!normalisedEmail) {
+    throw new Error('Cannot create OTP without email');
+  }
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+  const challenge = { otp, expiresAt, attempts: 0 };
+  otpChallenges.set(normalisedEmail, challenge);
+  return challenge;
+}
+
+function verifyOtp(email, otp) {
+  const normalisedEmail = normaliseEmail(email);
+  const challenge = otpChallenges.get(normalisedEmail);
+  if (!challenge) {
+    return false;
+  }
+  if (challenge.expiresAt < Date.now()) {
+    otpChallenges.delete(normalisedEmail);
+    return false;
+  }
+  challenge.attempts += 1;
+  if (challenge.attempts > 5) {
+    otpChallenges.delete(normalisedEmail);
+    return false;
+  }
+  if (String(otp) === String(challenge.otp)) {
+    otpChallenges.delete(normalisedEmail);
+    return true;
+  }
+  return false;
+}
+
+function cleanupExpiredOtps() {
+  const now = Date.now();
+  for (const [email, challenge] of otpChallenges.entries()) {
+    if (!challenge || challenge.expiresAt < now) {
+      otpChallenges.delete(email);
+    }
+  }
+}
+
+async function verifyRecaptchaToken(token, remoteIp) {
+  if (!token) {
+    return { success: false, error: 'Missing verification token' };
+  }
+
+  if (!GOOGLE_RECAPTCHA_SECRET) {
+    return { success: ENABLE_DEMO_MODE, score: 0.9, skipped: true };
+  }
+
+  const form = new URLSearchParams();
+  form.append('secret', GOOGLE_RECAPTCHA_SECRET);
+  form.append('response', token);
+  if (remoteIp) {
+    form.append('remoteip', remoteIp);
+  }
+
+  try {
+    const payload = form.toString();
+    const response = await httpsJsonRequest(
+      {
+        hostname: 'www.google.com',
+        path: '/recaptcha/api/siteverify',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      },
+      payload
+    );
+    return response;
+  } catch (error) {
+    console.error('reCAPTCHA verification failed', error);
+    return { success: false, error: error.message };
+  }
+}
+
+async function verifyGoogleIdToken(idToken) {
+  if (!idToken) {
+    throw new Error('Missing Google ID token');
+  }
+  if (!globalFetch) {
+    throw new Error('Google Sign-In verification requires fetch support');
+  }
+  const response = await globalFetch(
+    `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`
+  );
+  if (!response.ok) {
+    throw new Error(`Google token verification failed with status ${response.status}`);
+  }
+  const profile = await response.json();
+  if (profile.aud !== GOOGLE_CLIENT_ID) {
+    throw new Error('Google token audience mismatch');
+  }
+  return profile;
+}
+
+async function fetchSolarPotential({ latitude, longitude, address, systemCapacityKw }) {
+  if (!GOOGLE_SOLAR_API_KEY) {
+    throw new Error('Google Solar API key is not configured');
+  }
+
+  const params = new URLSearchParams();
+  params.append('requiredQuality', 'HIGH');
+  if (latitude && longitude) {
+    params.append('location.latitude', latitude);
+    params.append('location.longitude', longitude);
+  }
+  if (address) {
+    params.append('address', address);
+  }
+  params.append('key', GOOGLE_SOLAR_API_KEY);
+
+  const data = await httpsJsonRequest({
+    hostname: 'solar.googleapis.com',
+    path: `/v1/buildingInsights:findClosest?${params.toString()}`,
+    method: 'GET',
+  });
+
+  const insights = data?.buildingInsights || {};
+  const potential = insights.solarPotential || {};
+  const roofSegments = Array.isArray(potential.roofSegmentStats)
+    ? potential.roofSegmentStats
+    : [];
+
+  const bestSegment = roofSegments.sort(
+    (a, b) => (b?.yearlyEnergyDcKwh || 0) - (a?.yearlyEnergyDcKwh || 0)
+  )[0];
+
+  const systemCapacity = systemCapacityKw || potential.maxArrayPanelsCount;
+  const annualKwh = potential.maxArrayYearlyEnergyDcKwh || bestSegment?.yearlyEnergyDcKwh || 0;
+
+  const summary = {
+    address: insights.postalAddress?.formattedAddress || address || 'Requested site',
+    roofAreaSqm: potential.maxArrayAreaMeters2 || bestSegment?.areaMeters2 || 0,
+    optimalAzimuth: bestSegment?.azimuthDegrees || null,
+    optimalTilt: bestSegment?.tiltDegrees || null,
+    sunshineHoursPerYear: potential.maxSunshineHoursPerYear || null,
+    recommendedSystemSizeKw: systemCapacity || null,
+    estimatedYearlyGenerationKwh: annualKwh,
+    estimatedSavingsInr: annualKwh * 6.8,
+  };
+
+  return { summary, raw: data };
 }
 
 function defaultSiteSettings() {
@@ -191,6 +503,41 @@ function writeUsers(users) {
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
 }
 
+function readSearchIndex() {
+  return readJsonFile(SEARCH_INDEX_FILE, []);
+}
+
+function readKnowledgeBase() {
+  return readJsonFile(KNOWLEDGE_FILE, { categories: [], articles: [] });
+}
+
+function readTestimonials() {
+  return readJsonFile(TESTIMONIALS_FILE, []);
+}
+
+function readCaseStudies() {
+  return readJsonFile(CASE_STUDIES_FILE, []);
+}
+
+function readTickets() {
+  return readJsonFile(TICKETS_FILE, []);
+}
+
+function writeTickets(tickets) {
+  writeJsonFile(TICKETS_FILE, tickets);
+}
+
+function sanitizeTicket(ticket) {
+  if (!ticket) {
+    return null;
+  }
+  const { internalNotes, ...safe } = ticket;
+  const timeline = Array.isArray(ticket.timeline)
+    ? ticket.timeline.map((entry) => ({ ...entry, internal: undefined }))
+    : [];
+  return { ...safe, timeline };
+}
+
 function seedUsers(existingUsers) {
   const users = Array.isArray(existingUsers) ? [...existingUsers] : [];
 
@@ -302,7 +649,15 @@ function normaliseEmail(value) {
 }
 
 function isValidPassword(password) {
-  return typeof password === 'string' && password.length >= 8;
+  if (typeof password !== 'string' || password.length < 8) {
+    return false;
+  }
+  return (
+    /[a-z]/.test(password) &&
+    /[A-Z]/.test(password) &&
+    /\d/.test(password) &&
+    /[^A-Za-z0-9]/.test(password)
+  );
 }
 
 function computeUserStats(users) {
@@ -338,20 +693,38 @@ function countActiveAdmins(users) {
   return users.filter((user) => user.role === 'admin' && user.status !== 'suspended').length;
 }
 
+function applyCors(req, res) {
+  const origin = req.headers?.origin;
+  let allowOrigin = '*';
+  if (origin && ALLOWED_ORIGINS.size > 0) {
+    if (ALLOWED_ORIGINS.has(origin)) {
+      allowOrigin = origin;
+    } else {
+      allowOrigin = Array.from(ALLOWED_ORIGINS)[0] || '*';
+    }
+  } else if (origin) {
+    allowOrigin = origin;
+  }
+  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Vary', 'Origin');
+}
+
 function sendJson(res, statusCode, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Content-Length': Buffer.byteLength(body),
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
   });
   res.end(body);
 }
 
 function sendNotFound(res) {
-  res.writeHead(404, { 'Content-Type': 'text/plain' });
+  res.writeHead(404, {
+    'Content-Type': 'text/plain',
+    'Access-Control-Allow-Origin': res.getHeader('Access-Control-Allow-Origin') || '*',
+  });
   res.end('Not found');
 }
 
@@ -612,11 +985,12 @@ function buildDashboardData(user) {
 }
 
 function handleApiRequest(req, res, url) {
+  applyCors(req, res);
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': res.getHeader('Access-Control-Allow-Origin') || '*',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
     });
     res.end();
     return;
@@ -624,19 +998,52 @@ function handleApiRequest(req, res, url) {
 
   if (req.method === 'POST' && url.pathname === '/api/signup') {
     collectRequestBody(req)
-      .then(body => {
-        const { name, email, password, role = 'referrer', phone = '', city = '' } = body;
+      .then(async (body) => {
+        const {
+          name,
+          email,
+          password,
+          role = 'referrer',
+          phone = '',
+          city = '',
+          consent = false,
+          recaptchaToken = '',
+        } = body;
         if (!name || !email || !password) {
           sendJson(res, 400, { error: 'Name, email, and password are required.' });
           return;
         }
+
+        if (!consent) {
+          sendJson(res, 400, { error: 'Please agree to the privacy and data consent terms.' });
+          return;
+        }
+
+        if (!isValidPassword(password)) {
+          sendJson(res, 400, {
+            error:
+              'Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.',
+          });
+          return;
+        }
+
+        const recaptcha = await verifyRecaptchaToken(
+          String(recaptchaToken || ''),
+          req.socket?.remoteAddress
+        );
+        if (!recaptcha?.success && !recaptcha?.skipped) {
+          sendJson(res, 400, { error: 'reCAPTCHA validation failed. Please refresh and try again.' });
+          return;
+        }
+
         const normalisedEmail = normaliseEmail(email);
         const roleValue = ROLE_OPTIONS.includes(role) ? role : 'referrer';
         const users = readUsers();
-        if (users.some(user => user.email.toLowerCase() === normalisedEmail)) {
+        if (users.some((user) => user.email.toLowerCase() === normalisedEmail)) {
           sendJson(res, 409, { error: 'An account with this email already exists.' });
           return;
         }
+
         const timestamp = new Date().toISOString();
         const user = {
           id: `usr-${crypto.randomUUID()}`,
@@ -649,27 +1056,40 @@ function handleApiRequest(req, res, url) {
           status: 'active',
           createdAt: timestamp,
           updatedAt: timestamp,
-          passwordChangedAt: timestamp
+          passwordChangedAt: timestamp,
         };
         users.push(user);
         writeUsers(users);
-        const token = createToken(user.id);
-        sendJson(res, 201, { token, user: sanitizeUser(user) });
+        const tokens = issueAuthTokens(user);
+        sendJson(res, 201, { token: tokens.sessionToken, jwt: tokens.jwt, user: sanitizeUser(user) });
       })
-      .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
+      .catch((error) => {
+        console.error('Failed to process signup', error);
+        sendJson(res, 400, { error: 'Invalid JSON payload.' });
+      });
     return;
   }
 
   if (req.method === 'POST' && url.pathname === '/api/login') {
     collectRequestBody(req)
-      .then(body => {
-        const { email, password } = body;
+      .then(async (body) => {
+        const { email, password, otp, recaptchaToken = '' } = body;
         if (!email || !password) {
           sendJson(res, 400, { error: 'Email and password are required.' });
           return;
         }
+
+        const recaptcha = await verifyRecaptchaToken(
+          String(recaptchaToken || ''),
+          req.socket?.remoteAddress
+        );
+        if (!recaptcha?.success && !recaptcha?.skipped) {
+          sendJson(res, 400, { error: 'reCAPTCHA validation failed. Please try again.' });
+          return;
+        }
+
         const users = readUsers();
-        const user = users.find(u => u.email.toLowerCase() === normaliseEmail(email));
+        const user = users.find((u) => u.email.toLowerCase() === normaliseEmail(email));
         if (!user || !verifyPassword(String(password), user.password)) {
           sendJson(res, 401, { error: 'Invalid credentials. Check your email and password.' });
           return;
@@ -678,8 +1098,71 @@ function handleApiRequest(req, res, url) {
           sendJson(res, 403, { error: 'This account is suspended. Contact the administrator.' });
           return;
         }
-        const token = createToken(user.id);
-        sendJson(res, 200, { token, user: sanitizeUser(user) });
+
+        const otpProvided = typeof otp !== 'undefined' && otp !== null && String(otp).trim() !== '';
+        if (!otpProvided) {
+          const challenge = createOtpChallenge(user.email);
+          const payload = {
+            requireOtp: true,
+            message: 'An OTP has been sent to your registered email address.',
+          };
+          if (ENABLE_DEMO_MODE) {
+            payload.otpPreview = challenge.otp;
+          }
+          sendJson(res, 202, payload);
+          return;
+        }
+
+        if (!verifyOtp(user.email, otp)) {
+          sendJson(res, 401, { error: 'Invalid or expired OTP. Please request a new code.' });
+          return;
+        }
+
+        user.lastLoginAt = new Date().toISOString();
+        writeUsers(users);
+
+        const tokens = issueAuthTokens(user);
+        sendJson(res, 200, {
+          token: tokens.sessionToken,
+          jwt: tokens.jwt,
+          user: sanitizeUser(user),
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to process login request', error);
+        sendJson(res, 400, { error: 'Invalid JSON payload.' });
+      });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/auth/request-otp') {
+    collectRequestBody(req)
+      .then(async (body) => {
+        const email = normaliseEmail(body?.email);
+        if (!email) {
+          sendJson(res, 400, { error: 'Email is required.' });
+          return;
+        }
+        const recaptcha = await verifyRecaptchaToken(
+          String(body?.recaptchaToken || ''),
+          req.socket?.remoteAddress
+        );
+        if (!recaptcha?.success && !recaptcha?.skipped) {
+          sendJson(res, 400, { error: 'reCAPTCHA validation failed. Please retry.' });
+          return;
+        }
+        const users = readUsers();
+        const user = users.find((candidate) => candidate.email.toLowerCase() === email);
+        if (!user) {
+          sendJson(res, 404, { error: 'No account exists with this email.' });
+          return;
+        }
+        const challenge = createOtpChallenge(user.email);
+        const response = { message: 'OTP generated successfully.' };
+        if (ENABLE_DEMO_MODE) {
+          response.otpPreview = challenge.otp;
+        }
+        sendJson(res, 200, response);
       })
       .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
     return;
@@ -698,6 +1181,215 @@ function handleApiRequest(req, res, url) {
   if (req.method === 'GET' && url.pathname === '/api/public/site-settings') {
     const settings = readSiteSettings();
     sendJson(res, 200, { settings: sanitizeSiteSettings(settings) });
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/public/search') {
+    const index = readSearchIndex();
+    const query = String(url.searchParams.get('q') || '').trim().toLowerCase();
+    const segment = String(url.searchParams.get('segment') || '').trim().toLowerCase();
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '25', 10), 50);
+    const results = index
+      .filter((item) => {
+        if (!query) {
+          return true;
+        }
+        const haystack = [item.title, item.excerpt, ...(item.tags || [])]
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(query);
+      })
+      .filter((item) => {
+        if (!segment) {
+          return true;
+        }
+        return (item.tags || []).some((tag) => String(tag).toLowerCase() === segment);
+      })
+      .slice(0, limit);
+    sendJson(res, 200, { results, total: results.length, query });
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/public/knowledge') {
+    const data = readKnowledgeBase();
+    sendJson(res, 200, data);
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/public/testimonials') {
+    const testimonials = readTestimonials();
+    sendJson(res, 200, { testimonials });
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/public/case-studies') {
+    const segment = String(url.searchParams.get('segment') || '').trim().toLowerCase();
+    const caseStudies = readCaseStudies().filter((study) => {
+      if (!segment) {
+        return true;
+      }
+      return String(study.segment || '').toLowerCase() === segment;
+    });
+    sendJson(res, 200, { caseStudies });
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/solar/estimate') {
+    collectRequestBody(req)
+      .then(async (body) => {
+        const { latitude, longitude, address, systemCapacityKw, recaptchaToken = '' } = body || {};
+        if (!latitude && !longitude && !address) {
+          sendJson(res, 400, {
+            error: 'Provide latitude/longitude coordinates or a formatted address.',
+          });
+          return;
+        }
+
+        const recaptcha = await verifyRecaptchaToken(
+          String(recaptchaToken || ''),
+          req.socket?.remoteAddress
+        );
+        if (!recaptcha?.success && !recaptcha?.skipped) {
+          sendJson(res, 400, { error: 'reCAPTCHA validation failed. Please try again.' });
+          return;
+        }
+
+        try {
+          const result = await fetchSolarPotential({ latitude, longitude, address, systemCapacityKw });
+          sendJson(res, 200, result);
+        } catch (error) {
+          console.error('Solar potential lookup failed', error);
+          sendJson(res, 502, {
+            error: 'Unable to fetch solar potential at this time. Please try again later.',
+          });
+        }
+      })
+      .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/auth/google') {
+    collectRequestBody(req)
+      .then(async (body) => {
+        const idToken = body?.idToken || body?.credential;
+        if (!idToken) {
+          sendJson(res, 400, { error: 'Missing Google credential.' });
+          return;
+        }
+        try {
+          const profile = await verifyGoogleIdToken(String(idToken));
+          const users = readUsers();
+          const email = normaliseEmail(profile.email);
+          let user = users.find((candidate) => candidate.email.toLowerCase() === email);
+          if (!user) {
+            const timestamp = new Date().toISOString();
+            user = {
+              id: `usr-${crypto.randomUUID()}`,
+              name: profile.name || profile.given_name || 'Google User',
+              email,
+              phone: profile.phone_number || '',
+              city: profile.locale || '',
+              role: 'customer',
+              status: 'active',
+              password: createPasswordRecord(crypto.randomBytes(12).toString('hex')), // placeholder
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              passwordChangedAt: timestamp,
+              provider: 'google',
+            };
+            users.push(user);
+            writeUsers(users);
+          }
+
+          if (user.status && user.status !== 'active') {
+            sendJson(res, 403, { error: 'This account is suspended. Contact the administrator.' });
+            return;
+          }
+
+          const tokens = issueAuthTokens(user);
+          sendJson(res, 200, {
+            token: tokens.sessionToken,
+            jwt: tokens.jwt,
+            user: sanitizeUser(user),
+          });
+        } catch (error) {
+          console.error('Google authentication failed', error);
+          sendJson(res, 401, { error: 'Unable to validate Google Sign-In. Please try again.' });
+        }
+      })
+      .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
+    return;
+  }
+
+  if (url.pathname === '/api/support/tickets') {
+    const actor = getUserFromToken(req);
+    if (!actor) {
+      sendJson(res, 401, { error: 'Unauthorised' });
+      return;
+    }
+
+    const tickets = readTickets();
+
+    if (req.method === 'GET') {
+      const scopedTickets = tickets
+        .filter((ticket) => {
+          if (!ticket) return false;
+          if (actor.role === 'admin' || actor.role === 'employee') {
+            return true;
+          }
+          return ticket.requesterId === actor.id || ticket.assigneeId === actor.id;
+        })
+        .map((ticket) => sanitizeTicket(ticket));
+      sendJson(res, 200, { tickets: scopedTickets });
+      return;
+    }
+
+    if (req.method === 'POST') {
+      collectRequestBody(req)
+        .then((body) => {
+          const subject = String(body?.subject || '').trim();
+          const description = String(body?.description || '').trim();
+          const priority = String(body?.priority || 'medium').toLowerCase();
+          if (!subject || !description) {
+            sendJson(res, 400, { error: 'Subject and description are required.' });
+            return;
+          }
+
+          const allowedPriorities = new Set(['low', 'medium', 'high']);
+          const ticket = {
+            id: `tkt-${crypto.randomUUID()}`,
+            subject,
+            description,
+            priority: allowedPriorities.has(priority) ? priority : 'medium',
+            status: 'open',
+            requesterId: actor.id,
+            requesterName: actor.name,
+            requesterRole: actor.role,
+            assigneeId: body?.assigneeId || null,
+            channel: body?.channel || 'portal',
+            tags: Array.isArray(body?.tags) ? body.tags.slice(0, 10) : [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            timeline: [
+              {
+                type: 'created',
+                actor: actor.name,
+                actorId: actor.id,
+                at: new Date().toISOString(),
+                message: description,
+              },
+            ],
+          };
+
+          tickets.push(ticket);
+          writeTickets(tickets);
+          sendJson(res, 201, { ticket: sanitizeTicket(ticket) });
+        })
+        .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
+      return;
+    }
+
+    sendJson(res, 405, { error: 'Method not allowed.' });
     return;
   }
 
@@ -1044,9 +1736,39 @@ function serveStaticFile(res, filePath) {
       }
       return;
     }
-    res.writeHead(200, { 'Content-Type': getContentType(filePath) });
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google.com https://www.gstatic.com https://apis.google.com https://maps.googleapis.com https://www.youtube.com https://www.google-analytics.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "img-src 'self' data: https://www.gstatic.com https://maps.gstatic.com https://maps.googleapis.com https://i.ytimg.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "connect-src 'self' https://solar.googleapis.com https://www.google.com https://www.gstatic.com https://oauth2.googleapis.com https://www.googleapis.com https://www.youtube.com",
+      "frame-src 'self' https://www.youtube.com https://www.google.com",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self' https://www.google.com",
+    ].join('; ');
+    res.writeHead(200, {
+      'Content-Type': getContentType(filePath),
+      'Content-Security-Policy': csp,
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Permissions-Policy': 'geolocation=(self), microphone=()',
+    });
     res.end(data);
   });
+}
+
+const otpHousekeepingInterval = setInterval(() => {
+  try {
+    cleanupExpiredOtps();
+  } catch (error) {
+    console.error('Failed to cleanup OTP challenges', error);
+  }
+}, 60 * 1000);
+if (typeof otpHousekeepingInterval.unref === 'function') {
+  otpHousekeepingInterval.unref();
 }
 
 const server = http.createServer((req, res) => {
