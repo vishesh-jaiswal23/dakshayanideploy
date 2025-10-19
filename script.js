@@ -59,9 +59,9 @@ const INLINE_PARTIALS = {
           <a href="contact.html" class="btn btn-secondary nav-link" data-nav-consult>
             Consult / Complaint / Connect
           </a>
-          <button type="button" class="btn btn-primary" data-open-login-modal>
+          <a href="login.html" class="btn btn-primary btn-small" aria-label="Go to portal login">
             Portal Login
-          </button>
+          </a>
         </div>
 
         <button
@@ -106,10 +106,10 @@ const INLINE_PARTIALS = {
         </div>
         <div class="nav-mobile-divider" role="presentation"></div>
         <div class="nav-mobile-section" aria-label="Quick actions">
-          <button type="button" class="nav-mobile-action" data-open-login-modal data-close-mobile>
+          <a href="login.html" class="nav-mobile-action" data-close-mobile aria-label="Go to portal login">
             <i class="fa-solid fa-right-to-bracket"></i>
             <span>Portal Login</span>
-          </button>
+          </a>
           <a href="contact.html" class="btn btn-primary nav-mobile-cta" data-close-mobile>Consult / Complaint / Connect</a>
         </div>
       </nav>
