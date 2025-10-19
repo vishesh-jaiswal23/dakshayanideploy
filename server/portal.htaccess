@@ -1,0 +1,4 @@
+RewriteEngine On
+
+RewriteRule ^api$ portal/api/ [L]
+RewriteRule ^api/(.*)$ portal/api/$1 [QSA,L]
