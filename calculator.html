@@ -353,7 +353,7 @@
     <script>
         // --- NOTE: This block contains the essential JavaScript logic for the calculator. ---
         // --- It MUST be preserved to maintain functionality. ---
-        const GEMINI_TEXT_MODEL = 'gemini-2.5-flash-preview-05-20';
+        const GEMINI_TEXT_MODEL = 'gemini-2.5-flash-lite';
         const GEMINI_TTS_MODEL = 'gemini-2.5-flash-preview-tts';
 
         let API_KEY = '';
@@ -369,7 +369,7 @@
 
         function loadApiKey() {
             if (!apiKeyPromise) {
-                apiKeyPromise = fetch('api.txt')
+                apiKeyPromise = fetch('api.txt', { cache: 'no-store' })
                     .then(response => {
                         if (!response.ok) {
                             throw new Error('Failed to load API key.');
@@ -382,6 +382,7 @@
                             throw new Error('API key file is empty.');
                         }
                         configureGeminiEndpoints(key);
+                        return key;
                     })
                     .catch(error => {
                         console.error('API key initialization failed:', error);
@@ -807,7 +808,7 @@
                         voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } }
                     }
                 },
-                model: "gemini-2.5-flash-preview-tts"
+                model: GEMINI_TTS_MODEL
             };
 
             try {
