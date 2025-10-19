@@ -402,21 +402,6 @@
       color: rgba(15, 23, 42, 0.65);
     }
 
-    .otp-row {
-      display: grid;
-      gap: 0.5rem;
-    }
-
-    .otp-input-group {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-    }
-
-    .otp-input-group input {
-      flex: 1;
-    }
-
     .consent-checkbox {
       display: flex;
       align-items: flex-start;
@@ -576,14 +561,6 @@
                 </button>
               </div>
               <p class="form-note" data-demo-helper>Tap a role to autofill the demo credentials.</p>
-            </div>
-            <div class="otp-row" data-otp-row hidden>
-              <label for="login-otp">One-time password</label>
-              <div class="otp-input-group">
-                <input type="text" id="login-otp" name="otp" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="Enter the 6 digit OTP" autocomplete="one-time-code" />
-                <button type="button" class="demo-button" data-request-otp>Send OTP</button>
-              </div>
-              <p class="form-note" data-otp-helper>We’ll email or SMS a code to verify this login. Demo mode shows the code on screen.</p>
             </div>
             <div>
               <label for="login-role">Choose a portal</label>

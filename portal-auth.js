@@ -5,18 +5,12 @@
   const demoUsers = Array.isArray(demoData.users) ? demoData.users : [];
   const RECAPTCHA_SITE_KEY = window.DAKSHAYANI_RECAPTCHA_SITE_KEY || '';
   const GOOGLE_CLIENT_ID = window.DAKSHAYANI_GOOGLE_CLIENT_ID || '';
-  let pendingOtpEmail = null;
-  let pendingOtpRole = null;
-
   const loginForm = document.querySelector('[data-login-form]');
   const signupForm = document.querySelector('[data-signup-form]');
   const loginFeedback = document.querySelector('[data-login-feedback]');
   const signupFeedback = document.querySelector('[data-signup-feedback]');
   const fillDemoButton = document.querySelector('[data-fill-demo]');
   const quickDemoButtons = document.querySelectorAll('[data-demo-role]');
-  const otpRow = document.querySelector('[data-otp-row]');
-  const requestOtpButton = document.querySelector('[data-request-otp]');
-  const otpHelper = document.querySelector('[data-otp-helper]');
   const passwordMeterBar = document.querySelector('[data-password-meter-bar]');
   const passwordMeterLabel = document.querySelector('[data-password-meter-label]');
   const signupPassword = document.getElementById('signup-password');
@@ -189,7 +183,6 @@
     }
 
     setActiveDemoRole(user.role);
-    hideOtpRow();
     clearFeedback(loginFeedback);
 
     if (demoHelper) {
@@ -209,42 +202,6 @@
     form.querySelectorAll('input, select, button').forEach((element) => {
       element.disabled = disabled;
     });
-  }
-
-  function showOtpRow(preview) {
-    if (!otpRow) {
-      return;
-    }
-    otpRow.hidden = false;
-    const input = otpRow.querySelector('input');
-    if (input) {
-      input.required = true;
-      if (preview) {
-        input.value = preview;
-      }
-      input.focus();
-      input.select();
-    }
-    if (otpHelper) {
-      otpHelper.textContent = preview
-        ? `Demo preview: your OTP is ${preview}.` + ' Enter it to continue.'
-        : 'Check your email or SMS for the Dakshayani OTP and enter it here.';
-    }
-  }
-
-  function hideOtpRow() {
-    if (!otpRow) {
-      return;
-    }
-    const input = otpRow.querySelector('input');
-    if (input) {
-      input.value = '';
-      input.required = false;
-    }
-    otpRow.hidden = true;
-    if (otpHelper) {
-      otpHelper.textContent = 'We’ll email or SMS a code to verify this login. Demo mode shows the code on screen.';
-    }
   }
 
   function hasRecaptchaSupport() {
@@ -390,20 +347,13 @@
     }) || null;
   }
 
-  async function loginViaApi({ email, password, role, otp, recaptchaToken }) {
+  async function loginViaApi({ email, password, role, recaptchaToken }) {
     const body = { email, password, role, recaptchaToken };
-    if (otp) {
-      body.otp = otp;
-    }
 
     const data = await request('/api/login', {
       method: 'POST',
       body,
     });
-
-    if (data?.requireOtp) {
-      return { requireOtp: true, otpPreview: data.otpPreview || null, message: data.message || '' };
-    }
 
     if (!data || !data.user) {
       throw new Error('Unexpected response from the portal API.');
@@ -435,7 +385,6 @@
     const email = String(formData.get('email') || '').trim();
     const password = formData.get('password');
     const role = formData.get('role');
-    const otp = String(formData.get('otp') || '').trim();
     const consent = formData.get('consent');
 
     if (!email || !password || !role) {
@@ -453,74 +402,22 @@
 
     try {
       const recaptchaToken = await executeRecaptcha('portal_login');
-      const response = await loginViaApi({ email, password, role, otp, recaptchaToken });
-
-      if (response?.requireOtp) {
-        pendingOtpEmail = email;
-        pendingOtpRole = role;
-        showOtpRow(response.otpPreview);
-        const message = response.message || 'Enter the OTP we just sent to continue.';
-        setFeedback(loginFeedback, 'info', message);
-        toggleFormDisabled(loginForm, false);
-        return;
-      }
+      const response = await loginViaApi({ email, password, role, recaptchaToken });
 
       const user = response.user;
-      hideOtpRow();
-      pendingOtpEmail = null;
-      pendingOtpRole = null;
       setFeedback(loginFeedback, 'success', `Welcome back ${user.name || ''}! Redirecting to the ${user.role} dashboard…`);
       setTimeout(() => redirectToDashboard(user.role), 450);
     } catch (error) {
-      if (error.isNetworkError) {
-        const fallback = loginWithDemo(email, password, role);
-        if (fallback && fallback.user) {
-          hideOtpRow();
-          setFeedback(loginFeedback, 'success', `Demo mode active — redirecting to the ${fallback.user.role} dashboard.`);
-          setTimeout(() => redirectToDashboard(fallback.user.role), 500);
-          toggleFormDisabled(loginForm, false);
-          return;
-        }
+      const fallback = loginWithDemo(email, password, role);
+      if (fallback && fallback.user) {
+        setFeedback(loginFeedback, 'success', `Demo mode active — redirecting to the ${fallback.user.role} dashboard.`);
+        setTimeout(() => redirectToDashboard(fallback.user.role), 500);
+        toggleFormDisabled(loginForm, false);
+        return;
       }
       setFeedback(loginFeedback, 'error', error.message || 'Unable to sign in right now.');
     } finally {
       toggleFormDisabled(loginForm, false);
-    }
-  }
-
-  async function handleOtpRequest() {
-    if (!loginForm) return;
-    const emailInput = loginForm.querySelector('input[name="email"]');
-    const roleSelect = loginForm.querySelector('select[name="role"]');
-    const email = String(emailInput?.value || '').trim();
-    const role = roleSelect?.value || pendingOtpRole || 'customer';
-
-    if (!email) {
-      setFeedback(loginFeedback, 'error', 'Enter your email before requesting an OTP.');
-      return;
-    }
-
-    pendingOtpEmail = email;
-    pendingOtpRole = role;
-    showOtpRow();
-    if (requestOtpButton) {
-      requestOtpButton.disabled = true;
-    }
-    setFeedback(loginFeedback, 'info', 'Sending OTP…');
-
-    try {
-      const recaptchaToken = await executeRecaptcha('request_otp');
-      await request('/api/auth/request-otp', {
-        method: 'POST',
-        body: { email, recaptchaToken },
-      });
-      setFeedback(loginFeedback, 'success', 'OTP sent. Enter it below to continue.');
-    } catch (error) {
-      setFeedback(loginFeedback, 'error', error.message || 'Unable to send OTP at this time.');
-    } finally {
-      if (requestOtpButton) {
-        requestOtpButton.disabled = false;
-      }
     }
   }
 
@@ -581,10 +478,13 @@
       }
 
       const session = rememberSession(data.user, data.token, { jwt: data.jwt });
+      const secretCodeMessage = data.secretCode
+        ? ` Share this secret code with the Dakshayani admin to complete your onboarding: ${data.secretCode}.`
+        : '';
       setFeedback(
         signupFeedback,
         'success',
-        `Welcome aboard ${session?.user?.name || data.user.name}! Redirecting to the ${data.user.role} dashboard…`
+        `Welcome aboard ${session?.user?.name || data.user.name}! Redirecting to the ${data.user.role} dashboard…${secretCodeMessage}`
       );
       signupForm.reset();
       updatePasswordMeter('');
@@ -641,11 +541,6 @@
     loginForm.addEventListener('submit', handleLogin);
     loginForm.addEventListener('input', (event) => {
       clearFeedback(loginFeedback);
-      if (event.target?.name === 'email') {
-        pendingOtpEmail = null;
-        pendingOtpRole = null;
-        hideOtpRow();
-      }
       if (demoHelper && ['email', 'password'].includes(event.target?.name || '')) {
         demoHelper.textContent = defaultDemoHelperText;
         setActiveDemoRole(null);
@@ -656,10 +551,6 @@
   if (signupForm) {
     signupForm.addEventListener('submit', handleSignup);
     signupForm.addEventListener('input', () => clearFeedback(signupFeedback));
-  }
-
-  if (requestOtpButton) {
-    requestOtpButton.addEventListener('click', handleOtpRequest);
   }
 
   if (signupPassword) {
@@ -686,7 +577,6 @@
                   throw new Error('Unexpected Google Sign-In response.');
                 }
                 const session = rememberSession(data.user, data.token, { jwt: data.jwt });
-                hideOtpRow();
                 setFeedback(
                   loginFeedback,
                   'success',

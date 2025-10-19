@@ -43,7 +43,6 @@ const WHATSAPP_RECIPIENT_NUMBER =
   process.env.WHATSAPP_RECIPIENT_NUMBER || process.env.WHATSAPP_RECIPIENT || '';
 
 const sessions = new Map();
-const otpChallenges = new Map();
 const ALLOWED_FESTIVAL_THEMES = new Set(['default', 'diwali', 'holi', 'christmas']);
 const ROLE_OPTIONS = ['admin', 'customer', 'employee', 'installer', 'referrer'];
 const USER_STATUSES = ['active', 'suspended'];
@@ -191,47 +190,8 @@ function issueAuthTokens(user) {
   return { sessionToken, jwt };
 }
 
-function createOtpChallenge(email) {
-  const normalisedEmail = normaliseEmail(email);
-  if (!normalisedEmail) {
-    throw new Error('Cannot create OTP without email');
-  }
-  const otp = String(Math.floor(100000 + Math.random() * 900000));
-  const expiresAt = Date.now() + 5 * 60 * 1000;
-  const challenge = { otp, expiresAt, attempts: 0 };
-  otpChallenges.set(normalisedEmail, challenge);
-  return challenge;
-}
-
-function verifyOtp(email, otp) {
-  const normalisedEmail = normaliseEmail(email);
-  const challenge = otpChallenges.get(normalisedEmail);
-  if (!challenge) {
-    return false;
-  }
-  if (challenge.expiresAt < Date.now()) {
-    otpChallenges.delete(normalisedEmail);
-    return false;
-  }
-  challenge.attempts += 1;
-  if (challenge.attempts > 5) {
-    otpChallenges.delete(normalisedEmail);
-    return false;
-  }
-  if (String(otp) === String(challenge.otp)) {
-    otpChallenges.delete(normalisedEmail);
-    return true;
-  }
-  return false;
-}
-
-function cleanupExpiredOtps() {
-  const now = Date.now();
-  for (const [email, challenge] of otpChallenges.entries()) {
-    if (!challenge || challenge.expiresAt < now) {
-      otpChallenges.delete(email);
-    }
-  }
+function generateSecretCode() {
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 async function verifyRecaptchaToken(token, remoteIp) {
@@ -853,7 +813,7 @@ function getUserFromToken(req) {
 
 function sanitizeUser(user) {
   if (!user) return null;
-  const { password, ...safe } = user;
+  const { password, signupSecret, secretCode, ...safe } = user;
   return safe;
 }
 
@@ -1045,6 +1005,7 @@ function handleApiRequest(req, res, url) {
         }
 
         const timestamp = new Date().toISOString();
+        const generatedSecretCode = roleValue !== 'admin' ? generateSecretCode() : null;
         const user = {
           id: `usr-${crypto.randomUUID()}`,
           name: String(name).trim(),
@@ -1058,10 +1019,18 @@ function handleApiRequest(req, res, url) {
           updatedAt: timestamp,
           passwordChangedAt: timestamp,
         };
+        if (generatedSecretCode) {
+          user.signupSecret = { code: generatedSecretCode, generatedAt: timestamp };
+        }
         users.push(user);
         writeUsers(users);
         const tokens = issueAuthTokens(user);
-        sendJson(res, 201, { token: tokens.sessionToken, jwt: tokens.jwt, user: sanitizeUser(user) });
+        sendJson(res, 201, {
+          token: tokens.sessionToken,
+          jwt: tokens.jwt,
+          user: sanitizeUser(user),
+          secretCode: generatedSecretCode,
+        });
       })
       .catch((error) => {
         console.error('Failed to process signup', error);
@@ -1073,7 +1042,7 @@ function handleApiRequest(req, res, url) {
   if (req.method === 'POST' && url.pathname === '/api/login') {
     collectRequestBody(req)
       .then(async (body) => {
-        const { email, password, otp, recaptchaToken = '' } = body;
+        const { email, password, recaptchaToken = '' } = body;
         if (!email || !password) {
           sendJson(res, 400, { error: 'Email and password are required.' });
           return;
@@ -1099,25 +1068,6 @@ function handleApiRequest(req, res, url) {
           return;
         }
 
-        const otpProvided = typeof otp !== 'undefined' && otp !== null && String(otp).trim() !== '';
-        if (!otpProvided) {
-          const challenge = createOtpChallenge(user.email);
-          const payload = {
-            requireOtp: true,
-            message: 'An OTP has been sent to your registered email address.',
-          };
-          if (ENABLE_DEMO_MODE) {
-            payload.otpPreview = challenge.otp;
-          }
-          sendJson(res, 202, payload);
-          return;
-        }
-
-        if (!verifyOtp(user.email, otp)) {
-          sendJson(res, 401, { error: 'Invalid or expired OTP. Please request a new code.' });
-          return;
-        }
-
         user.lastLoginAt = new Date().toISOString();
         writeUsers(users);
 
@@ -1132,39 +1082,6 @@ function handleApiRequest(req, res, url) {
         console.error('Failed to process login request', error);
         sendJson(res, 400, { error: 'Invalid JSON payload.' });
       });
-    return;
-  }
-
-  if (req.method === 'POST' && url.pathname === '/api/auth/request-otp') {
-    collectRequestBody(req)
-      .then(async (body) => {
-        const email = normaliseEmail(body?.email);
-        if (!email) {
-          sendJson(res, 400, { error: 'Email is required.' });
-          return;
-        }
-        const recaptcha = await verifyRecaptchaToken(
-          String(body?.recaptchaToken || ''),
-          req.socket?.remoteAddress
-        );
-        if (!recaptcha?.success && !recaptcha?.skipped) {
-          sendJson(res, 400, { error: 'reCAPTCHA validation failed. Please retry.' });
-          return;
-        }
-        const users = readUsers();
-        const user = users.find((candidate) => candidate.email.toLowerCase() === email);
-        if (!user) {
-          sendJson(res, 404, { error: 'No account exists with this email.' });
-          return;
-        }
-        const challenge = createOtpChallenge(user.email);
-        const response = { message: 'OTP generated successfully.' };
-        if (ENABLE_DEMO_MODE) {
-          response.otpPreview = challenge.otp;
-        }
-        sendJson(res, 200, response);
-      })
-      .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
     return;
   }
 
@@ -1758,17 +1675,6 @@ function serveStaticFile(res, filePath) {
     });
     res.end(data);
   });
-}
-
-const otpHousekeepingInterval = setInterval(() => {
-  try {
-    cleanupExpiredOtps();
-  } catch (error) {
-    console.error('Failed to cleanup OTP challenges', error);
-  }
-}, 60 * 1000);
-if (typeof otpHousekeepingInterval.unref === 'function') {
-  otpHousekeepingInterval.unref();
 }
 
 const server = http.createServer((req, res) => {
