@@ -67,13 +67,14 @@ You should see a version number such as `v18.x.x`.
 
 These accounts are pre-loaded automatically each time the server starts. Use the credentials below to explore each dashboard:
 
-| Role                | Email                     | Password       |
-| ------------------- | ------------------------- | -------------- |
-| Administrator       | `admin@dakshayani.in`     | `Admin@123`    |
-| Customer            | `customer@dakshayani.in`  | `Customer@123` |
-| Employee            | `employee@dakshayani.in`  | `Employee@123` |
-| Installer           | `installer@dakshayani.in` | `Installer@123`|
-| Referral partner    | `referrer@dakshayani.in`  | `Referrer@123` |
+| Role                | Email                     | Password          |
+| ------------------- | ------------------------- | ----------------- |
+| Head administrator  | `d.entranchi@gmail.com`   | `Dakshayani@2311` |
+| Administrator       | `admin@dakshayani.in`     | `Admin@123`       |
+| Customer            | `customer@dakshayani.in`  | `Customer@123`    |
+| Employee            | `employee@dakshayani.in`  | `Employee@123`    |
+| Installer           | `installer@dakshayani.in` | `Installer@123`   |
+| Referral partner    | `referrer@dakshayani.in`  | `Referrer@123`    |
 
 > **Tip:** When you log in successfully, you will be redirected automatically to the matching `*-dashboard.html` page for your role.
 
