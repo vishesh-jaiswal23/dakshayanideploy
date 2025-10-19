@@ -77,40 +77,19 @@
           <h2>Latest articles</h2>
           <p class="sub">Fresh stories every fortnight covering policy, technology, and community success.</p>
         </div>
-        <div class="blog-grid">
-          <a href="article-pmsgy-deep-dive.html" class="blog-card">
-            <img src="images/pmsgy.jpg" alt="PM Surya Ghar subsidy details" loading="lazy" />
-            <div class="blog-card-body">
-              <span class="blog-card-meta">Subsidy · 5 min read</span>
-              <h3>Decoding PM Surya Ghar: ₹78,000 explained</h3>
-              <p>Eligibility, documents, and how our admin team expedites DISCOM approvals for Jharkhand homes.</p>
-            </div>
-          </a>
-          <a href="meera-gh2.html#roadmap" class="blog-card">
-            <img src="images/hero/hero.png" alt="Green hydrogen electrolyser" loading="lazy" />
-            <div class="blog-card-body">
-              <span class="blog-card-meta">Innovation · Meera GH2</span>
-              <h3>Green hydrogen pilots we&#39;re powering in 2025</h3>
-              <p>An inside look at the Meera GH2 roadmap, from campus labs to industrial-scale fuel cells.</p>
-            </div>
-          </a>
-          <a href="article-local-expertise.html" class="blog-card">
-            <img src="images/residential pics real/IMG-20241028-WA0002.jpg" alt="Rooftop solar installation in Ranchi" loading="lazy" />
-            <div class="blog-card-body">
-              <span class="blog-card-meta">EPC tips · Local focus</span>
-              <h3>Why local JREDA partners deliver smoother projects</h3>
-              <p>Learn how local expertise, festival décor controls, and our admin dashboard keep installs on track.</p>
-            </div>
-          </a>
-          <a href="calculator.html" class="blog-card">
-            <img src="images/finance.jpg" alt="Solar savings planning" loading="lazy" />
-            <div class="blog-card-body">
-              <span class="blog-card-meta">Finance · Tools</span>
-              <h3>Using our calculator to size systems the smart way</h3>
-              <p>Walkthrough of the three-input calculator and how it plugs into financing conversations.</p>
-            </div>
-          </a>
+        <div class="blog-grid" data-blog-list>
+          <p class="empty">Loading the latest posts from Vishesh&#39;s desk…</p>
         </div>
+        <template id="blog-card-template">
+          <a class="blog-card" data-blog-card>
+            <img data-blog-card-image loading="lazy" alt="" />
+            <div class="blog-card-body">
+              <span class="blog-card-meta" data-blog-card-meta></span>
+              <h3 data-blog-card-title></h3>
+              <p data-blog-card-excerpt></p>
+            </div>
+          </a>
+        </template>
       </div>
     </section>
 
@@ -173,5 +152,6 @@
 
   <!-- Universal Partials loader script -->
   <script src="script.js" defer></script>
+  <script src="blog.js" defer></script>
 </body>
 </html>

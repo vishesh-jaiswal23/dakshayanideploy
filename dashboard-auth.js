@@ -67,12 +67,28 @@
   const userCreateForm = userAdminPanel?.querySelector('[data-user-create-form]');
   const userCreateFeedback = userAdminPanel?.querySelector('[data-user-create-feedback]');
 
+  const blogAdminPanel = document.querySelector('[data-blog-admin-panel]');
+  const blogListContainer = blogAdminPanel?.querySelector('[data-blog-post-list]');
+  const blogFeedback = blogAdminPanel?.querySelector('[data-blog-feedback]');
+  const blogPermissionMessage = blogAdminPanel?.querySelector('[data-blog-permission]');
+  const blogForm = blogAdminPanel?.querySelector('[data-blog-form]');
+  const blogFormFeedback = blogAdminPanel?.querySelector('[data-blog-form-feedback]');
+  const blogCreateButton = blogAdminPanel?.querySelector('[data-blog-create]');
+  const blogRefreshButton = blogAdminPanel?.querySelector('[data-blog-refresh]');
+  const blogDeleteButton = blogAdminPanel?.querySelector('[data-blog-delete]');
+  const blogIdField = blogForm?.querySelector('[data-blog-id]');
+  const blogFields = blogForm ? Array.from(blogForm.querySelectorAll('[data-blog-field]')) : [];
+
   const dateFormatter = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 
   let siteSettingsInitialised = false;
   let userAdminInitialised = false;
   let currentSiteSettings = null;
   let cachedUsers = [];
+  let blogAdminInitialised = false;
+  let blogPosts = [];
+  let selectedBlogId = null;
+  let blogEditingEnabled = false;
 
   let session = parseSession();
 
@@ -171,6 +187,307 @@
 
   function clearFormFeedback(target) {
     setFormFeedback(target, null, '');
+  }
+
+  function setBlogPanelFeedback(target, tone, message) {
+    if (!target) return;
+    setFormFeedback(target, tone, message);
+  }
+
+  function ensureBlogPermission() {
+    blogEditingEnabled = Boolean(session?.user?.superAdmin);
+    if (blogPermissionMessage) {
+      if (blogEditingEnabled) {
+        blogPermissionMessage.hidden = true;
+        blogPermissionMessage.textContent = '';
+        delete blogPermissionMessage.dataset.tone;
+      } else {
+        blogPermissionMessage.hidden = false;
+        blogPermissionMessage.dataset.tone = 'error';
+        blogPermissionMessage.textContent = 'Only the head admin (Vishesh) can publish or edit posts. Sign in with your super admin login to continue.';
+      }
+    }
+    if (blogCreateButton) {
+      blogCreateButton.disabled = !blogEditingEnabled;
+    }
+    toggleBlogForm(!blogEditingEnabled);
+  }
+
+  function toggleBlogForm(disabled) {
+    if (!blogForm) return;
+    const elements = blogForm.querySelectorAll('input, textarea, select, button[type="submit"]');
+    elements.forEach((element) => {
+      element.disabled = disabled;
+    });
+    if (blogDeleteButton) {
+      blogDeleteButton.disabled = disabled || !selectedBlogId;
+    }
+  }
+
+  function clearBlogForm() {
+    if (!blogForm) return;
+    blogForm.reset();
+    if (blogIdField) {
+      blogIdField.value = '';
+    }
+    blogFields.forEach((field) => {
+      if (field.tagName === 'SELECT') {
+        field.value = field.options[0]?.value || '';
+      } else {
+        field.value = '';
+      }
+    });
+    if (blogDeleteButton) {
+      blogDeleteButton.disabled = true;
+    }
+  }
+
+  function populateBlogForm(post) {
+    if (!blogForm) return;
+    if (blogIdField) {
+      blogIdField.value = post?.id || '';
+    }
+    blogFields.forEach((field) => {
+      const key = field.dataset.blogField;
+      if (!key) return;
+      let value = '';
+      if (key === 'tags') {
+        value = Array.isArray(post?.tags) ? post.tags.join(', ') : '';
+      } else if (key === 'readTimeMinutes') {
+        value = post?.readTimeMinutes || '';
+      } else {
+        value = post?.[key] ?? '';
+      }
+      field.value = value;
+    });
+    if (blogDeleteButton) {
+      blogDeleteButton.disabled = !blogEditingEnabled || !post?.id;
+    }
+  }
+
+  function highlightBlogSelection() {
+    if (!blogListContainer) return;
+    blogListContainer.querySelectorAll('.blog-post-item').forEach((item) => {
+      item.dataset.selected = item.dataset.postId === selectedBlogId ? 'true' : 'false';
+    });
+  }
+
+  function formatBlogListMeta(post) {
+    const statusLabel = post.status === 'published' ? 'Published' : 'Draft';
+    const timestamp = post.updatedAt || post.publishedAt || post.createdAt || null;
+    const when = timestamp ? formatDateTime(timestamp) : '—';
+    return `${statusLabel}${when && when !== '—' ? ` · ${when}` : ''}`;
+  }
+
+  function renderBlogList(posts) {
+    if (!blogListContainer) return;
+    blogListContainer.innerHTML = '';
+    if (!posts || !posts.length) {
+      const message = blogEditingEnabled
+        ? 'No posts yet. Click New post to share your first update.'
+        : 'No posts available.';
+      const paragraph = document.createElement('p');
+      paragraph.className = 'empty';
+      paragraph.textContent = message;
+      blogListContainer.appendChild(paragraph);
+      return;
+    }
+
+    posts.forEach((post) => {
+      const item = document.createElement('div');
+      item.className = 'blog-post-item';
+      item.dataset.postId = post.id || '';
+      if (post.id === selectedBlogId) {
+        item.dataset.selected = 'true';
+      }
+      item.setAttribute('role', 'button');
+      item.tabIndex = 0;
+      item.innerHTML = `
+        <h4>${post.title || 'Untitled post'}</h4>
+        <span>${formatBlogListMeta(post)}</span>
+      `;
+      item.addEventListener('click', () => selectBlogPost(post.id));
+      item.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          selectBlogPost(post.id);
+        }
+      });
+      blogListContainer.appendChild(item);
+    });
+  }
+
+  function selectBlogPost(postId) {
+    if (!blogAdminPanel) return;
+    const post = blogPosts.find((entry) => entry.id === postId);
+    if (!post) {
+      selectedBlogId = null;
+      clearBlogForm();
+      highlightBlogSelection();
+      return;
+    }
+    selectedBlogId = post.id;
+    populateBlogForm(post);
+    highlightBlogSelection();
+  }
+
+  async function loadBlogPosts() {
+    if (!blogAdminPanel) return;
+    if (session?.isDemo || !session?.token) {
+      useDemoBlogAdmin('Offline demo mode active. Start the API to manage blog posts.');
+      return;
+    }
+
+    setBlogPanelFeedback(blogFeedback, 'info', 'Loading blog posts…');
+    try {
+      const data = await request('/api/blog/posts');
+      const posts = Array.isArray(data?.posts) ? data.posts : [];
+      blogPosts = posts;
+      if (!selectedBlogId || !blogPosts.some((post) => post.id === selectedBlogId)) {
+        selectedBlogId = blogPosts[0]?.id || null;
+      }
+      renderBlogList(blogPosts);
+      if (selectedBlogId) {
+        const current = blogPosts.find((post) => post.id === selectedBlogId);
+        populateBlogForm(current);
+      } else {
+        clearBlogForm();
+      }
+      highlightBlogSelection();
+      setBlogPanelFeedback(blogFeedback, null, '');
+    } catch (error) {
+      console.error('Unable to load blog posts', error);
+      setBlogPanelFeedback(blogFeedback, 'error', error.message || 'Unable to load blog posts.');
+      blogPosts = [];
+      renderBlogList(blogPosts);
+      clearBlogForm();
+    }
+  }
+
+  function handleBlogCreate() {
+    if (!blogEditingEnabled) {
+      setBlogPanelFeedback(blogFeedback, 'error', 'Sign in as the head admin to create new posts.');
+      return;
+    }
+    selectedBlogId = null;
+    clearBlogForm();
+    setBlogPanelFeedback(blogFeedback, null, 'Draft a new post and click Save changes to publish.');
+    setBlogPanelFeedback(blogFormFeedback, null, '');
+    highlightBlogSelection();
+    if (blogDeleteButton) {
+      blogDeleteButton.disabled = true;
+    }
+  }
+
+  async function handleBlogSubmit(event) {
+    if (blogForm) {
+      event.preventDefault();
+    }
+    if (!blogEditingEnabled || !blogForm) {
+      return;
+    }
+
+    const formData = new FormData(blogForm);
+    const payload = {
+      title: String(formData.get('title') || '').trim(),
+      slug: String(formData.get('slug') || '').trim(),
+      status: String(formData.get('status') || 'draft'),
+      readTimeMinutes: formData.get('readTimeMinutes'),
+      tags: String(formData.get('tags') || '').split(',').map((tag) => tag.trim()).filter(Boolean),
+      heroImage: String(formData.get('heroImage') || '').trim(),
+      excerpt: String(formData.get('excerpt') || '').trim(),
+      content: String(formData.get('content') || '').trim(),
+    };
+
+    if (!payload.title || !payload.content) {
+      setBlogPanelFeedback(blogFormFeedback, 'error', 'Title and full content are required.');
+      return;
+    }
+
+    const readTime = Number.parseInt(payload.readTimeMinutes, 10);
+    if (!Number.isFinite(readTime) || readTime <= 0) {
+      delete payload.readTimeMinutes;
+    } else {
+      payload.readTimeMinutes = readTime;
+    }
+
+    if (!payload.tags.length) {
+      delete payload.tags;
+    }
+
+    toggleBlogForm(true);
+    setBlogPanelFeedback(blogFormFeedback, 'info', 'Saving post…');
+
+    try {
+      const identifier = blogIdField?.value ? String(blogIdField.value) : null;
+      const endpoint = identifier ? `/api/blog/posts/${encodeURIComponent(identifier)}` : '/api/blog/posts';
+      const method = identifier ? 'PUT' : 'POST';
+      const response = await request(endpoint, { method, body: payload });
+      const post = response?.post;
+      if (!post) {
+        throw new Error('Unexpected response from the portal API.');
+      }
+      await loadBlogPosts();
+      selectedBlogId = post.id;
+      populateBlogForm(post);
+      highlightBlogSelection();
+      setBlogPanelFeedback(blogFormFeedback, 'success', identifier ? 'Post updated successfully.' : 'Post created successfully.');
+      setBlogPanelFeedback(blogFeedback, 'success', 'Blog post saved.');
+    } catch (error) {
+      console.error('Unable to save blog post', error);
+      if (error.status === 403) {
+        setBlogPanelFeedback(blogFormFeedback, 'error', 'Only the head admin can modify blog posts.');
+      } else {
+        setBlogPanelFeedback(blogFormFeedback, 'error', error.message || 'Unable to save the blog post.');
+      }
+    } finally {
+      toggleBlogForm(!blogEditingEnabled);
+    }
+  }
+
+  async function handleBlogDelete() {
+    if (!blogEditingEnabled || !blogDeleteButton) {
+      return;
+    }
+    const identifier = blogIdField?.value ? String(blogIdField.value) : null;
+    if (!identifier) {
+      setBlogPanelFeedback(blogFormFeedback, 'error', 'Select a post before attempting to archive it.');
+      return;
+    }
+    if (!window.confirm('Archive this post? It will disappear from the public blog.')) {
+      return;
+    }
+
+    toggleBlogForm(true);
+    setBlogPanelFeedback(blogFormFeedback, 'info', 'Archiving post…');
+
+    try {
+      await request(`/api/blog/posts/${encodeURIComponent(identifier)}`, { method: 'DELETE' });
+      selectedBlogId = null;
+      await loadBlogPosts();
+      clearBlogForm();
+      setBlogPanelFeedback(blogFormFeedback, 'success', 'Post archived.');
+      setBlogPanelFeedback(blogFeedback, 'success', 'Blog post archived.');
+    } catch (error) {
+      console.error('Unable to delete blog post', error);
+      if (error.status === 403) {
+        setBlogPanelFeedback(blogFormFeedback, 'error', 'Only the head admin can archive blog posts.');
+      } else {
+        setBlogPanelFeedback(blogFormFeedback, 'error', error.message || 'Unable to archive the blog post.');
+      }
+    } finally {
+      toggleBlogForm(!blogEditingEnabled);
+    }
+  }
+
+  function useDemoBlogAdmin(message) {
+    if (!blogAdminPanel) return;
+    blogPosts = [];
+    renderBlogList(blogPosts);
+    clearBlogForm();
+    blogEditingEnabled = false;
+    ensureBlogPermission();
+    setBlogPanelFeedback(blogFeedback, message ? 'error' : null, message || '');
   }
 
   function formatDateTime(value) {
@@ -1019,6 +1336,34 @@
     }
   }
 
+  async function initBlogAdminControls() {
+    if (!blogAdminPanel) return;
+
+    ensureBlogPermission();
+
+    if (!blogAdminInitialised) {
+      blogAdminInitialised = true;
+      blogRefreshButton?.addEventListener('click', () => {
+        loadBlogPosts();
+      });
+      blogCreateButton?.addEventListener('click', handleBlogCreate);
+      blogDeleteButton?.addEventListener('click', handleBlogDelete);
+      if (blogForm) {
+        blogForm.addEventListener('submit', handleBlogSubmit);
+        blogForm.addEventListener('input', () => {
+          setBlogPanelFeedback(blogFormFeedback, null, '');
+        });
+      }
+    }
+
+    if (session?.isDemo || !session?.token) {
+      useDemoBlogAdmin('Offline demo mode active. Start the API to manage blog posts.');
+      return;
+    }
+
+    await loadBlogPosts();
+  }
+
   async function initUserAdminControls() {
     if (!userAdminPanel) return;
 
@@ -1048,7 +1393,7 @@
   }
 
   async function initAdminControls() {
-    await Promise.all([initSiteSettingsControls(), initUserAdminControls()]);
+    await Promise.all([initSiteSettingsControls(), initUserAdminControls(), initBlogAdminControls()]);
   }
 
   function renderDashboard(data, source = 'live') {
@@ -1111,6 +1456,7 @@
         toggleSiteSettingsDisabled(true);
         showSettingsFeedback('Start the API server to load editable site décor controls.', 'error');
       }
+      useDemoBlogAdmin('Offline demo mode active. Start the API server to manage blog posts.');
     }
     return;
   }
@@ -1134,9 +1480,13 @@
         redirectToLogin();
       } else if (error.isNetworkError) {
         useDemoDashboard('API offline detected. Showing cached demo insights.');
-        if (role === 'admin' && siteSettingsForm) {
-          toggleSiteSettingsDisabled(true);
-          showSettingsFeedback('API offline. Start the server to edit décor controls.', 'error');
+        if (role === 'admin') {
+          useDemoUserAdmin('API offline. Showing demo accounts — changes are disabled.');
+          useDemoBlogAdmin('API offline. Start the server to manage blog posts.');
+          if (siteSettingsForm) {
+            toggleSiteSettingsDisabled(true);
+            showSettingsFeedback('API offline. Start the server to edit décor controls.', 'error');
+          }
         }
       } else {
         showStatus(error.message || 'Unable to load dashboard data.', 'error');

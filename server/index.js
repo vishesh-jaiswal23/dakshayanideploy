@@ -19,6 +19,7 @@ const KNOWLEDGE_FILE = path.join(DATA_DIR, 'knowledge-articles.json');
 const TESTIMONIALS_FILE = path.join(DATA_DIR, 'testimonials.json');
 const CASE_STUDIES_FILE = path.join(DATA_DIR, 'case-studies.json');
 const TICKETS_FILE = path.join(DATA_DIR, 'tickets.json');
+const BLOG_POSTS_FILE = path.join(DATA_DIR, 'blog-posts.json');
 const STATIC_ROOT = path.join(__dirname, '..');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me';
@@ -46,6 +47,7 @@ const sessions = new Map();
 const ALLOWED_FESTIVAL_THEMES = new Set(['default', 'diwali', 'holi', 'christmas']);
 const ROLE_OPTIONS = ['admin', 'customer', 'employee', 'installer', 'referrer'];
 const USER_STATUSES = ['active', 'suspended'];
+const BLOG_STATUSES = new Set(['draft', 'published']);
 
 function ensureDataDirectory() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -195,17 +197,23 @@ function generateSecretCode() {
 }
 
 async function verifyRecaptchaToken(token, remoteIp) {
-  if (!token) {
+  const providedToken = String(token || '').trim();
+  const hasSecret = Boolean(GOOGLE_RECAPTCHA_SECRET);
+
+  if (!providedToken) {
+    if (!hasSecret) {
+      return { success: ENABLE_DEMO_MODE, score: 0.9, skipped: true };
+    }
     return { success: false, error: 'Missing verification token' };
   }
 
-  if (!GOOGLE_RECAPTCHA_SECRET) {
+  if (!hasSecret) {
     return { success: ENABLE_DEMO_MODE, score: 0.9, skipped: true };
   }
 
   const form = new URLSearchParams();
   form.append('secret', GOOGLE_RECAPTCHA_SECRET);
-  form.append('response', token);
+  form.append('response', providedToken);
   if (remoteIp) {
     form.append('remoteip', remoteIp);
   }
@@ -487,6 +495,236 @@ function writeTickets(tickets) {
   writeJsonFile(TICKETS_FILE, tickets);
 }
 
+function findHeadAdmin() {
+  const users = readUsers();
+  return (
+    users.find((user) => user.superAdmin && user.role === 'admin') ||
+    users.find((user) => user.role === 'admin') ||
+    users[0] ||
+    null
+  );
+}
+
+function generateSlug(value) {
+  return (
+    String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || `post-${Date.now()}`
+  );
+}
+
+function ensureBlogPostShape(post, defaults = {}) {
+  if (!post || typeof post !== 'object') {
+    return null;
+  }
+
+  const fallbackAuthorId = defaults.authorId || null;
+  const fallbackAuthorName = defaults.authorName || 'Dakshayani Editorial';
+
+  const safe = { ...post };
+  safe.id = typeof safe.id === 'string' ? safe.id : `post-${crypto.randomUUID()}`;
+  safe.title = String(safe.title || 'Untitled update').trim();
+  safe.slug = generateSlug(safe.slug || safe.title || safe.id);
+  safe.excerpt = String(safe.excerpt || '').trim();
+  safe.heroImage = String(safe.heroImage || '').trim();
+  safe.tags = Array.isArray(safe.tags)
+    ? safe.tags
+        .map((tag) => String(tag || '').trim())
+        .filter(Boolean)
+    : [];
+  const readTime = Number.parseInt(safe.readTimeMinutes, 10);
+  safe.readTimeMinutes = Number.isFinite(readTime) && readTime > 0 ? readTime : 5;
+  safe.status = BLOG_STATUSES.has(safe.status) ? safe.status : 'draft';
+  safe.content = typeof safe.content === 'string' ? safe.content : '';
+  const createdAt = safe.createdAt || new Date().toISOString();
+  safe.createdAt = createdAt;
+  safe.updatedAt = safe.updatedAt || createdAt;
+  safe.authorId = typeof safe.authorId === 'string' ? safe.authorId : fallbackAuthorId;
+  safe.authorName = String(safe.authorName || '').trim() || fallbackAuthorName;
+  if (safe.status === 'published') {
+    safe.publishedAt = safe.publishedAt || createdAt;
+  } else if (!safe.publishedAt) {
+    safe.publishedAt = null;
+  }
+  return safe;
+}
+
+function seedBlogPosts(existingPosts) {
+  const posts = Array.isArray(existingPosts) ? existingPosts.filter((post) => post && typeof post === 'object') : [];
+  const headAdmin = findHeadAdmin();
+  const defaults = {
+    authorId: headAdmin?.id || null,
+    authorName: headAdmin?.name || 'Dakshayani Admin',
+  };
+
+  if (posts.length === 0) {
+    const timestamp = new Date().toISOString();
+    posts.push(
+      {
+        id: 'post-jharkhand-trends-2025',
+        title: 'Jharkhand rooftop solar trends for 2025',
+        slug: 'jharkhand-rooftop-solar-trends-2025',
+        excerpt:
+          'Net-metering timelines, subsidy utilisation, and hybrid inverter adoption – a state-level data dive for residential owners.',
+        heroImage: 'images/pmsgy.jpg',
+        tags: ['PM Surya Ghar', 'Policy'],
+        readTimeMinutes: 6,
+        status: 'published',
+        content:
+          'From new DISCOM service level agreements to the growth of hybrid-ready inverter inventories, Jharkhand homeowners have more momentum than ever. Vishesh walks through actionable numbers you can use for board approvals and homeowner consultations.',
+        publishedAt: timestamp,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        authorId: defaults.authorId,
+        authorName: defaults.authorName,
+      },
+      {
+        id: 'post-meera-hydrogen-field-notes',
+        title: 'Field notes from Meera GH2 pilots',
+        slug: 'meera-gh2-hydrogen-field-notes',
+        excerpt:
+          'Commissioning lessons, safety interlocks, and partner readiness tips from Dakshayani’s hydrogen deployments.',
+        heroImage: 'images/hero/hero.png',
+        tags: ['Meera GH2', 'Innovation'],
+        readTimeMinutes: 5,
+        status: 'published',
+        content:
+          'Hydrogen stacks demand a different rhythm than rooftop EPC. In this briefing I cover the five milestones we monitor before green-lighting a production run, plus the vendor scorecard we now use with institutions across Ranchi and Jamshedpur.',
+        publishedAt: timestamp,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        authorId: defaults.authorId,
+        authorName: defaults.authorName,
+      },
+      {
+        id: 'post-financing-playbook',
+        title: 'Financing playbook for Dakshayani channel partners',
+        slug: 'solar-financing-playbook-2025',
+        excerpt:
+          'How to package ROI stories, simplify documentation, and use the dashboard CRM to close loans faster.',
+        heroImage: 'images/finance.jpg',
+        tags: ['Finance', 'Partners'],
+        readTimeMinutes: 7,
+        status: 'draft',
+        content:
+          'Partners asked for one place to capture lender preferences, updated ROI tables, and the collateral we share with customers. This draft consolidates the answers so we can publish it once the October rate card lands.',
+        publishedAt: null,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        authorId: defaults.authorId,
+        authorName: defaults.authorName,
+      }
+    );
+  }
+
+  return posts.map((post) => ensureBlogPostShape(post, defaults));
+}
+
+function readBlogPosts() {
+  ensureDataDirectory();
+  if (!fs.existsSync(BLOG_POSTS_FILE)) {
+    const seeded = seedBlogPosts([]);
+    writeJsonFile(BLOG_POSTS_FILE, seeded);
+    return seeded;
+  }
+
+  const raw = fs.readFileSync(BLOG_POSTS_FILE, 'utf8');
+  try {
+    const parsed = JSON.parse(raw || '[]');
+    const seeded = seedBlogPosts(parsed);
+    writeJsonFile(BLOG_POSTS_FILE, seeded);
+    return seeded;
+  } catch (error) {
+    console.error('Failed to parse blog posts, resetting.', error);
+    const seeded = seedBlogPosts([]);
+    writeJsonFile(BLOG_POSTS_FILE, seeded);
+    return seeded;
+  }
+}
+
+function writeBlogPosts(posts) {
+  const list = Array.isArray(posts) ? posts : [];
+  writeJsonFile(BLOG_POSTS_FILE, list);
+}
+
+function buildAuthorDirectory() {
+  const directory = new Map();
+  const users = readUsers();
+  users.forEach((user) => {
+    directory.set(user.id, {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      superAdmin: Boolean(user.superAdmin),
+    });
+  });
+  return directory;
+}
+
+function sanitizeBlogPost(post, options = {}, directory = null) {
+  if (!post) {
+    return null;
+  }
+  const includeContent = Boolean(options.includeContent);
+  const includeAuthor = options.includeAuthor !== false;
+  const safe = {
+    id: post.id,
+    slug: post.slug,
+    title: post.title,
+    excerpt: post.excerpt || '',
+    heroImage: post.heroImage || '',
+    tags: Array.isArray(post.tags) ? post.tags : [],
+    readTimeMinutes: post.readTimeMinutes || null,
+    status: BLOG_STATUSES.has(post.status) ? post.status : 'draft',
+    publishedAt: post.publishedAt || null,
+    createdAt: post.createdAt || null,
+    updatedAt: post.updatedAt || post.createdAt || null,
+  };
+
+  if (includeContent) {
+    safe.content = post.content || '';
+  }
+
+  if (includeAuthor) {
+    const authorRecord = directory?.get(post.authorId) || null;
+    if (authorRecord) {
+      safe.author = {
+        id: authorRecord.id,
+        name: authorRecord.name,
+        email: authorRecord.email,
+        superAdmin: authorRecord.superAdmin,
+      };
+    } else {
+      safe.author = {
+        id: post.authorId || null,
+        name: post.authorName || 'Dakshayani Editorial',
+      };
+    }
+  } else {
+    safe.authorId = post.authorId || null;
+  }
+
+  return safe;
+}
+
+function parseTagsInput(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((tag) => String(tag || '').trim())
+      .filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
 function sanitizeTicket(ticket) {
   if (!ticket) {
     return null;
@@ -506,6 +744,10 @@ function seedUsers(existingUsers) {
       return;
     }
 
+    if (user.email) {
+      user.email = normaliseEmail(user.email);
+    }
+
     if (!user.id) {
       user.id = `usr-${crypto.randomUUID()}`;
     }
@@ -515,6 +757,7 @@ function seedUsers(existingUsers) {
     }
 
     user.status = USER_STATUSES.includes(user.status) ? user.status : 'active';
+    user.superAdmin = Boolean(user.superAdmin && user.role === 'admin');
 
     const createdAt = user.createdAt || new Date().toISOString();
     user.createdAt = createdAt;
@@ -535,6 +778,24 @@ function seedUsers(existingUsers) {
       users.push(user);
     }
   };
+
+  ensureUser('d.entranchi@gmail.com', () => {
+    const timestamp = new Date().toISOString();
+    return {
+      id: 'usr-head-admin',
+      name: 'Vishesh Entranchi',
+      email: 'd.entranchi@gmail.com',
+      phone: '+91 70702 78178',
+      city: 'Ranchi',
+      role: 'admin',
+      status: 'active',
+      superAdmin: true,
+      password: createPasswordRecord('Dakshayani@2311'),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      passwordChangedAt: timestamp
+    };
+  });
 
   ensureUser('admin@dakshayani.in', () => ({
     id: 'usr-admin-1',
@@ -1151,6 +1412,37 @@ function handleApiRequest(req, res, url) {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/public/blog-posts') {
+    const posts = readBlogPosts().filter((post) => post && post.status === 'published');
+    const directory = buildAuthorDirectory();
+    const items = posts
+      .map((post) => sanitizeBlogPost(post, { includeContent: false }, directory))
+      .sort((a, b) => {
+        const left = new Date(a.publishedAt || a.createdAt || 0).getTime();
+        const right = new Date(b.publishedAt || b.createdAt || 0).getTime();
+        return right - left;
+      });
+    sendJson(res, 200, { posts: items });
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/api/public/blog-posts/')) {
+    const slug = decodeURIComponent(url.pathname.replace('/api/public/blog-posts/', ''));
+    if (!slug) {
+      sendNotFound(res);
+      return;
+    }
+    const posts = readBlogPosts();
+    const target = posts.find((post) => post.slug === slug && post.status === 'published');
+    if (!target) {
+      sendNotFound(res);
+      return;
+    }
+    const directory = buildAuthorDirectory();
+    sendJson(res, 200, { post: sanitizeBlogPost(target, { includeContent: true }, directory) });
+    return;
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/solar/estimate') {
     collectRequestBody(req)
       .then(async (body) => {
@@ -1418,7 +1710,8 @@ function handleApiRequest(req, res, url) {
             createdAt: timestamp,
             updatedAt: timestamp,
             passwordChangedAt: timestamp,
-            createdBy: actor.id
+            createdBy: actor.id,
+            superAdmin: false,
           };
 
           users.push(user);
@@ -1429,6 +1722,201 @@ function handleApiRequest(req, res, url) {
           });
         })
         .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
+      return;
+    }
+
+    sendJson(res, 405, { error: 'Method not allowed.' });
+    return;
+  }
+
+  if (url.pathname === '/api/blog/posts') {
+    const actor = getUserFromToken(req);
+    if (!actor) {
+      sendJson(res, 401, { error: 'Unauthorised' });
+      return;
+    }
+    if (actor.role !== 'admin') {
+      sendJson(res, 403, { error: 'Only admins can manage blog posts.' });
+      return;
+    }
+
+    if (req.method === 'GET') {
+      const posts = readBlogPosts();
+      const directory = buildAuthorDirectory();
+      const items = posts
+        .map((post) => sanitizeBlogPost(post, { includeContent: true }, directory))
+        .sort((a, b) => {
+          const left = new Date(a.updatedAt || a.createdAt || 0).getTime();
+          const right = new Date(b.updatedAt || b.createdAt || 0).getTime();
+          return right - left;
+        });
+      sendJson(res, 200, { posts: items });
+      return;
+    }
+
+    if (req.method === 'POST') {
+      if (!actor.superAdmin) {
+        sendJson(res, 403, { error: 'Only the head admin can publish new blog posts.' });
+        return;
+      }
+
+      collectRequestBody(req)
+        .then((body) => {
+          const title = String(body?.title || '').trim();
+          const excerpt = String(body?.excerpt || '').trim();
+          const content = String(body?.content || '').trim();
+          const heroImage = String(body?.heroImage || '').trim();
+          const readTime = Number.parseInt(body?.readTimeMinutes, 10);
+          const status = BLOG_STATUSES.has(body?.status) ? body.status : 'draft';
+          const tags = parseTagsInput(body?.tags);
+
+          if (!title || !content) {
+            sendJson(res, 400, { error: 'Title and content are required.' });
+            return;
+          }
+
+          const posts = readBlogPosts();
+          const baseSlug = generateSlug(body?.slug || title);
+          let slug = baseSlug;
+          let suffix = 2;
+          while (posts.some((post) => post.slug === slug)) {
+            slug = `${baseSlug}-${suffix++}`;
+          }
+
+          const timestamp = new Date().toISOString();
+          const post = ensureBlogPostShape(
+            {
+              id: `post-${crypto.randomUUID()}`,
+              title,
+              slug,
+              excerpt,
+              heroImage,
+              content,
+              tags,
+              readTimeMinutes: Number.isFinite(readTime) && readTime > 0 ? readTime : undefined,
+              status,
+              authorId: actor.id,
+              authorName: actor.name,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              publishedAt: status === 'published' ? timestamp : null,
+            },
+            { authorId: actor.id, authorName: actor.name }
+          );
+
+          posts.push(post);
+          writeBlogPosts(posts);
+          const directory = buildAuthorDirectory();
+          sendJson(res, 201, { post: sanitizeBlogPost(post, { includeContent: true }, directory) });
+        })
+        .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
+      return;
+    }
+
+    sendJson(res, 405, { error: 'Method not allowed.' });
+    return;
+  }
+
+  if (url.pathname.startsWith('/api/blog/posts/')) {
+    const segments = url.pathname.split('/').filter(Boolean);
+    const postId = segments[2] ? decodeURIComponent(segments[2]) : null;
+    if (!postId) {
+      sendNotFound(res);
+      return;
+    }
+
+    const actor = getUserFromToken(req);
+    if (!actor) {
+      sendJson(res, 401, { error: 'Unauthorised' });
+      return;
+    }
+    if (actor.role !== 'admin') {
+      sendJson(res, 403, { error: 'Only admins can manage blog posts.' });
+      return;
+    }
+
+    const posts = readBlogPosts();
+    const index = posts.findIndex((post) => post.id === postId);
+    if (index === -1) {
+      sendJson(res, 404, { error: 'Blog post not found.' });
+      return;
+    }
+
+    const target = posts[index];
+
+    if (req.method === 'GET') {
+      const directory = buildAuthorDirectory();
+      sendJson(res, 200, { post: sanitizeBlogPost(target, { includeContent: true }, directory) });
+      return;
+    }
+
+    if (req.method === 'PUT' || req.method === 'PATCH') {
+      if (!actor.superAdmin) {
+        sendJson(res, 403, { error: 'Only the head admin can edit blog posts.' });
+        return;
+      }
+
+      collectRequestBody(req)
+        .then((body) => {
+          const nextTitle = body?.title ? String(body.title).trim() : target.title;
+          const nextExcerpt = body?.excerpt !== undefined ? String(body.excerpt || '').trim() : target.excerpt;
+          const nextContent = body?.content !== undefined ? String(body.content || '').trim() : target.content;
+          const nextHeroImage = body?.heroImage !== undefined ? String(body.heroImage || '').trim() : target.heroImage;
+          const nextTags = body?.tags !== undefined ? parseTagsInput(body.tags) : target.tags;
+          const nextReadTime = body?.readTimeMinutes !== undefined ? Number.parseInt(body.readTimeMinutes, 10) : target.readTimeMinutes;
+          const nextStatus = body?.status ? (BLOG_STATUSES.has(body.status) ? body.status : target.status) : target.status;
+          const nextSlugInput = body?.slug ? generateSlug(body.slug) : target.slug;
+
+          if (!nextTitle || !nextContent) {
+            sendJson(res, 400, { error: 'Title and content are required.' });
+            return;
+          }
+
+          const postsList = posts.filter((post) => post.id !== target.id);
+          const baseSlug = nextSlugInput || generateSlug(nextTitle);
+          let slug = baseSlug;
+          let suffix = 2;
+          while (postsList.some((post) => post.slug === slug)) {
+            slug = `${baseSlug}-${suffix++}`;
+          }
+
+          target.title = nextTitle;
+          target.slug = slug;
+          target.excerpt = nextExcerpt;
+          target.content = nextContent;
+          target.heroImage = nextHeroImage;
+          target.tags = nextTags;
+          target.readTimeMinutes = Number.isFinite(nextReadTime) && nextReadTime > 0 ? nextReadTime : target.readTimeMinutes;
+          const previousStatus = target.status;
+          target.status = nextStatus;
+          const timestamp = new Date().toISOString();
+          if (previousStatus !== 'published' && nextStatus === 'published') {
+            target.publishedAt = timestamp;
+          } else if (nextStatus !== 'published') {
+            target.publishedAt = null;
+          }
+          target.updatedAt = timestamp;
+          target.updatedBy = actor.id;
+          target.authorId = target.authorId || actor.id;
+          target.authorName = target.authorName || actor.name;
+
+          posts[index] = ensureBlogPostShape(target, { authorId: actor.id, authorName: actor.name });
+          writeBlogPosts(posts);
+          const directory = buildAuthorDirectory();
+          sendJson(res, 200, { post: sanitizeBlogPost(posts[index], { includeContent: true }, directory) });
+        })
+        .catch(() => sendJson(res, 400, { error: 'Invalid JSON payload.' }));
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      if (!actor.superAdmin) {
+        sendJson(res, 403, { error: 'Only the head admin can archive blog posts.' });
+        return;
+      }
+      posts.splice(index, 1);
+      writeBlogPosts(posts);
+      sendJson(res, 200, { success: true });
       return;
     }
 
@@ -1470,6 +1958,11 @@ function handleApiRequest(req, res, url) {
         return;
       }
 
+      if (target.superAdmin && actor.id !== target.id) {
+        sendJson(res, 403, { error: 'Only the head admin can reset this password.' });
+        return;
+      }
+
       collectRequestBody(req)
         .then((body) => {
           const password = body?.password;
@@ -1505,6 +1998,11 @@ function handleApiRequest(req, res, url) {
           const nextRole = ROLE_OPTIONS.includes(body?.role) ? body.role : target.role;
           const nextStatus = USER_STATUSES.includes(body?.status) ? body.status : target.status;
 
+          if (target.superAdmin && actor.id !== target.id) {
+            sendJson(res, 403, { error: 'Only the head admin can update this profile.' });
+            return;
+          }
+
           const activeAdmins = countActiveAdmins(users);
           const targetIsActiveAdmin = target.role === 'admin' && target.status !== 'suspended';
           const demotingAdmin = targetIsActiveAdmin && (nextRole !== 'admin' || nextStatus !== 'active');
@@ -1519,11 +2017,17 @@ function handleApiRequest(req, res, url) {
             return;
           }
 
+          if (target.superAdmin) {
+            target.role = 'admin';
+            target.status = 'active';
+          } else {
+            target.role = nextRole;
+            target.status = nextStatus;
+          }
+
           target.name = nextName || target.name;
           target.phone = nextPhone;
           target.city = nextCity;
-          target.role = nextRole;
-          target.status = nextStatus;
           target.updatedAt = new Date().toISOString();
           target.updatedBy = actor.id;
 
@@ -1541,6 +2045,10 @@ function handleApiRequest(req, res, url) {
     if (req.method === 'DELETE') {
       if (target.id === actor.id) {
         sendJson(res, 400, { error: 'You cannot delete your own account.' });
+        return;
+      }
+      if (target.superAdmin) {
+        sendJson(res, 403, { error: 'The head admin profile cannot be removed.' });
         return;
       }
       if (target.role === 'admin' && countActiveAdmins(users) <= 1) {

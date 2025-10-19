@@ -424,6 +424,74 @@
       box-shadow: 0 18px 35px -30px rgba(15, 23, 42, 0.2);
     }
 
+    .blog-admin-grid {
+      display: grid;
+      gap: 1.5rem;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: flex-start;
+    }
+
+    .blog-list-panel {
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 1.25rem;
+      padding: 1.25rem;
+      display: grid;
+      gap: 1rem;
+      max-height: 540px;
+      overflow: auto;
+      background: #ffffff;
+    }
+
+    .blog-list-panel .blog-post-item {
+      display: grid;
+      gap: 0.25rem;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 1rem;
+      padding: 0.85rem 1rem;
+      background: #f8fafc;
+      cursor: pointer;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .blog-list-panel .blog-post-item[data-selected="true"] {
+      border-color: rgba(37, 99, 235, 0.6);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+      background: #ffffff;
+    }
+
+    .blog-list-panel .blog-post-item h4 {
+      margin: 0;
+      font-size: 1rem;
+      color: #0f172a;
+    }
+
+    .blog-list-panel .blog-post-item span {
+      font-size: 0.85rem;
+      color: rgba(15, 23, 42, 0.6);
+    }
+
+    .blog-form-actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+    }
+
+    .blog-form-actions .btn-link {
+      border: none;
+      background: transparent;
+      color: #b91c1c;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    @media (max-width: 960px) {
+      .blog-admin-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
     .user-create h3 {
       margin: 0;
       font-size: 1.1rem;
@@ -861,6 +929,75 @@
           </form>
         </aside>
       </div>
+    </section>
+
+    <section class="panel" data-blog-admin-panel>
+      <div class="panel-heading">
+        <div>
+          <h2>Knowledge hub posts</h2>
+          <p class="lead">Manage Dakshayani blog stories. Publishing requires the head admin account.</p>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-outline" data-blog-refresh>Refresh posts</button>
+          <button type="button" class="btn-secondary" data-blog-create>New post</button>
+        </div>
+      </div>
+
+      <p class="form-feedback" data-blog-feedback></p>
+
+      <div class="blog-admin-grid">
+        <div class="blog-list-panel" data-blog-post-list>
+          <p class="empty">Loading blog posts…</p>
+        </div>
+
+        <form data-blog-form autocomplete="off">
+          <input type="hidden" data-blog-id name="id" />
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="blog-title">Title</label>
+              <input id="blog-title" name="title" type="text" placeholder="Article headline" data-blog-field="title" required />
+            </div>
+            <div class="form-group">
+              <label for="blog-slug">Slug</label>
+              <input id="blog-slug" name="slug" type="text" placeholder="auto-generated-if-empty" data-blog-field="slug" />
+            </div>
+            <div class="form-group">
+              <label for="blog-status">Status</label>
+              <select id="blog-status" name="status" data-blog-field="status">
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="blog-readtime">Read time (minutes)</label>
+              <input id="blog-readtime" name="readTimeMinutes" type="number" min="1" placeholder="5" data-blog-field="readTimeMinutes" />
+            </div>
+            <div class="form-group">
+              <label for="blog-tags">Tags</label>
+              <input id="blog-tags" name="tags" type="text" placeholder="Policy, Finance" data-blog-field="tags" />
+            </div>
+            <div class="form-group">
+              <label for="blog-hero">Hero image URL</label>
+              <input id="blog-hero" name="heroImage" type="url" placeholder="images/hero/hero.png" data-blog-field="heroImage" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="blog-excerpt">Excerpt</label>
+            <textarea id="blog-excerpt" name="excerpt" placeholder="Short description for the blog listing" data-blog-field="excerpt"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="blog-content">Full content</label>
+            <textarea id="blog-content" name="content" placeholder="Write the detailed update here." data-blog-field="content" rows="8" required></textarea>
+          </div>
+          <p class="form-feedback" data-blog-form-feedback></p>
+          <div class="blog-form-actions">
+            <button type="button" class="btn-link" data-blog-delete>Archive post</button>
+            <button type="submit" class="btn-secondary">Save changes</button>
+          </div>
+        </form>
+      </div>
+
+      <p class="form-feedback" data-blog-permission hidden></p>
     </section>
 
     <section class="panel">

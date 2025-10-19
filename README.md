@@ -38,12 +38,25 @@ curl -s http://localhost:4000/api/dashboard/admin \
   -H "Authorization: Bearer <token>"
 ```
 
+### Default portal credentials
+
+| Role               | Email                    | Password          |
+| ------------------ | ------------------------ | ----------------- |
+| Head administrator | `d.entranchi@gmail.com`  | `Dakshayani@2311` |
+| Administrator      | `admin@dakshayani.in`    | `Admin@123`       |
+| Customer           | `customer@dakshayani.in` | `Customer@123`    |
+| Employee           | `employee@dakshayani.in` | `Employee@123`    |
+| Installer          | `installer@dakshayani.in`| `Installer@123`   |
+| Referral partner   | `referrer@dakshayani.in` | `Referrer@123`    |
+
 For a full end-to-end run, open `login.html` in a browser (or via the server above) and sign in with any of the published demo accounts. Each dashboard page will automatically fetch its data once authenticated.
 
 ### Sign up vs. log in cheatsheet
 
 1. **Log in** – Choose your portal role on the login form, enter the matching email/password pair, then submit. Successful logins redirect to the role-specific dashboard. When the API is offline (for example on cPanel), the same form validates the bundled demo accounts entirely in the browser.
 2. **Sign up** – Complete the “Create a new account” form with your name, email, password, optional phone/city, and preferred role. On self-hosted installs the Node.js API creates the account instantly and signs you in. On static-only deployments the form shows contact details (`connect@dakshayani.co.in`) so the team can activate your access manually.
+
+> **Tip:** reCAPTCHA is optional. When the site key and secret are left at their placeholders (common on cPanel while you finish DNS verification), the API now treats missing tokens as a demo-mode bypass so real logins and signups still work.
 
 ### Deploying on cPanel
 

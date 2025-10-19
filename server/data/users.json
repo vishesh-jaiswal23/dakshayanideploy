@@ -1,4 +1,23 @@
-[
+[ 
+  {
+    "id": "usr-head-admin",
+    "name": "Vishesh Entranchi",
+    "email": "d.entranchi@gmail.com",
+    "phone": "+91 70702 78178",
+    "city": "Ranchi",
+    "role": "admin",
+    "status": "active",
+    "superAdmin": true,
+    "password": {
+      "salt": "618269c91571490a01aa0c56f1ac6bdb",
+      "hash": "2ccd0e8b3b6e6f526e07bbf77a74ebf4b194a135bee9e0a85dbb3229deede184c8e9d75e2c6558ccff1e319bd6061d1e417ffedaafedf09851742c3bf3ec96d0",
+      "iterations": 100000,
+      "algorithm": "sha512"
+    },
+    "createdAt": "2024-10-10T00:00:00.000Z",
+    "updatedAt": "2024-10-10T00:00:00.000Z",
+    "passwordChangedAt": "2024-10-10T00:00:00.000Z"
+  },
   {
     "id": "usr-admin-1",
     "name": "Dakshayani Admin",
