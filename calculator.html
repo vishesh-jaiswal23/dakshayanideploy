@@ -622,6 +622,47 @@
             }
         }
 
+        function formatCurrencyINR(value) {
+            return Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+        }
+
+        function describeSystemType(type) {
+            switch (type) {
+                case 'commercial':
+                    return 'commercial solar plant';
+                case 'industrial':
+                    return 'industrial solar plant';
+                default:
+                    return 'residential PM Surya Ghar system';
+            }
+        }
+
+        function renderFallbackAdvisory(size, cost, savings, type) {
+            const safeSize = Number(size || 0).toFixed(1);
+            const costText = formatCurrencyINR(cost);
+            const savingsText = formatCurrencyINR(savings);
+            const typeDescription = describeSystemType(type);
+            return `<p style="color: var(--base-700);">Based on your inputs, a <strong>${safeSize} kWp ${typeDescription}</strong> can offset a large part of your electricity bill. The estimated annual savings are around <strong>₹${savingsText}</strong> with an upfront investment of about <strong>₹${costText}</strong>. Our team recommends scheduling a site survey so we can lock in subsidy paperwork and finalise financing options.</p>`;
+        }
+
+        function renderFallbackFinancialSummary(size, grossCost, subsidy, netCost, annualSavings, type) {
+            const points = [
+                `System Size: ${Number(size || 0).toFixed(1)} kWp (${describeSystemType(type)})`,
+                `Estimated Project Cost: ₹${formatCurrencyINR(grossCost)} before subsidy`,
+                subsidy > 0
+                    ? `PM Surya Ghar Support: Approx. ₹${formatCurrencyINR(subsidy)} subsidy available`
+                    : `Subsidy: Not applicable for this category`,
+                `Net Investment: About ₹${formatCurrencyINR(netCost)} with savings near ₹${formatCurrencyINR(annualSavings)} per year`
+            ];
+
+            let html = '<ul>';
+            points.forEach(point => {
+                html += `<li>${sanitiseParagraph(point)}</li>`;
+            });
+            html += '</ul>';
+            return html;
+        }
+
         async function callAIGuidance(size, cost, savings, type) {
             const prompt = `Act as Dakshayani Enterprises' lead solar advisor. Based on a customer's estimated requirement of a ${size.toFixed(1)} kWp ${type} solar system, which offers an estimated annual saving of ₹${savings.toLocaleString('en-IN', { maximumFractionDigits: 0 })} and a net investment of ₹${cost.toLocaleString('en-IN', { maximumFractionDigits: 0 })}, provide a concise, single-paragraph advisory. Focus on the core benefits (savings, PM Surya Ghar subsidy/finance, ROI) and the next necessary step (site survey).`;
             const outputEl = document.getElementById('ai-advisory-output');
@@ -637,18 +678,24 @@
             try {
                 await ensureApiKeyLoaded();
                 const result = await handleFetchWithRetry(API_URL_TEXT, payload);
-                const text = extractCandidateText(result) || "Could not generate advisory. Please try again.";
-                const safeParagraph = sanitiseParagraph(text);
-                outputEl.innerHTML = `<p style="color: var(--base-700);">${safeParagraph}</p>`;
+                const text = extractCandidateText(result);
+                if (text) {
+                    const safeParagraph = sanitiseParagraph(text);
+                    outputEl.innerHTML = `<p style="color: var(--base-700);">${safeParagraph}</p>`;
+                } else {
+                    outputEl.innerHTML = renderFallbackAdvisory(size, cost, savings, type);
+                }
             } catch (error) {
                 console.error('AI advisory error:', error);
-                const message = error?.message?.includes('API key')
-                    ? 'AI advisory is unavailable because the configuration could not be loaded.'
-                    : 'Failed to generate AI advisory due to a network error.';
-                outputEl.innerHTML = `<p style="color: #EF4444; font-size: 0.875rem;">${message}</p>`;
+                const showConfigError = error?.message?.includes('API key');
+                if (showConfigError) {
+                    outputEl.innerHTML = `<p style="color: #EF4444; font-size: 0.875rem;">AI advisory is unavailable because the configuration could not be loaded.</p>`;
+                } else {
+                    outputEl.innerHTML = renderFallbackAdvisory(size, cost, savings, type);
+                }
             }
         }
-        
+
         async function callAIFinancialSummary(size, grossCost, subsidy, netCost, annualSavings, type) {
             const prompt = `Generate a financial summary for a ${size.toFixed(1)} kWp solar system (Type: ${type}). Key figures are: Gross Cost: ₹${grossCost}, Subsidy: ₹${subsidy}, Net Investment: ₹${netCost}, Annual Savings: ₹${annualSavings}. The summary should be a concise list of 4 bullet points, in either Hindi or English, detailing the investment, subsidy amount, annual savings, and total project type.`;
             const outputEl = document.getElementById('financial-summary-output');
@@ -687,12 +734,18 @@
                 });
                 html += `</ul>`;
 
-                outputEl.innerHTML = html;
+                if (html.trim() === '<ul></ul>') {
+                    outputEl.innerHTML = renderFallbackFinancialSummary(size, grossCost, subsidy, netCost, annualSavings, type);
+                } else {
+                    outputEl.innerHTML = html;
+                }
             } catch (error) {
-                const message = error?.message?.includes('API key')
-                    ? 'Financial snapshot is unavailable because the AI configuration could not be loaded.'
-                    : 'Failed to generate Financial Snapshot.';
-                outputEl.innerHTML = `<p style="color: #EF4444; font-size: 0.875rem;">${message}</p>`;
+                const showConfigError = error?.message?.includes('API key');
+                if (showConfigError) {
+                    outputEl.innerHTML = `<p style="color: #EF4444; font-size: 0.875rem;">Financial snapshot is unavailable because the AI configuration could not be loaded.</p>`;
+                } else {
+                    outputEl.innerHTML = renderFallbackFinancialSummary(size, grossCost, subsidy, netCost, annualSavings, type);
+                }
                 console.error("Structured JSON Error:", error);
             }
         }
