@@ -174,28 +174,130 @@ const INLINE_PARTIALS = {
           <li><a href="financing.html">Financing &amp; Loans</a></li>
           <li><a href="projects.html">Residential Solutions</a></li>
           <li><a href="projects.html#commercial">Commercial / Industrial</a></li>
-          <li><a href="calculator.html">Solar Savings Calculator</a></li>
-        </ul>
-      </div>
+      <li><a href="calculator.html">Solar Savings Calculator</a></li>
+    </ul>
+  </div>
 
-      <div>
-        <h4 class="font-bold text-lg">Company</h4>
-        <ul class="footer-links">
-          <li><a href="about.html">About Dakshayani Enterprises</a></li>
-          <li><a href="meera-gh2.html">Meera GH2 (Hydrogen)</a></li>
-          <li><a href="blog.html">Blog &amp; News</a></li>
-          <li><a href="policies.html#terms">T&amp;C / Warranty</a></li>
-          <li><a href="contact.html">Contact &amp; Support</a></li>
-        </ul>
-      </div>
+  <div>
+    <h4 class="font-bold text-lg">Company</h4>
+    <ul class="footer-links">
+      <li><a href="about.html">About Dakshayani Enterprises</a></li>
+      <li><a href="meera-gh2.html">Meera GH2 (Hydrogen)</a></li>
+      <li><a href="blog.html">Blog &amp; News</a></li>
+      <li><a href="policies.html#terms">T&amp;C / Warranty</a></li>
+      <li><a href="contact.html">Contact &amp; Support</a></li>
+    </ul>
+  </div>
+</div>
+
+<div class="container footer-bottom">
+  <p>
+    &copy; <span data-current-year></span> Dakshayani Enterprises. All rights reserved.
+    Office: Maa Tara, Kilburn Colony, Hinoo, Ranchi, Jharkhand-834002.
+  </p>
+</div>
+
+<div class="floating-support" data-floating-actions>
+  <button
+    type="button"
+    class="floating-support__toggle"
+    aria-haspopup="dialog"
+    aria-expanded="false"
+    aria-label="Open Dakshayani support options"
+    data-floating-toggle
+  >
+    <img src="images/Logopngsmallest.png" alt="Dakshayani Enterprises" />
+  </button>
+
+  <div
+    class="quick-access-panel"
+    role="dialog"
+    aria-modal="false"
+    aria-label="Dakshayani support menu"
+    tabindex="-1"
+    data-floating-menu
+    hidden
+  >
+    <div class="quick-access-header">
+      <h2>Connect with us</h2>
+      <button type="button" class="quick-access-close" aria-label="Close support menu" data-floating-close>
+        <i class="fa-solid fa-xmark"></i>
+      </button>
     </div>
 
-    <div class="container footer-bottom">
-      <p>
-        &copy; <span data-current-year></span> Dakshayani Enterprises. All rights reserved.
-        Office: Maa Tara, Kilburn Colony, Hinoo, Ranchi, Jharkhand-834002.
-      </p>
+    <div class="quick-access-body">
+      <div class="quick-access-group">
+        <h3>Reach out instantly</h3>
+        <div class="quick-access-actions two-column">
+          <a href="tel:+917070278178" class="quick-access-link" data-close-floating>
+            <i class="fa-solid fa-phone"></i>
+            Call
+          </a>
+          <a href="https://wa.me/917070278178" class="quick-access-link" target="_blank" rel="noopener" data-close-floating>
+            <i class="fa-brands fa-whatsapp"></i>
+            WhatsApp
+          </a>
+          <a href="mailto:connect@dakshayani.co.in" class="quick-access-link" data-close-floating>
+            <i class="fa-solid fa-envelope"></i>
+            Mail
+          </a>
+          <a
+            href="https://www.facebook.com/dakshayani.co.in"
+            class="quick-access-link"
+            target="_blank"
+            rel="noopener"
+            data-close-floating
+          >
+            <i class="fa-brands fa-facebook-f"></i>
+            Facebook
+          </a>
+          <a
+            href="https://www.instagram.com/dakshayani.co.in"
+            class="quick-access-link"
+            target="_blank"
+            rel="noopener"
+            data-close-floating
+          >
+            <i class="fa-brands fa-instagram"></i>
+            Instagram
+          </a>
+        </div>
+      </div>
+
+      <div class="quick-access-group">
+        <h3>Need detailed assistance?</h3>
+        <a href="contact.html" class="quick-access-link quick-access-link--primary" data-close-floating>
+          <i class="fa-solid fa-comments"></i>
+          Consult / Complaint / Connect
+        </a>
+      </div>
+
+      <div class="quick-access-group">
+        <h3>Language &amp; tools</h3>
+        <div class="quick-access-language">
+          <button type="button" class="quick-access-toggle" data-toggle-language data-close-floating>
+            <i class="fa-solid fa-language"></i>
+            English / हिंदी
+          </button>
+          <div id="google_translate_element" class="translate-widget" aria-hidden="true"></div>
+        </div>
+        <div class="quick-access-actions">
+          <button
+            type="button"
+            class="quick-access-link"
+            data-open-search
+            data-close-floating
+            aria-label="Open Dakshayani site search"
+          >
+            <i class="fa-solid fa-magnifying-glass"></i>
+            Search our website
+          </button>
+        </div>
+        <p class="quick-access-footnote">English ↔ हिंदी translation is powered by Google Translate.</p>
+      </div>
     </div>
+  </div>
+</div>
   `.trim(),
 };
 
@@ -340,12 +442,19 @@ async function injectPartial(selector, partialPath) {
     if (selector === 'header.site-header') {
       enhanceHeaderNavigation(host);
     }
+
+    if (selector === 'footer.site-footer') {
+      enhanceFooter(host);
+    }
   } catch (error) {
     console.error(`Failed to load partial: ${url}`, error);
     if (partialKey && INLINE_PARTIALS[partialKey]) {
       host.innerHTML = INLINE_PARTIALS[partialKey];
       if (partialKey === 'header') {
         enhanceHeaderNavigation(host);
+      }
+      if (partialKey === 'footer') {
+        enhanceFooter(host);
       }
     }
   }
@@ -470,7 +579,6 @@ function enhanceHeaderNavigation(headerEl) {
   setupLanguageToggle(headerEl);
   setupStickyHeader(headerEl);
   setupWhatsAppCTA(headerEl);
-  setupFloatingSupport(headerEl);
 }
 
 function loadGoogleTranslateScript() {
@@ -513,15 +621,21 @@ function setGoogleLanguage(language) {
   }
 }
 
-function setupLanguageToggle(headerEl) {
-  const toggleButtons = headerEl.querySelectorAll('[data-toggle-language]');
-  if (!toggleButtons.length) {
+function setupLanguageToggle(rootEl = document) {
+  if (!rootEl || typeof rootEl.querySelectorAll !== 'function') {
+    rootEl = document;
+  }
+
+  const toggleButtons = Array.from(rootEl.querySelectorAll('[data-toggle-language]'));
+  const pendingButtons = toggleButtons.filter((button) => button.dataset.languageToggleInitialised !== 'true');
+  if (!pendingButtons.length) {
     return;
   }
 
   loadGoogleTranslateScript();
 
-  toggleButtons.forEach((button) => {
+  pendingButtons.forEach((button) => {
+    button.dataset.languageToggleInitialised = 'true';
     button.addEventListener('click', () => {
       translateReady
         .then(() => {
@@ -551,11 +665,21 @@ function setupWhatsAppCTA(headerEl) {
   });
 }
 
-function setupFloatingSupport(headerEl) {
-  const container = headerEl.querySelector('[data-floating-actions]');
+function setupFloatingSupport(rootEl = document) {
+  if (!rootEl || typeof rootEl.querySelector !== 'function') {
+    rootEl = document;
+  }
+
+  const container = rootEl.querySelector('[data-floating-actions]') || document.querySelector('[data-floating-actions]');
   if (!container) {
     return;
   }
+
+  if (container.dataset.initialised === 'true') {
+    return;
+  }
+
+  container.dataset.initialised = 'true';
 
   const toggle = container.querySelector('[data-floating-toggle]');
   const panel = container.querySelector('[data-floating-menu]');
@@ -641,6 +765,12 @@ function setupFloatingSupport(headerEl) {
   });
 }
 
+function enhanceFooter(footerEl) {
+  setupFloatingSupport(footerEl);
+  setupLanguageToggle(footerEl);
+  setupGlobalSearch(footerEl);
+}
+
 function setupStickyHeader(headerEl) {
   const root = headerEl.closest('.global-header') || headerEl;
   if (!root) {
@@ -657,11 +787,15 @@ function setupStickyHeader(headerEl) {
   window.addEventListener('scroll', handleScroll, { passive: true });
 }
 
-function setupGlobalSearch(headerEl) {
+function setupGlobalSearch(rootEl = document) {
+  if (!rootEl || typeof rootEl.querySelectorAll !== 'function') {
+    rootEl = document;
+  }
+
   const overlay = document.querySelector('[data-site-search]');
   const form = overlay ? overlay.querySelector('[data-site-search-form]') : null;
-  const openers = headerEl.querySelectorAll('[data-open-search]');
-  const closers = overlay ? overlay.querySelectorAll('[data-close-search]') : [];
+  const openers = Array.from(rootEl.querySelectorAll('[data-open-search]'));
+  const closers = overlay ? Array.from(overlay.querySelectorAll('[data-close-search]')) : [];
   const resultsHost = overlay ? overlay.querySelector('[data-site-search-results]') : null;
   if (!overlay || !form || !resultsHost) {
     return;
@@ -686,23 +820,19 @@ function setupGlobalSearch(headerEl) {
   };
 
   openers.forEach((button) => {
+    if (button.dataset.siteSearchOpenerInitialised === 'true') {
+      return;
+    }
+    button.dataset.siteSearchOpenerInitialised = 'true';
     button.addEventListener('click', () => openSearch());
   });
 
   closers.forEach((button) => {
+    if (button.dataset.siteSearchCloserInitialised === 'true') {
+      return;
+    }
+    button.dataset.siteSearchCloserInitialised = 'true';
     button.addEventListener('click', () => closeSearch());
-  });
-
-  overlay.addEventListener('click', (event) => {
-    if (event.target === overlay) {
-      closeSearch();
-    }
-  });
-
-  window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !overlay.hidden) {
-      closeSearch();
-    }
   });
 
   const renderResults = (items = [], query = '') => {
@@ -735,38 +865,54 @@ function setupGlobalSearch(headerEl) {
     }
   };
 
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const query = String(input?.value || '').trim();
-    const segment = String(segmentSelect?.value || '').trim();
-    if (!query) {
-      renderResults([], query);
-      return;
-    }
+  if (!setupGlobalSearch.coreInitialised) {
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        closeSearch();
+      }
+    });
 
-    const params = new URLSearchParams({ q: query });
-    if (segment) {
-      params.append('segment', segment);
-    }
-    params.append('limit', '25');
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !overlay.hidden) {
+        closeSearch();
+      }
+    });
 
-    setLoading(true);
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const query = String(input?.value || '').trim();
+      const segment = String(segmentSelect?.value || '').trim();
+      if (!query) {
+        renderResults([], query);
+        return;
+      }
 
-    fetch(`${SITE_SEARCH_ENDPOINT}?${params.toString()}`)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Search failed with status ${response.status}`);
-        }
-        return response.json();
-      })
-      .then((data) => {
-        renderResults(data.results || [], query);
-      })
-      .catch((error) => {
-        console.error('Search request failed', error);
-        resultsHost.innerHTML = '<p class="site-search-empty">Unable to load search results at the moment.</p>';
-      });
-  });
+      const params = new URLSearchParams({ q: query });
+      if (segment) {
+        params.append('segment', segment);
+      }
+      params.append('limit', '25');
+
+      setLoading(true);
+
+      fetch(`${SITE_SEARCH_ENDPOINT}?${params.toString()}`)
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`Search failed with status ${response.status}`);
+          }
+          return response.json();
+        })
+        .then((data) => {
+          renderResults(data.results || [], query);
+        })
+        .catch((error) => {
+          console.error('Search request failed', error);
+          resultsHost.innerHTML = '<p class="site-search-empty">Unable to load search results at the moment.</p>';
+        });
+    });
+
+    setupGlobalSearch.coreInitialised = true;
+  }
 }
 
 /**
