@@ -1232,26 +1232,35 @@ body.site-search-open {
   width: 3.5rem;
   height: 3.5rem;
   border-radius: 999px;
-  border: none;
+  border: 1px solid rgba(15, 23, 42, 0.08);
   display: grid;
   place-items: center;
-  background: var(--accent-blue-dark);
+  background: var(--surface);
   color: var(--surface);
   font-size: 1.4rem;
   cursor: pointer;
   box-shadow: 0 22px 44px -18px rgba(15, 23, 42, 0.5);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
 
 .floating-support__toggle:hover,
 .floating-support__toggle:focus-visible {
   transform: translateY(-1px);
-  background: var(--accent-blue);
+  background: rgba(241, 245, 249, 0.95);
+  border-color: rgba(59, 130, 246, 0.35);
   box-shadow: 0 30px 50px -20px rgba(15, 23, 42, 0.45);
 }
 
 .floating-support.is-open .floating-support__toggle {
-  background: var(--accent-blue);
+  background: rgba(241, 245, 249, 0.95);
+  border-color: rgba(59, 130, 246, 0.45);
+}
+
+.floating-support__toggle img {
+  width: 2.4rem;
+  height: 2.4rem;
+  object-fit: contain;
+  pointer-events: none;
 }
 
 .quick-access-panel {
@@ -1335,6 +1344,14 @@ body.site-search-open {
   gap: 0.75rem;
 }
 
+.quick-access-actions.two-column {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quick-access-actions.two-column .quick-access-link {
+  justify-content: center;
+}
+
 .quick-access-link {
   display: inline-flex;
   align-items: center;
@@ -1360,6 +1377,23 @@ body.site-search-open {
   border-color: rgba(59, 130, 246, 0.35);
   transform: translateY(-1px);
   color: var(--accent-blue-dark);
+}
+
+.quick-access-link--primary {
+  background: var(--accent-blue-dark);
+  border-color: transparent;
+  color: var(--surface);
+  box-shadow: 0 18px 36px -20px rgba(15, 23, 42, 0.55);
+}
+
+.quick-access-link--primary i {
+  color: currentColor;
+}
+
+.quick-access-link--primary:hover,
+.quick-access-link--primary:focus-visible {
+  background: var(--accent-blue);
+  color: var(--surface);
 }
 
 .quick-access-language {
@@ -1406,6 +1440,12 @@ body.site-search-open {
 
 #google_translate_element .goog-te-gadget span {
   display: none !important;
+}
+
+.quick-access-footnote {
+  font-size: 0.75rem;
+  color: var(--base-500);
+  line-height: 1.4;
 }
 
 #google_translate_element .goog-te-combo {
