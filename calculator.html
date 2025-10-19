@@ -580,20 +580,66 @@
             });
         }
         
+        function buildUserContent(text) {
+            return [{ role: 'user', parts: [{ text }] }];
+        }
+
+        function extractCandidateText(result) {
+            const parts = result?.candidates?.[0]?.content?.parts;
+            if (!Array.isArray(parts)) {
+                return '';
+            }
+            const textPart = parts.find(part => typeof part?.text === 'string');
+            return textPart?.text?.trim() || '';
+        }
+
+        function sanitiseParagraph(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function extractJsonPayload(rawText) {
+            if (typeof rawText !== 'string') {
+                return null;
+            }
+            const trimmed = rawText.trim();
+            if (!trimmed) {
+                return null;
+            }
+            try {
+                return JSON.parse(trimmed);
+            } catch (error) {
+                const match = trimmed.match(/\{[\s\S]*\}/);
+                if (match) {
+                    try {
+                        return JSON.parse(match[0]);
+                    } catch (_) {
+                        return null;
+                    }
+                }
+                return null;
+            }
+        }
+
         async function callAIGuidance(size, cost, savings, type) {
             const prompt = `Act as Dakshayani Enterprises' lead solar advisor. Based on a customer's estimated requirement of a ${size.toFixed(1)} kWp ${type} solar system, which offers an estimated annual saving of ₹${savings.toLocaleString('en-IN', { maximumFractionDigits: 0 })} and a net investment of ₹${cost.toLocaleString('en-IN', { maximumFractionDigits: 0 })}, provide a concise, single-paragraph advisory. Focus on the core benefits (savings, PM Surya Ghar subsidy/finance, ROI) and the next necessary step (site survey).`;
             const outputEl = document.getElementById('ai-advisory-output');
 
             const payload = {
-                contents: [{ parts: [{ text: prompt }] }],
-                systemInstruction: { parts: [{ text: "You are a friendly and professional solar expert based in Jharkhand, India. Use encouraging and clear language. Your output must be a single HTML paragraph without headings or lists." }] }
+                contents: buildUserContent(prompt),
+                systemInstruction: {
+                    role: 'system',
+                    parts: [{ text: "You are a friendly and professional solar expert based in Jharkhand, India. Use encouraging and clear language. Your output must be a single HTML paragraph without headings or lists." }]
+                }
             };
 
             try {
                 await ensureApiKeyLoaded();
                 const result = await handleFetchWithRetry(API_URL_TEXT, payload);
-                const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "Could not generate advisory. Please try again.";
-                outputEl.innerHTML = `<p style="color: var(--base-700);">${text}</p>`;
+                const text = extractCandidateText(result) || "Could not generate advisory. Please try again.";
+                const safeParagraph = sanitiseParagraph(text);
+                outputEl.innerHTML = `<p style="color: var(--base-700);">${safeParagraph}</p>`;
             } catch (error) {
                 console.error('AI advisory error:', error);
                 const message = error?.message?.includes('API key')
@@ -608,7 +654,7 @@
             const outputEl = document.getElementById('financial-summary-output');
 
             const payload = {
-                contents: [{ parts: [{ text: prompt }] }],
+                contents: buildUserContent(prompt),
                 generationConfig: {
                     responseMimeType: "application/json",
                     responseSchema: {
@@ -628,15 +674,19 @@
             try {
                 await ensureApiKeyLoaded();
                 const result = await handleFetchWithRetry(API_URL_TEXT, payload);
-                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                const parsedJson = JSON.parse(jsonText);
-                
+                const jsonText = extractCandidateText(result);
+                const parsedJson = extractJsonPayload(jsonText);
+
+                if (!parsedJson || !Array.isArray(parsedJson.points)) {
+                    throw new Error('Invalid financial summary payload');
+                }
+
                 let html = `<ul>`;
                 parsedJson.points.forEach(point => {
-                    html += `<li>${point}</li>`;
+                    html += `<li>${sanitiseParagraph(point)}</li>`;
                 });
                 html += `</ul>`;
-                
+
                 outputEl.innerHTML = html;
             } catch (error) {
                 const message = error?.message?.includes('API key')
@@ -697,7 +747,7 @@
             const ttsText = "Average Unit Rate is calculated by dividing your total monthly bill amount by the total units of electricity consumed. This gives you the actual rupee cost per unit you pay, which is essential for accurate solar savings projections.";
 
             const payload = {
-                contents: [{ parts: [{ text: ttsText }] }],
+                contents: buildUserContent(ttsText),
                 generationConfig: {
                     responseModalities: ["AUDIO"],
                     speechConfig: {
