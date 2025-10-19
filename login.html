@@ -11,6 +11,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <script>
+    window.DAKSHAYANI_RECAPTCHA_SITE_KEY = window.DAKSHAYANI_RECAPTCHA_SITE_KEY || 'replace-with-site-key';
+    window.DAKSHAYANI_GOOGLE_CLIENT_ID = window.DAKSHAYANI_GOOGLE_CLIENT_ID || 'replace-with-google-client-id.apps.googleusercontent.com';
+  </script>
+  <script src="https://www.google.com/recaptcha/api.js?render=replace-with-site-key" async defer></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root {
       color-scheme: light;
@@ -293,6 +299,62 @@
       margin: 0.5rem 0;
     }
 
+    .otp-row {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .otp-input-group {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .otp-input-group input {
+      flex: 1;
+    }
+
+    .consent-checkbox {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      font-size: 0.85rem;
+      color: rgba(15, 23, 42, 0.65);
+    }
+
+    .consent-checkbox input {
+      margin-top: 0.3rem;
+    }
+
+    .password-meter {
+      margin-top: 0.5rem;
+      background: rgba(148, 163, 184, 0.25);
+      border-radius: 999px;
+      height: 6px;
+      overflow: hidden;
+    }
+
+    .password-meter-bar {
+      height: 100%;
+      width: 0;
+      background: #ef4444;
+      transition: width 0.25s ease, background 0.25s ease;
+    }
+
+    .password-meter-label {
+      display: block;
+      margin-top: 0.35rem;
+      font-size: 0.8rem;
+      color: rgba(15, 23, 42, 0.55);
+    }
+
+    .social-auth {
+      margin: 0.75rem 0;
+      display: grid;
+      gap: 0.35rem;
+      justify-items: flex-start;
+    }
+
     @media (max-width: 768px) {
       body {
         padding: 1.5rem 1rem;
@@ -366,6 +428,14 @@
               </div>
               <input type="password" id="login-password" name="password" placeholder="Enter your password" autocomplete="current-password" required />
             </div>
+            <div class="otp-row" data-otp-row hidden>
+              <label for="login-otp">One-time password</label>
+              <div class="otp-input-group">
+                <input type="text" id="login-otp" name="otp" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="Enter the 6 digit OTP" autocomplete="one-time-code" />
+                <button type="button" class="demo-button" data-request-otp>Send OTP</button>
+              </div>
+              <p class="form-note" data-otp-helper>We’ll email or SMS a code to verify this login. Demo mode shows the code on screen.</p>
+            </div>
             <div>
               <label for="login-role">Choose a portal</label>
               <select id="login-role" name="role" required>
@@ -375,6 +445,14 @@
                 <option value="installer">Installer</option>
                 <option value="referrer">Referral partner</option>
               </select>
+            </div>
+            <label class="consent-checkbox">
+              <input type="checkbox" name="consent" value="yes" required />
+              <span>I consent to Dakshayani Enterprises processing my data according to the <a href="policies.html#privacy">privacy policy</a>.</span>
+            </label>
+            <div class="social-auth">
+              <div id="googleSignInButton" class="g_id_signin" data-type="standard" data-shape="rectangular" data-theme="outline" data-text="continue_with" data-size="large"></div>
+              <p class="form-note">Use your Google account for seamless access with GA4 tracking.</p>
             </div>
             <p class="feedback" data-login-feedback role="status" aria-live="assertive"></p>
             <button type="submit">Log in</button>
@@ -418,7 +496,23 @@
             <div>
               <label for="signup-password">Create password</label>
               <input type="password" id="signup-password" name="password" placeholder="Minimum 8 characters" autocomplete="new-password" required />
+              <div class="password-meter" data-password-meter>
+                <div class="password-meter-bar" data-password-meter-bar></div>
+                <span class="password-meter-label" data-password-meter-label>Password strength</span>
+              </div>
             </div>
+            <div>
+              <label for="signup-password-confirm">Confirm password</label>
+              <input type="password" id="signup-password-confirm" name="confirmPassword" placeholder="Re-type password" autocomplete="new-password" required />
+            </div>
+            <label class="consent-checkbox">
+              <input type="checkbox" name="consent" value="yes" required />
+              <span>I agree to Dakshayani Enterprises storing my details to set up portal access.</span>
+            </label>
+            <label class="consent-checkbox">
+              <input type="checkbox" name="marketing" value="yes" />
+              <span>Keep me posted about subsidies, training, and partner rewards.</span>
+            </label>
             <p class="feedback" data-signup-feedback role="status" aria-live="assertive"></p>
             <button type="submit">Create my portal access</button>
             <p class="form-note">By continuing you agree to Dakshayani Enterprises' privacy policy and responsible data usage.</p>

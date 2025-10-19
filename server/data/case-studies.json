@@ -1,0 +1,66 @@
+[
+  {
+    "id": "ranchi-duplex",
+    "segment": "residential",
+    "title": "8 kW Duplex Rooftop – Ranchi",
+    "location": "Ranchi, Jharkhand",
+    "capacityKw": 8,
+    "summary": "Optimised string design for east-west duplex roof with hybrid ready architecture.",
+    "metrics": {
+      "annualGenerationKwh": 11280,
+      "co2OffsetTonnes": 10.2,
+      "paybackYears": 3.6
+    },
+    "highlights": [
+      "Integrated lithium backup for critical loads",
+      "Load analysis with GA4 conversion tracking",
+      "24/7 ticketing and WhatsApp chatbot support"
+    ],
+    "media": [
+      { "type": "image", "src": "images/residential pics real/IMG-20241028-WA0002.jpg", "alt": "Rooftop solar array on duplex" }
+    ]
+  },
+  {
+    "id": "adityapur-industrial",
+    "segment": "commercial",
+    "title": "35 kW Manufacturing Retrofit – Adityapur",
+    "location": "Adityapur, Jharkhand",
+    "capacityKw": 35,
+    "summary": "Retrofit on lightweight roofing with rapid shutdown and optimisers for shading.",
+    "metrics": {
+      "annualGenerationKwh": 47650,
+      "co2OffsetTonnes": 42.7,
+      "paybackYears": 2.8
+    },
+    "highlights": [
+      "Realtime inverter integration with customer dashboard",
+      "Tag-based ticketing and Google Sheets sync",
+      "Festival theme scheduler to align with campaigns"
+    ],
+    "media": [
+      { "type": "image", "src": "images/residential pics real/WhatsApp Image 2025-02-10 at 17.44.29_6f1624c9.jpg", "alt": "Industrial solar panels" },
+      { "type": "video", "src": "https://www.youtube.com/embed/8kqS3Dakshayani", "title": "Fabrication plant walkthrough" }
+    ]
+  },
+  {
+    "id": "khunti-agri",
+    "segment": "agriculture",
+    "title": "Solar Irrigation Cluster – Khunti",
+    "location": "Khunti, Jharkhand",
+    "capacityKw": 18,
+    "summary": "Hybrid AC pump cluster enabling micro irrigation with IoT telemetry.",
+    "metrics": {
+      "annualGenerationKwh": 25430,
+      "co2OffsetTonnes": 23.1,
+      "paybackYears": 4.2
+    },
+    "highlights": [
+      "Dialogflow powered WhatsApp agronomy assistant",
+      "Digital document locker with Drive signed URLs",
+      "Festival theme scheduler to boost farmer awareness"
+    ],
+    "media": [
+      { "type": "image", "src": "images/pump.jpg", "alt": "Solar pump installation" }
+    ]
+  }
+]
