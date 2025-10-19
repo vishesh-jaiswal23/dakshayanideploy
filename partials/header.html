@@ -40,10 +40,6 @@
     </nav>
 
     <div class="nav-actions" role="group" aria-label="Header quick actions">
-      <button type="button" class="btn btn-ghost" data-open-quick-drawer aria-haspopup="dialog" aria-controls="quick-access-panel">
-        <i class="fa-solid fa-ellipsis"></i>
-        <span>Quick Access</span>
-      </button>
       <a href="contact.html" class="btn btn-secondary nav-link" data-nav-consult>
         Consult / Complaint / Connect
       </a>
@@ -52,8 +48,16 @@
       </button>
     </div>
 
-    <button class="menu-btn" aria-label="Open navigation" aria-expanded="false" id="mobile-menu-button">
-      <i class="fas fa-bars"></i>
+    <button
+      type="button"
+      class="menu-btn"
+      aria-label="Open navigation menu"
+      aria-controls="mobile-menu"
+      aria-expanded="false"
+      id="mobile-menu-button"
+    >
+      <i class="fas fa-bars" aria-hidden="true"></i>
+      <span class="sr-only">Toggle navigation</span>
     </button>
   </div>
 
@@ -86,14 +90,6 @@
     </div>
     <div class="nav-mobile-divider" role="presentation"></div>
     <div class="nav-mobile-section" aria-label="Quick actions">
-      <button type="button" class="nav-mobile-action" data-open-quick-drawer data-close-mobile aria-haspopup="dialog" aria-controls="quick-access-panel">
-        <i class="fa-solid fa-ellipsis"></i>
-        <span>Quick Access</span>
-      </button>
-      <button type="button" class="nav-mobile-action" data-open-search data-close-mobile aria-haspopup="dialog" aria-label="Search the Dakshayani site">
-        <i class="fa-solid fa-magnifying-glass"></i>
-        <span>Search Knowledge Hub</span>
-      </button>
       <button type="button" class="nav-mobile-action" data-open-login-modal data-close-mobile aria-label="Open portal login modal">
         <i class="fa-solid fa-right-to-bracket"></i>
         <span>Portal Login</span>
@@ -104,12 +100,15 @@
     </div>
   </nav>
 
-  <div class="quick-access-overlay" data-quick-drawer hidden>
-    <div class="quick-access-backdrop" data-close-quick></div>
-    <aside class="quick-access-panel" role="dialog" aria-modal="true" aria-labelledby="quick-access-title" id="quick-access-panel" tabindex="-1">
+  <div class="floating-support" data-floating-actions>
+    <button type="button" class="floating-support__toggle" data-floating-toggle aria-expanded="false" aria-controls="quick-access-panel" aria-haspopup="true">
+      <span class="sr-only">Open support &amp; tools</span>
+      <i class="fa-solid fa-headset" aria-hidden="true"></i>
+    </button>
+    <aside class="quick-access-panel" role="dialog" aria-labelledby="quick-access-title" id="quick-access-panel" data-floating-menu hidden tabindex="-1" aria-hidden="true">
       <header class="quick-access-header">
         <h2 id="quick-access-title">Support &amp; Tools</h2>
-        <button type="button" class="quick-access-close" data-close-quick aria-label="Close quick access panel">
+        <button type="button" class="quick-access-close" data-floating-close aria-label="Close support panel">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </header>
@@ -141,9 +140,9 @@
                 <span>Switch English / हिंदी</span>
               </button>
             </div>
-            <button type="button" class="quick-access-link" data-open-search data-close-quick data-no-focus-return aria-haspopup="dialog" aria-label="Search the Dakshayani site">
+            <button type="button" class="quick-access-link" data-open-search data-close-floating aria-label="Search the Dakshayani site">
               <i class="fa-solid fa-magnifying-glass"></i>
-              <span>Open Site Search</span>
+              <span>Search Knowledge Hub</span>
             </button>
           </div>
         </section>
