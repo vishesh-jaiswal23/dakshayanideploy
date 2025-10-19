@@ -13,13 +13,19 @@
   const loginFeedback = document.querySelector('[data-login-feedback]');
   const signupFeedback = document.querySelector('[data-signup-feedback]');
   const fillDemoButton = document.querySelector('[data-fill-demo]');
+  const quickDemoButtons = document.querySelectorAll('[data-demo-role]');
   const otpRow = document.querySelector('[data-otp-row]');
   const requestOtpButton = document.querySelector('[data-request-otp]');
   const otpHelper = document.querySelector('[data-otp-helper]');
   const passwordMeterBar = document.querySelector('[data-password-meter-bar]');
   const passwordMeterLabel = document.querySelector('[data-password-meter-label]');
   const signupPassword = document.getElementById('signup-password');
-  const signupPasswordConfirm = document.getElementById('signup-password-confirm');
+  const passwordToggleButtons = document.querySelectorAll('[data-password-toggle]');
+  const loginEmailInput = document.getElementById('login-email');
+  const loginPasswordInput = document.getElementById('login-password');
+  const loginRoleSelect = document.getElementById('login-role');
+  const demoHelper = document.querySelector('[data-demo-helper]');
+  const defaultDemoHelperText = demoHelper ? demoHelper.textContent : '';
   const googleButton = document.getElementById('googleSignInButton');
 
   const redirects = {
@@ -28,6 +34,14 @@
     employee: 'employee-dashboard.html',
     installer: 'installer-dashboard.html',
     referrer: 'referrer-dashboard.html'
+  };
+
+  const roleLabels = {
+    admin: 'Administrator',
+    customer: 'Customer',
+    employee: 'Employee',
+    installer: 'Installer',
+    referrer: 'Referral partner'
   };
 
   function resolveApi(path) {
@@ -94,6 +108,100 @@
 
   function clearFeedback(target) {
     setFeedback(target, null, '');
+  }
+
+  function getRoleLabel(role) {
+    if (!role) return '';
+    return roleLabels[role] || role.charAt(0).toUpperCase() + role.slice(1);
+  }
+
+  function getDemoUserByRole(role) {
+    return demoUsers.find((user) => user.role === role) || null;
+  }
+
+  function getPasswordToggleButton(targetId) {
+    return Array.from(passwordToggleButtons || []).find((button) => button.dataset.passwordToggle === targetId) || null;
+  }
+
+  function setPasswordVisibilityState(input, button, visible, options = {}) {
+    if (!input) {
+      return;
+    }
+    input.type = visible ? 'text' : 'password';
+    if (button) {
+      button.textContent = visible ? 'Hide' : 'Show';
+      button.setAttribute('aria-pressed', visible ? 'true' : 'false');
+    }
+    if (visible && options.focus) {
+      input.focus();
+      if (options.select) {
+        input.select();
+      }
+    }
+  }
+
+  function togglePasswordVisibility(button) {
+    if (!button) return;
+    const targetId = button.dataset.passwordToggle;
+    if (!targetId) return;
+    const input = document.getElementById(targetId);
+    if (!input) return;
+    const shouldShow = input.type === 'password';
+    setPasswordVisibilityState(input, button, shouldShow, { focus: true });
+  }
+
+  function setActiveDemoRole(role) {
+    if (!quickDemoButtons || quickDemoButtons.length === 0) {
+      return;
+    }
+    quickDemoButtons.forEach((button) => {
+      const isActive = button.dataset.demoRole === role;
+      button.classList.toggle('is-active', isActive);
+      button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+  }
+
+  function fillDemoCredentials(role, options = {}) {
+    if (!role) {
+      return null;
+    }
+    const user = getDemoUserByRole(role);
+    if (!user) {
+      setActiveDemoRole(null);
+      if (demoHelper) {
+        demoHelper.textContent = 'Demo credentials are not available for that role right now.';
+      }
+      return null;
+    }
+
+    if (loginEmailInput) {
+      loginEmailInput.value = user.email;
+    }
+    if (loginPasswordInput) {
+      const toggleButton = getPasswordToggleButton('login-password');
+      setPasswordVisibilityState(loginPasswordInput, toggleButton, false);
+      loginPasswordInput.value = user.password;
+      loginPasswordInput.focus();
+      loginPasswordInput.select();
+    }
+    if (loginRoleSelect) {
+      loginRoleSelect.value = user.role;
+    }
+
+    setActiveDemoRole(user.role);
+    hideOtpRow();
+    clearFeedback(loginFeedback);
+
+    if (demoHelper) {
+      const label = getRoleLabel(user.role);
+      demoHelper.textContent = `${label} demo credentials ready — tick the consent and sign in.`;
+    }
+
+    if (options.scrollIntoView && loginForm) {
+      loginForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    return user;
   }
 
   function toggleFormDisabled(form, disabled) {
@@ -480,6 +588,11 @@
       );
       signupForm.reset();
       updatePasswordMeter('');
+      ['signup-password', 'signup-password-confirm'].forEach((id) => {
+        const input = document.getElementById(id);
+        const button = getPasswordToggleButton(id);
+        setPasswordVisibilityState(input, button, false);
+      });
       setTimeout(() => redirectToDashboard(data.user.role), 650);
     } catch (error) {
       if (error.status === 409) {
@@ -500,14 +613,27 @@
 
   if (fillDemoButton && loginForm) {
     fillDemoButton.addEventListener('click', () => {
-      const email = loginForm.querySelector('#login-email');
-      const password = loginForm.querySelector('#login-password');
-      const role = loginForm.querySelector('#login-role');
-      if (email) email.value = 'admin@dakshayani.in';
-      if (password) password.value = 'Admin@123';
-      if (role) role.value = 'admin';
-      clearFeedback(loginFeedback);
-      hideOtpRow();
+      fillDemoCredentials(fillDemoButton.dataset.demoRole || 'admin');
+    });
+  }
+
+  if (quickDemoButtons && quickDemoButtons.length > 0) {
+    quickDemoButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const shouldScroll = Boolean(button.closest('.quick-demo'));
+        fillDemoCredentials(button.dataset.demoRole, { scrollIntoView: shouldScroll });
+      });
+    });
+  }
+
+  if (passwordToggleButtons && passwordToggleButtons.length > 0) {
+    passwordToggleButtons.forEach((button) => {
+      const targetId = button.dataset.passwordToggle;
+      const input = targetId ? document.getElementById(targetId) : null;
+      if (input) {
+        setPasswordVisibilityState(input, button, input.type === 'text');
+      }
+      button.addEventListener('click', () => togglePasswordVisibility(button));
     });
   }
 
@@ -519,6 +645,10 @@
         pendingOtpEmail = null;
         pendingOtpRole = null;
         hideOtpRow();
+      }
+      if (demoHelper && ['email', 'password'].includes(event.target?.name || '')) {
+        demoHelper.textContent = defaultDemoHelperText;
+        setActiveDemoRole(null);
       }
     });
   }
