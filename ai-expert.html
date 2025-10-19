@@ -203,22 +203,44 @@
         </div>
     </section>
 
-    <!-- Script Placeholder for AI Logic (Requires API Key implementation) -->
+    <!-- Viaan AI Expert Logic -->
     <script>
-        // Placeholder for future AI integration (Gemini API logic)
+        const GEMINI_TEXT_MODEL = 'gemini-2.5-flash-lite';
+
+        let API_KEY = '';
+        let API_URL_TEXT = '';
+        let apiKeyPromise = null;
+
+        const conversationHistory = [];
+
         const inputField = document.getElementById('user-input');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatForm = document.getElementById('chat-form');
         const chipButtons = document.querySelectorAll('.chip');
 
-        document.getElementById('chat-form').addEventListener('submit', function(e) {
-            e.preventDefault();
+        chatForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
             const message = inputField.value.trim();
+            if (!message) {
+                return;
+            }
 
-            if (message) {
-                appendMessage('user', message);
-                inputField.value = '';
+            appendMessage('user', message);
+            inputField.value = '';
 
-                // Simulate AI Response (replace with actual Gemini API call)
-                appendMessage('ai', "Thank you for your question. I'm Viaan and currently offline for live assistance. Please check back later, or contact our human experts at 7070278178 for immediate help!");
+            if (!isRelevantQuestion(message)) {
+                appendMessage('ai', "Viaan specialises in Dakshayani Enterprises, our solar services, and related ventures. Please ask a question in that scope so I can help you.");
+                return;
+            }
+
+            const pendingMessage = appendLoadingMessage();
+
+            try {
+                const reply = await fetchViaanAnswer(message);
+                setMessageText(pendingMessage, reply);
+            } catch (error) {
+                console.error('Viaan chat error:', error);
+                setMessageText(pendingMessage, "I'm sorry, but I couldn't reach my knowledge base right now. Please retry in a moment or contact +91 70702 78178 for immediate help.");
             }
         });
 
@@ -232,8 +254,118 @@
             });
         });
 
+        function configureGeminiEndpoints(key) {
+            API_KEY = key;
+            API_URL_TEXT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TEXT_MODEL}:generateContent?key=${API_KEY}`;
+        }
+
+        function loadApiKey() {
+            if (!apiKeyPromise) {
+                apiKeyPromise = fetch('api.txt', { cache: 'no-store' })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to load API key.');
+                        }
+                        return response.text();
+                    })
+                    .then(text => {
+                        const key = text.trim();
+                        if (!key) {
+                            throw new Error('API key file is empty.');
+                        }
+                        configureGeminiEndpoints(key);
+                        return key;
+                    })
+                    .catch(error => {
+                        console.error('API key initialization failed:', error);
+                        throw error;
+                    });
+            }
+            return apiKeyPromise;
+        }
+
+        async function ensureApiKeyLoaded() {
+            if (!API_KEY) {
+                await loadApiKey();
+            }
+        }
+
+        const MAX_RETRIES = 3;
+
+        async function handleFetchWithRetry(url, payload, retries = 0) {
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    if (response.status === 429 && retries < MAX_RETRIES) {
+                        const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        return handleFetchWithRetry(url, payload, retries + 1);
+                    }
+                    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+                }
+
+                return response.json();
+            } catch (error) {
+                if (retries < MAX_RETRIES) {
+                    const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return handleFetchWithRetry(url, payload, retries + 1);
+                }
+                throw error;
+            }
+        }
+
+        async function fetchViaanAnswer(message) {
+            await ensureApiKeyLoaded();
+
+            const newHistory = [
+                ...conversationHistory,
+                { role: 'user', parts: [{ text: message }] }
+            ];
+
+            const payload = {
+                contents: newHistory,
+                systemInstruction: {
+                    role: 'system',
+                    parts: [{
+                        text: "You are Viaan, Dakshayani Enterprises' virtual solar expert. Only answer questions about Dakshayani Enterprises, our solar solutions, policies, financing, RESCO services, Meera GH2, EV charging, and other official ventures. If a query falls outside this scope, politely refuse and guide the user back to solar or Dakshayani topics. Keep answers concise, factual, and grounded in Jharkhand-specific context when possible."
+                    }]
+                },
+                generationConfig: {
+                    temperature: 0.6,
+                    topP: 0.9,
+                    maxOutputTokens: 600
+                }
+            };
+
+            const result = await handleFetchWithRetry(API_URL_TEXT, payload);
+            const reply = extractCandidateText(result);
+
+            if (!reply) {
+                throw new Error('Empty response from Viaan.');
+            }
+
+            conversationHistory.push({ role: 'user', parts: [{ text: message }] });
+            conversationHistory.push({ role: 'model', parts: [{ text: reply }] });
+
+            return reply;
+        }
+
+        function extractCandidateText(result) {
+            const parts = result?.candidates?.[0]?.content?.parts;
+            if (!Array.isArray(parts)) {
+                return '';
+            }
+            const textPart = parts.find(part => typeof part?.text === 'string');
+            return textPart?.text?.trim() || '';
+        }
+
         function appendMessage(sender, text) {
-            const chatMessages = document.getElementById('chat-messages');
             const messageElement = document.createElement('div');
             messageElement.style.marginBottom = '1rem';
             messageElement.style.padding = '0.75rem 1rem';
@@ -244,15 +376,42 @@
                 messageElement.style.marginLeft = 'auto';
                 messageElement.style.background = 'var(--primary-500)';
                 messageElement.style.color = 'var(--base-900)';
-            } else { // ai
+            } else {
                 messageElement.style.marginRight = 'auto';
                 messageElement.style.background = 'var(--base-100)';
                 messageElement.style.color = 'var(--base-700)';
             }
 
-            messageElement.textContent = text;
+            setMessageText(messageElement, text);
             chatMessages.appendChild(messageElement);
-            chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return messageElement;
+        }
+
+        function appendLoadingMessage() {
+            const element = appendMessage('ai', '');
+            element.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right: 0.5rem;"></i> Viaan is reviewing your question...';
+            return element;
+        }
+
+        function setMessageText(element, text) {
+            element.innerHTML = sanitiseAndFormat(text);
+        }
+
+        function sanitiseAndFormat(text) {
+            const safeDiv = document.createElement('div');
+            safeDiv.textContent = typeof text === 'string' ? text : '';
+            return safeDiv.innerHTML.replace(/\n/g, '<br>');
+        }
+
+        function isRelevantQuestion(message) {
+            const normalized = message.toLowerCase();
+            const keywords = [
+                'dakshayani', 'solar', 'pm surya ghar', 'meera', 'gh2', 'resco', 'energy', 'ev', 'charging', 'battery',
+                'rooftop', 'net metering', 'subsidy', 'photovoltaic', 'pv', 'installer', 'maintenance', 'jharkhand',
+                'renewable', 'power plant', 'viaan', 'sun', 'grid', 'inverter', 'panel', 'dakshayani enterprises'
+            ];
+            return keywords.some(keyword => normalized.includes(keyword));
         }
     </script>
   </main>
