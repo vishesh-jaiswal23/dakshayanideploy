@@ -353,9 +353,55 @@
     <script>
         // --- NOTE: This block contains the essential JavaScript logic for the calculator. ---
         // --- It MUST be preserved to maintain functionality. ---
-        const API_KEY = "AIzaSyAUzHJcu9Atia3Q5lDeaiVSrage-2n42fI"; // Placeholder, key is provided by Canvas runtime
-        const API_URL_TEXT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
-        const API_URL_TTS = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${API_KEY}`;
+        const GEMINI_TEXT_MODEL = 'gemini-2.5-flash-preview-05-20';
+        const GEMINI_TTS_MODEL = 'gemini-2.5-flash-preview-tts';
+
+        let API_KEY = '';
+        let API_URL_TEXT = '';
+        let API_URL_TTS = '';
+        let apiKeyPromise = null;
+
+        function configureGeminiEndpoints(key) {
+            API_KEY = key;
+            API_URL_TEXT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TEXT_MODEL}:generateContent?key=${API_KEY}`;
+            API_URL_TTS = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent?key=${API_KEY}`;
+        }
+
+        function loadApiKey() {
+            if (!apiKeyPromise) {
+                apiKeyPromise = fetch('api.txt')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to load API key.');
+                        }
+                        return response.text();
+                    })
+                    .then(text => {
+                        const key = text.trim();
+                        if (!key) {
+                            throw new Error('API key file is empty.');
+                        }
+                        configureGeminiEndpoints(key);
+                    })
+                    .catch(error => {
+                        console.error('API key initialization failed:', error);
+                        throw error;
+                    });
+            }
+            return apiKeyPromise;
+        }
+
+        async function ensureApiKeyLoaded() {
+            if (!API_KEY) {
+                try {
+                    await loadApiKey();
+                } catch (error) {
+                    showMessage('Unable to load AI configuration. Please try again later.');
+                    throw error;
+                }
+            }
+        }
+
         const MAX_RETRIES = 3;
 
         // --- Rate Data (From original calculator.html) ---
@@ -544,11 +590,16 @@
             };
 
             try {
+                await ensureApiKeyLoaded();
                 const result = await handleFetchWithRetry(API_URL_TEXT, payload);
                 const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "Could not generate advisory. Please try again.";
                 outputEl.innerHTML = `<p style="color: var(--base-700);">${text}</p>`;
             } catch (error) {
-                outputEl.innerHTML = '<p style="color: #EF4444; font-size: 0.875rem;">Failed to generate AI advisory due to a network error.</p>';
+                console.error('AI advisory error:', error);
+                const message = error?.message?.includes('API key')
+                    ? 'AI advisory is unavailable because the configuration could not be loaded.'
+                    : 'Failed to generate AI advisory due to a network error.';
+                outputEl.innerHTML = `<p style="color: #EF4444; font-size: 0.875rem;">${message}</p>`;
             }
         }
         
@@ -575,6 +626,7 @@
             };
 
             try {
+                await ensureApiKeyLoaded();
                 const result = await handleFetchWithRetry(API_URL_TEXT, payload);
                 const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
                 const parsedJson = JSON.parse(jsonText);
@@ -587,7 +639,10 @@
                 
                 outputEl.innerHTML = html;
             } catch (error) {
-                outputEl.innerHTML = '<p style="color: #EF4444; font-size: 0.875rem;">Failed to generate Financial Snapshot.</p>';
+                const message = error?.message?.includes('API key')
+                    ? 'Financial snapshot is unavailable because the AI configuration could not be loaded.'
+                    : 'Failed to generate Financial Snapshot.';
+                outputEl.innerHTML = `<p style="color: #EF4444; font-size: 0.875rem;">${message}</p>`;
                 console.error("Structured JSON Error:", error);
             }
         }
@@ -653,6 +708,7 @@
             };
 
             try {
+                await ensureApiKeyLoaded();
                 const result = await handleFetchWithRetry(API_URL_TTS, payload);
                 const part = result.candidates?.[0]?.content?.parts?.[0];
                 const audioData = part?.inlineData?.data;
@@ -682,7 +738,11 @@
                     button.disabled = false;
                 }
             } catch (error) {
-                showMessage('API Error', 'Failed to connect to TTS service.');
+                console.error('TTS error:', error);
+                const message = error?.message?.includes('API key')
+                    ? 'Unable to play audio because the AI configuration could not be loaded.'
+                    : 'Failed to connect to TTS service.';
+                showMessage(message);
                 button.innerHTML = originalHtml;
                 button.disabled = false;
             }
