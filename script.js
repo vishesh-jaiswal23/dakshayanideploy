@@ -447,6 +447,13 @@ function enhanceHeaderNavigation(headerEl) {
     link.addEventListener('click', () => closeMenu());
   });
 
+  mobileMenu.querySelectorAll('[data-close-mobile]').forEach((control) => {
+    if (control.tagName === 'A') {
+      return;
+    }
+    control.addEventListener('click', () => closeMenu());
+  });
+
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       closeMenu();

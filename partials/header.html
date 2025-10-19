@@ -2,26 +2,28 @@
   <div class="header-bar">
     <div class="container header-bar-inner">
       <div class="header-contact" role="list">
-        <a href="tel:+917070278178" class="header-link" role="listitem">
+        <a href="tel:+917070278178" class="header-link" role="listitem" aria-label="Call Dakshayani Enterprises at +91 70702 78178">
           <i class="fa-solid fa-phone"></i>
           <span>+91 70702 78178</span>
         </a>
-        <a href="mailto:connect@dakshayani.co.in" class="header-link" role="listitem">
+        <a href="mailto:connect@dakshayani.co.in" class="header-link" role="listitem" aria-label="Email connect@dakshayani.co.in">
           <i class="fa-solid fa-envelope"></i>
           <span>connect@dakshayani.co.in</span>
         </a>
-        <button type="button" class="header-link" data-open-whatsapp role="listitem">
+        <button type="button" class="header-link" data-open-whatsapp role="listitem" aria-label="Chat on WhatsApp">
           <i class="fa-brands fa-whatsapp"></i>
           <span>WhatsApp Support</span>
         </button>
       </div>
-      <div class="header-tools">
-        <div id="google_translate_element" class="translate-widget" aria-label="Toggle language"></div>
-        <button type="button" class="header-tool" data-toggle-language>
-          <i class="fa-solid fa-language"></i>
-          <span>English / हिंदी</span>
-        </button>
-        <button type="button" class="header-tool" data-open-search aria-haspopup="dialog">
+      <div class="header-tools" role="list">
+        <div class="header-language" role="listitem">
+          <div id="google_translate_element" class="translate-widget" aria-label="Toggle language"></div>
+          <button type="button" class="header-tool header-tool--translate" data-toggle-language aria-label="Switch between English and Hindi">
+            <i class="fa-solid fa-language"></i>
+            <span>English / हिंदी</span>
+          </button>
+        </div>
+        <button type="button" class="header-tool header-tool--search" data-open-search aria-haspopup="dialog" role="listitem" aria-label="Open site search">
           <i class="fa-solid fa-magnifying-glass"></i>
           <span>Search</span>
         </button>
@@ -73,30 +75,57 @@
       <a href="contact.html" class="btn btn-secondary nav-link" data-nav-consult>
         Consult / Complaint / Connect
       </a>
-      <button type="button" class="btn btn-primary" data-open-login-modal>
+      <button type="button" class="btn btn-primary" data-open-login-modal aria-label="Open portal login modal">
         Portal Login
       </button>
     </div>
-
     <button class="menu-btn" aria-label="Open navigation" aria-expanded="false" id="mobile-menu-button">
       <i class="fas fa-bars"></i>
     </button>
   </div>
 
   <nav id="mobile-menu" class="nav-mobile" aria-label="Mobile navigation">
-    <a href="index.html">Home</a>
-    <a href="govt-epc.html">Govt. EPC &amp; Infrastructure</a>
-    <a href="about.html">About Us</a>
-    <a href="projects.html">Solar Projects</a>
-    <a href="case-studies.html">Case Studies</a>
-    <a href="pm-surya-ghar.html">PM Surya Ghar Subsidy</a>
-    <a href="meera-gh2.html">Meera GH2 Initiative</a>
-    <a href="e-mobility.html">E-Mobility &amp; Charging</a>
-    <a href="calculator.html">Solar Calculator</a>
-    <a href="knowledge-hub.html">Knowledge Hub</a>
-    <a href="blog.html">Blog &amp; News</a>
-    <a href="login.html">Portal Login</a>
-    <a href="contact.html" class="btn btn-primary nav-mobile-cta">Consult / Complaint / Connect</a>
+    <div class="nav-mobile-section" aria-label="Primary pages">
+      <a href="index.html">Home</a>
+      <a href="govt-epc.html">Govt. EPC &amp; Infrastructure</a>
+      <a href="about.html">About Us</a>
+      <a href="projects.html">Solar Projects</a>
+      <a href="case-studies.html">Case Studies</a>
+      <a href="pm-surya-ghar.html">PM Surya Ghar Subsidy</a>
+      <a href="meera-gh2.html">Meera GH2 Initiative</a>
+      <a href="e-mobility.html">E-Mobility &amp; Charging</a>
+      <a href="calculator.html">Solar Calculator</a>
+      <a href="knowledge-hub.html">Knowledge Hub</a>
+      <a href="blog.html">Blog &amp; News</a>
+    </div>
+    <div class="nav-mobile-divider" role="presentation"></div>
+    <div class="nav-mobile-section" aria-label="Quick actions">
+      <button type="button" class="nav-mobile-action" data-open-search data-close-mobile aria-haspopup="dialog" aria-label="Search the Dakshayani site">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <span>Search Knowledge Hub</span>
+      </button>
+      <button type="button" class="nav-mobile-action" data-open-login-modal data-close-mobile aria-label="Open portal login modal">
+        <i class="fa-solid fa-right-to-bracket"></i>
+        <span>Portal Login</span>
+      </button>
+      <a href="contact.html" class="btn btn-primary nav-mobile-cta" data-close-mobile>
+        Consult / Complaint / Connect
+      </a>
+    </div>
+    <div class="nav-mobile-support" aria-label="Support channels">
+      <a href="tel:+917070278178" aria-label="Call Dakshayani Enterprises">
+        <i class="fa-solid fa-phone"></i>
+        <span>Call +91 70702 78178</span>
+      </a>
+      <a href="mailto:connect@dakshayani.co.in" aria-label="Email Dakshayani Enterprises">
+        <i class="fa-solid fa-envelope"></i>
+        <span>Email connect@dakshayani.co.in</span>
+      </a>
+      <button type="button" data-open-whatsapp data-close-mobile aria-label="Chat on WhatsApp">
+        <i class="fa-brands fa-whatsapp"></i>
+        <span>Chat on WhatsApp</span>
+      </button>
+    </div>
   </nav>
 </header>
 
