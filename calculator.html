@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Advanced Solar Calculator & Finance | Dakshayani Enterprises</title>
-    <meta name="description" content="Calculate system size via units, bill, or load, get AI advisory, and estimate EMI for rooftop solar in Jharkhand."/>
+    <meta name="description" content="Calculate system size via units, bill, or load, get Viaan's advisory, and estimate EMI for rooftop solar in Jharkhand."/>
 
     <link rel="icon" href="images/favicon.ico" />
     <link rel="stylesheet" href="style.css" />
@@ -229,7 +229,7 @@
                 
                 <div id="loading-spinner" class="loader" style="padding: 2rem; display: none;">
                     <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--primary-main);"></i>
-                    <p class="font-semibold">Calculating system size and generating AI advisory...</p>
+                    <p class="font-semibold">Calculating system size and generating Viaan's advisory...</p>
                 </div>
 
                 <div id="initial-message-results">
@@ -262,7 +262,7 @@
                     <div class="grid cols-3" style="grid-template-columns: 2fr 1fr; gap: 1.5rem;">
                         
                         <div class="ai-output-box">
-                            <h3 class="flex items-center gap-2" style="color: var(--primary-dark);"><i class="fa-solid fa-robot"></i> AI Solar Advisory (Viaan)</h3>
+                            <h3 class="flex items-center gap-2" style="color: var(--primary-dark);"><i class="fa-solid fa-robot"></i> Viaan Solar Advisory</h3>
                             <div id="ai-advisory-output">
                                 <p class="loader"><i class="fa-solid fa-spinner fa-spin"></i> Generating personalized advice...</p>
                             </div>
@@ -333,7 +333,7 @@
                         <ul>
                             <li>A recommended solar size aligned with Jharkhand&#39;s 5 kWh/kWp/day benchmark.</li>
                             <li>Updated cost estimates for both PM Surya Ghar and commercial categories.</li>
-                            <li>AI guidance and EMI planning tools so you can budget confidently.</li>
+                            <li>Viaan guidance and EMI planning tools so you can budget confidently.</li>
                         </ul>
                     </article>
 
@@ -397,7 +397,7 @@
                 try {
                     await loadApiKey();
                 } catch (error) {
-                    showMessage('Unable to load AI configuration. Please try again later.');
+                    showMessage("Unable to load Viaan's configuration. Please try again later.");
                     throw error;
                 }
             }
@@ -687,10 +687,10 @@
                     outputEl.innerHTML = renderFallbackAdvisory(size, cost, savings, type);
                 }
             } catch (error) {
-                console.error('AI advisory error:', error);
+                console.error('Viaan advisory error:', error);
                 const showConfigError = error?.message?.includes('API key');
                 if (showConfigError) {
-                    outputEl.innerHTML = `<p style="color: #EF4444; font-size: 0.875rem;">AI advisory is unavailable because the configuration could not be loaded.</p>`;
+                    outputEl.innerHTML = `<p style="color: #EF4444; font-size: 0.875rem;">Viaan's advisory is unavailable because the configuration could not be loaded.</p>`;
                 } else {
                     outputEl.innerHTML = renderFallbackAdvisory(size, cost, savings, type);
                 }
@@ -743,7 +743,7 @@
             } catch (error) {
                 const showConfigError = error?.message?.includes('API key');
                 if (showConfigError) {
-                    outputEl.innerHTML = `<p style="color: #EF4444; font-size: 0.875rem;">Financial snapshot is unavailable because the AI configuration could not be loaded.</p>`;
+                    outputEl.innerHTML = `<p style="color: #EF4444; font-size: 0.875rem;">Financial snapshot is unavailable because Viaan's configuration could not be loaded.</p>`;
                 } else {
                     outputEl.innerHTML = renderFallbackFinancialSummary(size, grossCost, subsidy, netCost, annualSavings, type);
                 }
@@ -844,8 +844,8 @@
             } catch (error) {
                 console.error('TTS error:', error);
                 const message = error?.message?.includes('API key')
-                    ? 'Unable to play audio because the AI configuration could not be loaded.'
-                    : 'Failed to connect to TTS service.';
+                    ? "Unable to play audio because Viaan's configuration could not be loaded."
+                    : "Failed to connect to Viaan's voice service.";
                 showMessage(message);
                 button.innerHTML = originalHtml;
                 button.disabled = false;
