@@ -64,8 +64,16 @@ const INLINE_PARTIALS = {
           </button>
         </div>
 
-        <button class="menu-btn" aria-label="Open navigation" aria-expanded="false" id="mobile-menu-button">
-          <i class="fas fa-bars"></i>
+        <button
+          type="button"
+          class="menu-btn"
+          aria-label="Open navigation menu"
+          aria-controls="mobile-menu"
+          aria-expanded="false"
+          id="mobile-menu-button"
+        >
+          <i class="fas fa-bars" aria-hidden="true"></i>
+          <span class="sr-only">Toggle navigation</span>
         </button>
       </div>
 
@@ -476,12 +484,18 @@ function enhanceHeaderNavigation(headerEl) {
   const closeMenu = () => {
     mobileMenu.classList.remove('show');
     menuButton.setAttribute('aria-expanded', 'false');
+    menuButton.classList.remove('is-active');
+    menuButton.setAttribute('aria-label', 'Open navigation menu');
   };
 
   menuButton.addEventListener('click', () => {
     const isOpen = mobileMenu.classList.toggle('show');
     menuButton.setAttribute('aria-expanded', String(isOpen));
     menuButton.classList.toggle('is-active', isOpen);
+    menuButton.setAttribute(
+      'aria-label',
+      isOpen ? 'Close navigation menu' : 'Open navigation menu',
+    );
   });
 
   mobileMenu.querySelectorAll('a').forEach((link) => {
