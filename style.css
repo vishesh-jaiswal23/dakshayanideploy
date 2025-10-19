@@ -2315,6 +2315,170 @@ body[data-festival-theme] .hero-highlight {
 }
 
 /* ============================================================
+   Strategic capability showcase & case studies
+   ============================================================ */
+.capability-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+}
+
+.capability-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--surface);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 1rem;
+  padding: 1.75rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  text-decoration: none;
+  color: inherit;
+}
+
+.capability-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 45px -25px rgba(15, 23, 42, 0.35);
+}
+
+.capability-card--accent {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(2, 132, 199, 0.12));
+  border-color: rgba(59, 130, 246, 0.25);
+}
+
+.capability-kicker {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary-main);
+}
+
+.capability-card h3 {
+  font-size: 1.15rem;
+  line-height: 1.4;
+}
+
+.capability-link {
+  margin-top: auto;
+  font-weight: 600;
+  color: var(--primary-dark);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.case-study-grid .install-card {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: none;
+}
+
+.install-points {
+  margin: 0.85rem 0 1rem;
+  padding-left: 1.1rem;
+  color: var(--base-600);
+}
+
+.install-points li {
+  margin-bottom: 0.35rem;
+  font-size: 0.95rem;
+}
+
+.btn-small {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.95rem;
+}
+
+/* ============================================================
+   FAQ styles
+   ============================================================ */
+.faq-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.faq-list details {
+  background: var(--surface);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 1.25rem 1.5rem;
+}
+
+.faq-list summary {
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.faq-list summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-body {
+  margin-top: 0.75rem;
+  color: var(--base-600);
+}
+
+.faq-body ul {
+  margin: 0.75rem 0 0;
+  padding-left: 1.15rem;
+}
+
+.faq-body li {
+  margin-bottom: 0.35rem;
+}
+
+/* ============================================================
+   Footer trust badges
+   ============================================================ */
+.footer-trust {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 1.75rem 0;
+}
+
+.footer-trust h4 {
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.trust-badges {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+}
+
+.trust-badges li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  font-size: 0.95rem;
+}
+
+.badge-icon {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.2);
+  color: #38bdf8;
+}
+
+.badge-text {
+  line-height: 1.4;
+}
+
+/* ============================================================
    Responsive Behaviour
    ============================================================ */
 @media (max-width: 1080px) {
