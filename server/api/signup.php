@@ -9,6 +9,11 @@ if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     send_error(405, 'Method not allowed.');
 }
 
+$allowSignup = env_bool('PORTAL_ALLOW_SELF_SIGNUP', false);
+if (!$allowSignup) {
+    send_error(403, 'Self-service signups are disabled. Please contact connect@dakshayani.co.in for access.');
+}
+
 $body = read_request_json();
 $name = trim((string) ($body['name'] ?? ''));
 $email = normalise_email($body['email'] ?? '');

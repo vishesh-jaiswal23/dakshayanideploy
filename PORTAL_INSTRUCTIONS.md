@@ -57,24 +57,25 @@ You should see a version number such as `v18.x.x`.
    http://localhost:4000/login.html
    ```
 
-2. The login page now lists the demo email and password for the customer, employee, installer, and referral partner roles so you can explore each dashboard quickly.
+2. The login page prompts for the administrator email and password that you configured in the portal `.env` file.
 
-3. Select the appropriate role from the *Login as* dropdown before signing in.
+3. Ensure the *Choose a portal* dropdown is set to **Administrator** before signing in.
 
 ---
 
-## 4. Demo accounts
+## 4. Secure the main administrator
 
-These demo accounts are pre-loaded automatically each time the server starts. Use the credentials below to explore each dashboard:
+Create a `.env` file in the project root (or inside `server/`) and add the administrator details that should control the portal:
 
-| Role             | Email                     | Password        |
-| ---------------- | ------------------------- | --------------- |
-| Customer         | `customer@dakshayani.in`  | `Customer@123`  |
-| Employee         | `employee@dakshayani.in`  | `Employee@123`  |
-| Installer        | `installer@dakshayani.in` | `Installer@123` |
-| Referral partner | `referrer@dakshayani.in`  | `Referrer@123`  |
+```ini
+MAIN_ADMIN_EMAIL=you@example.com
+MAIN_ADMIN_PASSWORD=Use-A-Strong-Password-Here
+MAIN_ADMIN_NAME=Head Administrator
+MAIN_ADMIN_PHONE=+91 99999 99999
+MAIN_ADMIN_CITY=Ranchi
+```
 
-> **Tip:** Configure your real administrator credentials with the `MAIN_ADMIN_*` environment variables before deploying. When you log in successfully, you will be redirected automatically to the matching `*-dashboard.html` page for your role.
+The PHP API reads this file automatically and seeds the administrator account on first run. Do not commit the `.env` file to version control or share the password publicly.
 
 ---
 
@@ -83,8 +84,8 @@ These demo accounts are pre-loaded automatically each time the server starts. Us
 ### "Login failed" or "Unexpected response"
 
 - Confirm the server terminal is still running and shows no error messages.
-- Double-check that the email and password match the table above exactly (they are case-sensitive).
-- Ensure the *Login as* dropdown matches the account’s role.
+- Double-check that the `.env` file contains the correct administrator email and password, then restart the API service.
+- Ensure the *Choose a portal* dropdown is set to **Administrator** before submitting the form.
 
 ### "Please log in again" or redirected back to the login page
 
@@ -95,9 +96,9 @@ These demo accounts are pre-loaded automatically each time the server starts. Us
   - Firefox: open DevTools → Storage → Local Storage → right-click the site → **Delete All**.
 - Reload `http://localhost:4000/login.html` and sign in again.
 
-### Reset the demo users
+### Reset the portal accounts
 
-If you want to reset the sample accounts to their default state (for example, after creating new users):
+If you need to clear all stored users (for example after testing locally):
 
 1. Stop the server (`Ctrl + C` in the terminal).
 2. Delete the user data file:
@@ -106,7 +107,7 @@ If you want to reset the sample accounts to their default state (for example, af
    rm server/data/users.json
    ```
 
-3. Restart the server with `npm start`. A fresh copy of the default demo users will be created automatically.
+3. Restart the server with `npm start`. A fresh administrator account will be created automatically from the `.env` settings.
 
 ---
 
@@ -121,7 +122,7 @@ Happy exploring!
 
 ## 7. Deploying the portal on cPanel (static hosting)
 
-If you upload the HTML, CSS, and JS files to a shared host such as cPanel, the Node.js API in `/server` will not run. The portal now includes an offline fallback that still lets you explore every dashboard with the demo accounts. Follow these steps for a smooth deployment:
+If you upload the HTML, CSS, and JS files to a shared host such as cPanel, make sure the PHP API in `/server` is reachable — the login form no longer ships with demo credentials. Follow these steps for a smooth deployment:
 
 1. **Prepare the upload**
    - Download or clone the project to your computer.
@@ -134,13 +135,13 @@ If you upload the HTML, CSS, and JS files to a shared host such as cPanel, the N
 
 3. **Launch the portal**
    - Visit `https://yourdomain.com/login.html` (replace the domain as needed).
-   - Use the sample credentials listed on the login page. The offline fallback will validate them in the browser and redirect you to the correct `*-dashboard.html` file.
-   - Each dashboard loads pre-seeded demo metrics locally, so you can click around without a backend service.
+   - Upload a `.env` file containing your `MAIN_ADMIN_*` values (outside `public_html` if possible) and confirm PHP can read it.
+   - Sign in with that administrator account. If the backend API is unavailable the form will report an error instead of falling back to demo credentials.
 
 4. **Important things to know**
-   - The **Sign Up** form is disabled on static hosts. It will prompt you to email `connect@dakshayani.in` instead. Full registration requires the Node.js API from the `/server` folder.
-   - Logging out clears the saved session from your browser storage. If you switch roles, log out first to avoid seeing the wrong dashboard.
-   - If the login appears stuck, clear the site data for your domain in the browser settings and refresh.
+   - Self-signup and demo logins are disabled. Share the administrator credentials securely with authorised team members only.
+   - Logging out clears the saved session from your browser storage. If you switch roles in the future, log out first to avoid seeing the wrong dashboard.
+   - If the login appears stuck, clear the site data for your domain in the browser settings and refresh after confirming the API is running.
 
 5. **Optional: run the real backend on cPanel**
    - Some cPanel plans include the “Node.js Selector” or “Application Manager”. If available, you can deploy the `/server` directory as an application listening on a port, then proxy `/api/*` requests to it using `.htaccess` rewrite rules. Check your hosting provider’s documentation for the exact steps.

@@ -9,6 +9,50 @@ const globalFetch = typeof fetch === 'function'
   ? fetch.bind(globalThis)
   : null;
 
+function loadEnvFiles() {
+  const candidates = [
+    path.join(__dirname, '..', '.env'),
+    path.join(__dirname, '.env'),
+    path.join(__dirname, '..', '..', '.env'),
+  ];
+
+  candidates.forEach((candidate) => {
+    if (!candidate || typeof candidate !== 'string') {
+      return;
+    }
+    if (!fs.existsSync(candidate)) {
+      return;
+    }
+
+    const content = fs.readFileSync(candidate, 'utf8');
+    if (!content) {
+      return;
+    }
+
+    content.split(/\r?\n/).forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) {
+        return;
+      }
+
+      const [rawKey, ...rest] = trimmed.split('=');
+      const key = rawKey.trim();
+      if (!key || Object.prototype.hasOwnProperty.call(process.env, key)) {
+        return;
+      }
+
+      let value = rest.join('=').trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      value = value.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+      process.env[key] = value;
+    });
+  });
+}
+
+loadEnvFiles();
+
 const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = path.join(__dirname, 'data');
@@ -804,58 +848,6 @@ function seedUsers(existingUsers) {
   } else if (mainAdminEmail || mainAdminPassword) {
     console.warn('Incomplete MAIN_ADMIN configuration. Please set both MAIN_ADMIN_EMAIL and MAIN_ADMIN_PASSWORD.');
   }
-
-  ensureUser('customer@dakshayani.in', () => ({
-    id: 'usr-customer-1',
-    name: 'Asha Verma',
-    email: 'customer@dakshayani.in',
-    phone: '+91 90000 00000',
-    city: 'Jamshedpur',
-    role: 'customer',
-    status: 'active',
-    password: createPasswordRecord('Customer@123'),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }));
-
-  ensureUser('employee@dakshayani.in', () => ({
-    id: 'usr-employee-1',
-    name: 'Rohit Kumar',
-    email: 'employee@dakshayani.in',
-    phone: '+91 88000 00000',
-    city: 'Bokaro',
-    role: 'employee',
-    status: 'active',
-    password: createPasswordRecord('Employee@123'),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }));
-
-  ensureUser('installer@dakshayani.in', () => ({
-    id: 'usr-installer-1',
-    name: 'Sunita Singh',
-    email: 'installer@dakshayani.in',
-    phone: '+91 86000 00000',
-    city: 'Dhanbad',
-    role: 'installer',
-    status: 'active',
-    password: createPasswordRecord('Installer@123'),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }));
-
-  ensureUser('referrer@dakshayani.in', () => ({
-    id: 'usr-referrer-1',
-    name: 'Sanjay Patel',
-    email: 'referrer@dakshayani.in',
-    phone: '+91 94000 00000',
-    city: 'Hazaribagh',
-    role: 'referrer',
-    status: 'active',
-    password: createPasswordRecord('Referrer@123'),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }));
 
   return users;
 }
