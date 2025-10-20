@@ -514,10 +514,7 @@
               <input type="email" id="login-email" name="email" placeholder="you@dakshayani.in" autocomplete="username" required />
             </div>
             <div>
-              <div class="field-label-row">
-                <label for="login-password">Password</label>
-                <button type="button" class="demo-button" data-fill-demo data-demo-role="admin">Fill admin demo</button>
-              </div>
+              <label for="login-password">Password</label>
               <div class="input-with-toggle">
                 <input
                   type="password"
@@ -539,10 +536,6 @@
             <div class="quick-demo" role="group" aria-labelledby="quick-demo-heading">
               <p id="quick-demo-heading" class="quick-demo-title">Quick demo logins</p>
               <div class="quick-demo-grid">
-                <button type="button" class="quick-demo-button" data-demo-role="admin" aria-pressed="false">
-                  <span class="quick-demo-label">Administrator</span>
-                  <span class="quick-demo-credentials">admin@dakshayani.in • Admin@123</span>
-                </button>
                 <button type="button" class="quick-demo-button" data-demo-role="customer" aria-pressed="false">
                   <span class="quick-demo-label">Customer</span>
                   <span class="quick-demo-credentials">customer@dakshayani.in • Customer@123</span>
@@ -560,7 +553,7 @@
                   <span class="quick-demo-credentials">referrer@dakshayani.in • Referrer@123</span>
                 </button>
               </div>
-              <p class="form-note" data-demo-helper>Tap a role to autofill the demo credentials.</p>
+              <p class="form-note" data-demo-helper>Tap a role to autofill the available demo credentials.</p>
             </div>
             <div>
               <label for="login-role">Choose a portal</label>
@@ -684,7 +677,7 @@
         <h2 style="margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 700; color: #0f172a;">How to log in</h2>
         <ol style="margin: 0 0 1.35rem 1.25rem; color: rgba(15, 23, 42, 0.75); font-size: 0.95rem; display: grid; gap: 0.55rem;">
           <li>Pick the matching role from the <strong>Choose a portal</strong> dropdown (Admin, Customer, Employee, Installer, or Referral partner).</li>
-          <li>Enter the email address and password for that role. You can tap one of the <strong>Quick demo</strong> tiles or the <strong>Fill admin demo</strong> button to auto-fill credentials instantly.</li>
+          <li>Enter the email address and password for that role. You can tap one of the <strong>Quick demo</strong> tiles to auto-fill credentials for the public demo accounts.</li>
           <li>Hit <strong>Log in</strong>. A success message appears and the portal redirects you to the correct dashboard.</li>
           <li>If the backend API is offline (for example on static cPanel hosting), the same form validates the demo accounts right in your browser.</li>
         </ol>
@@ -708,11 +701,6 @@
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>Administrator</td>
-                <td><code>admin@dakshayani.in</code></td>
-                <td><code>Admin@123</code></td>
-              </tr>
               <tr>
                 <td>Customer</td>
                 <td><code>customer@dakshayani.in</code></td>

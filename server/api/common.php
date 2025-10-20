@@ -347,38 +347,37 @@ function seed_users(array $existing): array
     }
 
     $seedTimestamp = gmdate('c');
-    $seeders = [
-        'd.entranchi@gmail.com' => function () use ($seedTimestamp) {
+    $mainAdminEmail = normalise_email(getenv('MAIN_ADMIN_EMAIL') ?: null);
+    $mainAdminPassword = getenv('MAIN_ADMIN_PASSWORD') ?: null;
+    $mainAdminName = trim((string) (getenv('MAIN_ADMIN_NAME') ?: 'Head Administrator'));
+    $mainAdminName = $mainAdminName !== '' ? $mainAdminName : 'Head Administrator';
+    $mainAdminPhone = trim((string) (getenv('MAIN_ADMIN_PHONE') ?: ''));
+    $mainAdminCity = trim((string) (getenv('MAIN_ADMIN_CITY') ?: ''));
+
+    $seeders = [];
+
+    if ($mainAdminEmail && $mainAdminPassword) {
+        $seeders[$mainAdminEmail] = function () use ($seedTimestamp, $mainAdminEmail, $mainAdminPassword, $mainAdminName, $mainAdminPhone, $mainAdminCity) {
             return [
                 'id' => 'usr-head-admin',
-                'name' => 'Vishesh Entranchi',
-                'email' => 'd.entranchi@gmail.com',
-                'phone' => '+91 70702 78178',
-                'city' => 'Ranchi',
+                'name' => $mainAdminName,
+                'email' => $mainAdminEmail,
+                'phone' => $mainAdminPhone,
+                'city' => $mainAdminCity,
                 'role' => 'admin',
                 'status' => 'active',
                 'superAdmin' => true,
-                'password' => create_password_record('Dakshayani@2311'),
+                'password' => create_password_record($mainAdminPassword),
                 'createdAt' => $seedTimestamp,
                 'updatedAt' => $seedTimestamp,
                 'passwordChangedAt' => $seedTimestamp,
             ];
-        },
-        'admin@dakshayani.in' => function () {
-            $timestamp = gmdate('c');
-            return [
-                'id' => 'usr-admin-1',
-                'name' => 'Dakshayani Admin',
-                'email' => 'admin@dakshayani.in',
-                'phone' => '+91 70000 00000',
-                'city' => 'Ranchi',
-                'role' => 'admin',
-                'status' => 'active',
-                'password' => create_password_record('Admin@123'),
-                'createdAt' => $timestamp,
-                'updatedAt' => $timestamp,
-            ];
-        },
+        };
+    } elseif ($mainAdminEmail || $mainAdminPassword) {
+        error_log('MAIN_ADMIN configuration incomplete. Please set both MAIN_ADMIN_EMAIL and MAIN_ADMIN_PASSWORD.');
+    }
+
+    $seeders += [
         'customer@dakshayani.in' => function () {
             $timestamp = gmdate('c');
             return [

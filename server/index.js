@@ -779,36 +779,31 @@ function seedUsers(existingUsers) {
     }
   };
 
-  ensureUser('d.entranchi@gmail.com', () => {
+  const mainAdminEmail = normaliseEmail(process.env.MAIN_ADMIN_EMAIL);
+  const mainAdminPassword = process.env.MAIN_ADMIN_PASSWORD;
+  const mainAdminName = (process.env.MAIN_ADMIN_NAME || 'Head Administrator').trim() || 'Head Administrator';
+  const mainAdminPhone = (process.env.MAIN_ADMIN_PHONE || '').trim();
+  const mainAdminCity = (process.env.MAIN_ADMIN_CITY || '').trim();
+
+  if (mainAdminEmail && mainAdminPassword) {
     const timestamp = new Date().toISOString();
-    return {
+    ensureUser(mainAdminEmail, () => ({
       id: 'usr-head-admin',
-      name: 'Vishesh Entranchi',
-      email: 'd.entranchi@gmail.com',
-      phone: '+91 70702 78178',
-      city: 'Ranchi',
+      name: mainAdminName,
+      email: mainAdminEmail,
+      phone: mainAdminPhone,
+      city: mainAdminCity,
       role: 'admin',
       status: 'active',
       superAdmin: true,
-      password: createPasswordRecord('Dakshayani@2311'),
+      password: createPasswordRecord(mainAdminPassword),
       createdAt: timestamp,
       updatedAt: timestamp,
       passwordChangedAt: timestamp
-    };
-  });
-
-  ensureUser('admin@dakshayani.in', () => ({
-    id: 'usr-admin-1',
-    name: 'Dakshayani Admin',
-    email: 'admin@dakshayani.in',
-    phone: '+91 70000 00000',
-    city: 'Ranchi',
-    role: 'admin',
-    status: 'active',
-    password: createPasswordRecord('Admin@123'),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }));
+    }));
+  } else if (mainAdminEmail || mainAdminPassword) {
+    console.warn('Incomplete MAIN_ADMIN configuration. Please set both MAIN_ADMIN_EMAIL and MAIN_ADMIN_PASSWORD.');
+  }
 
   ensureUser('customer@dakshayani.in', () => ({
     id: 'usr-customer-1',

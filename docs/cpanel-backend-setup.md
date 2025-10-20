@@ -27,7 +27,7 @@ The server already ships with production-ready endpoints for authentication, das
    npm start
    ```
    Visit `http://localhost:4000` and confirm you can:
-   * Sign in with the seeded accounts (e.g. `admin@dakshayani.in` / `Admin@123`).
+   * Sign in with the administrator credentials you configured in `.env`.
    * Sign up as a new user (defaults to the referrer role).
    * Access `customer-dashboard.html` etc. after logging in.
 
@@ -96,7 +96,7 @@ For primary domain usage, ensure the document root you configured is the one ser
 ## 5. Verify login, signup, and admin management
 
 1. Open the URL configured in Application Manager. The static homepage should load.
-2. Navigate to `/login.html` and sign in with the seeded admin account (`admin@dakshayani.in` / `Admin@123`).
+2. Navigate to `/login.html` and sign in with the administrator account you configured.
 3. Confirm that:
    * You can switch to the admin dashboard (links in the UI) and see metrics populated by the API.
    * The browser network tab shows requests hitting `/api/login`, `/api/me`, and `/api/dashboard/admin` successfully.
@@ -109,7 +109,7 @@ For primary domain usage, ensure the document root you configured is the one ser
 ## 6. Optional hardening & housekeeping
 
 * **Change default passwords**: Edit `server/data/users.json` or sign in as admin and reset passwords via the API to secure the seeded accounts.
-* **Set environment variables**: You can add variables in Application Manager (e.g. `PORT=8080`, `HOST=0.0.0.0`). The application defaults to these values if not specified.
+* **Set environment variables**: Add `MAIN_ADMIN_EMAIL` and `MAIN_ADMIN_PASSWORD` (plus optional `MAIN_ADMIN_NAME`, `MAIN_ADMIN_PHONE`, and `MAIN_ADMIN_CITY`) in Application Manager so the super admin account is seeded. You can also define other variables such as `PORT=8080` or `HOST=0.0.0.0` if needed.
 * **Automated backups**: Use cPanel’s backup tools or configure Git Version Control to keep a copy of your data files.
 * **Log monitoring**: Application Manager exposes a **View Logs** button. Use it to tail real-time stdout and catch any JSON parsing errors from malformed requests.
 
