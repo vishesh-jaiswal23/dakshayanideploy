@@ -17,6 +17,8 @@ $role = (string) ($body['role'] ?? 'referrer');
 $phone = trim((string) ($body['phone'] ?? ''));
 $city = trim((string) ($body['city'] ?? ''));
 $consent = filter_var($body['consent'] ?? false, FILTER_VALIDATE_BOOLEAN);
+$marketing = filter_var($body['marketing'] ?? false, FILTER_VALIDATE_BOOLEAN);
+$recaptchaToken = (string) ($body['recaptchaToken'] ?? '');
 
 if ($name === '' || $email === '' || $password === '') {
     send_error(400, 'Name, email, and password are required.');
@@ -28,6 +30,11 @@ if (!$consent) {
 
 if (!is_valid_password($password)) {
     send_error(400, 'Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.');
+}
+
+$recaptcha = verify_recaptcha_token($recaptchaToken, $_SERVER['REMOTE_ADDR'] ?? null);
+if (!$recaptcha['success'] && empty($recaptcha['skipped'])) {
+    send_error(400, 'reCAPTCHA validation failed. Please refresh and try again.');
 }
 
 $roleValue = in_array($role, ROLE_OPTIONS, true) ? $role : 'referrer';
@@ -48,6 +55,8 @@ $user = [
     'role' => $roleValue,
     'status' => 'active',
     'password' => create_password_record($password),
+    'provider' => 'local',
+    'marketingOptIn' => $marketing,
     'createdAt' => $timestamp,
     'updatedAt' => $timestamp,
     'passwordChangedAt' => $timestamp,

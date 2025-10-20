@@ -25,12 +25,15 @@ The frontend JavaScript still calls URLs like `/api/login`. Because the PHP file
    # Map each API endpoint to its PHP script under /portal/api/
    RewriteRule ^api/?$ portal/api/index.php [QSA,L]
    RewriteRule ^api/(login|signup|me|logout)/?$ portal/api/$1.php [QSA,L]
+   RewriteRule ^api/auth/google/?$ portal/api/auth.google.php [QSA,L]
    RewriteRule ^api/admin/users/?$ portal/api/admin.users.php [QSA,L]
    RewriteRule ^api/admin/users/(.*)$ portal/api/admin.users.php?path=$1 [QSA,L]
    RewriteRule ^api/dashboard/([a-z]+)/?$ portal/api/dashboard.$1.php [QSA,L]
    ```
 
    After saving, requests to `https://yourdomain.com/api/login` will automatically execute `public_html/portal/api/login.php`. Because the `.php` extension is appended directly in the rewrite, the inner `.htaccess` inside `portal/api/` is only used for optional niceties.
+
+   > **Tip:** If you use reCAPTCHA v3 or Google One Tap on the login page, set the environment variables `GOOGLE_RECAPTCHA_SECRET` and `GOOGLE_CLIENT_ID` in the same root `.htaccess` file using `SetEnv` so the PHP API can validate those tokens server-side.
 
 ## 4. Verify the API
 1. Visit `https://yourdomain.com/api` in your browser. You should see a JSON response confirming the API is reachable.
