@@ -1,84 +1,17 @@
 <?php
+
+declare(strict_types=1);
+
 session_start();
+
+require_once __DIR__ . '/portal-state.php';
 
 if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
     header('Location: login.php');
     exit;
 }
 
-const DATA_FILE = __DIR__ . '/data/portal-state.json';
-
-function default_portal_state(): array
-{
-    return [
-        'last_updated' => date('c'),
-        'site_settings' => [
-            'company_focus' => 'Utility-scale and rooftop solar EPC projects, O&M, and financing assistance across Jharkhand and Bihar.',
-            'primary_contact' => 'Deepak Entranchi',
-            'support_email' => 'support@dakshayanienterprises.com',
-            'support_phone' => '+91 62030 01452',
-            'announcement' => 'Welcome to the live operations console. Track projects, team workload, and customer updates in real time.'
-        ],
-        'users' => [],
-        'projects' => [],
-        'tasks' => [],
-        'activity_log' => []
-    ];
-}
-
-function load_portal_state(): array
-{
-    if (!file_exists(DATA_FILE)) {
-        return default_portal_state();
-    }
-
-    $json = file_get_contents(DATA_FILE);
-    $data = json_decode($json, true);
-
-    if (!is_array($data)) {
-        return default_portal_state();
-    }
-
-    $data = array_merge(default_portal_state(), $data);
-
-    foreach (['users', 'projects', 'tasks', 'activity_log'] as $key) {
-        if (!isset($data[$key]) || !is_array($data[$key])) {
-            $data[$key] = [];
-        }
-    }
-
-    return $data;
-}
-
-function save_portal_state(array $state): bool
-{
-    $state['last_updated'] = date('c');
-    $json = json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-
-    if ($json === false) {
-        return false;
-    }
-
-    return (bool) file_put_contents(DATA_FILE, $json, LOCK_EX);
-}
-
-function add_activity(array &$state, string $event, string $actor = 'Admin'): void
-{
-    try {
-        $id = 'log_' . bin2hex(random_bytes(4));
-    } catch (Exception $e) {
-        $id = 'log_' . uniqid();
-    }
-
-    array_unshift($state['activity_log'], [
-        'id' => $id,
-        'event' => $event,
-        'actor' => $actor,
-        'timestamp' => date('c')
-    ]);
-
-    $state['activity_log'] = array_slice($state['activity_log'], 0, 30);
-}
+const OWNER_EMAIL = 'd.entranchi@gmail.com';
 
 function flash(string $type, string $message): void
 {
@@ -89,13 +22,17 @@ function flash(string $type, string $message): void
     $_SESSION['flash'][$type][] = $message;
 }
 
-function redirect_with_flash(): void
+function redirect_with_flash(?string $view = null): void
 {
-    header('Location: admin-dashboard.php');
+    $target = 'admin-dashboard.php';
+
+    if ($view !== null && $view !== 'overview') {
+        $target .= '?view=' . urlencode($view);
+    }
+
+    header('Location: ' . $target);
     exit;
 }
-
-$state = load_portal_state();
 
 if (empty($_SESSION['csrf_token'])) {
     try {
@@ -105,11 +42,39 @@ if (empty($_SESSION['csrf_token'])) {
     }
 }
 
+$state = portal_load_state();
+
+$viewLabels = [
+    'overview' => 'Overview',
+    'accounts' => 'Accounts',
+    'projects' => 'Projects',
+    'tasks' => 'Tasks',
+    'settings' => 'Site settings',
+    'activity' => 'Activity log',
+];
+
+$currentView = $_GET['view'] ?? 'overview';
+if (!array_key_exists($currentView, $viewLabels)) {
+    $currentView = 'overview';
+}
+
+$actorName = $_SESSION['display_name'] ?? 'Admin';
+
+$validUserRoles = ['installer', 'customer', 'referrer', 'employee'];
+$validUserStatuses = ['active', 'pending', 'onboarding', 'suspended', 'disabled'];
+$projectStatusOptions = ['on-track', 'planning', 'at-risk', 'delayed', 'completed'];
+$taskStatusOptions = ['Pending', 'In progress', 'Blocked', 'Completed'];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $redirectView = $_POST['redirect_view'] ?? $currentView;
+    if (!array_key_exists($redirectView, $viewLabels)) {
+        $redirectView = 'overview';
+    }
+
     $token = $_POST['csrf_token'] ?? '';
     if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
         flash('error', 'Security token mismatch. Please try again.');
-        redirect_with_flash();
+        redirect_with_flash($redirectView);
     }
 
     $action = $_POST['action'] ?? '';
@@ -123,8 +88,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $announcement = trim($_POST['announcement'] ?? '');
 
             if ($companyFocus === '' || $primaryContact === '' || !$supportEmail) {
-                flash('error', 'Please provide the focus, primary contact, and a valid support email.');
-                redirect_with_flash();
+                flash('error', 'Please provide a company focus, a primary contact, and a valid support email.');
+                redirect_with_flash('settings');
             }
 
             $state['site_settings'] = [
@@ -132,15 +97,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'primary_contact' => $primaryContact,
                 'support_email' => $supportEmail,
                 'support_phone' => $supportPhone,
-                'announcement' => $announcement
+                'announcement' => $announcement,
             ];
-            add_activity($state, 'Updated site configuration and public contact details.', $_SESSION['display_name'] ?? 'Admin');
-            if (save_portal_state($state)) {
-                flash('success', 'Site settings saved successfully.');
+
+            portal_record_activity($state, 'Updated public site configuration.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Site configuration saved.');
             } else {
-                flash('error', 'Unable to save site settings. Please retry.');
+                flash('error', 'Unable to save the site configuration.');
             }
-            redirect_with_flash();
+
+            redirect_with_flash('settings');
+
         case 'create_user':
             $name = trim($_POST['name'] ?? '');
             $email = strtolower(trim($_POST['email'] ?? ''));
@@ -148,68 +117,90 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $phone = trim($_POST['phone'] ?? '');
             $status = $_POST['status'] ?? 'active';
             $notes = trim($_POST['notes'] ?? '');
+            $password = $_POST['password'] ?? '';
+            $passwordConfirm = $_POST['password_confirm'] ?? '';
 
-            $validRoles = ['admin', 'installer', 'customer', 'referrer', 'employee'];
-            $validStatuses = ['active', 'pending', 'onboarding', 'suspended', 'disabled'];
-
-            if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !in_array($role, $validRoles, true)) {
-                flash('error', 'Please provide a name, valid email, and role for the new account.');
-                redirect_with_flash();
+            if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                flash('error', 'Please provide a name and valid email address.');
+                redirect_with_flash('accounts');
             }
 
-            if (!in_array($status, $validStatuses, true)) {
+            if ($role === 'admin') {
+                flash('error', 'Only the owner admin account is allowed. Choose a different role.');
+                redirect_with_flash('accounts');
+            }
+
+            if (!in_array($role, $validUserRoles, true)) {
+                flash('error', 'Choose a valid role for the new account.');
+                redirect_with_flash('accounts');
+            }
+
+            if (!in_array($status, $validUserStatuses, true)) {
                 $status = 'active';
             }
 
+            if ($password === '' || $password !== $passwordConfirm) {
+                flash('error', 'Enter a password and confirm it to match.');
+                redirect_with_flash('accounts');
+            }
+
+            if (strlen($password) < 8) {
+                flash('error', 'Passwords must be at least 8 characters long.');
+                redirect_with_flash('accounts');
+            }
+
             foreach ($state['users'] as $user) {
-                if (strcasecmp($user['email'], $email) === 0) {
+                if (strcasecmp($user['email'] ?? '', $email) === 0) {
                     flash('error', 'An account with this email already exists.');
-                    redirect_with_flash();
+                    redirect_with_flash('accounts');
                 }
             }
 
-            try {
-                $id = 'usr_' . bin2hex(random_bytes(4));
-            } catch (Exception $e) {
-                $id = 'usr_' . uniqid();
-            }
-
             $state['users'][] = [
-                'id' => $id,
+                'id' => portal_generate_id('usr_'),
                 'name' => $name,
                 'email' => $email,
                 'role' => $role,
                 'phone' => $phone,
                 'status' => $status,
                 'notes' => $notes,
-                'created_at' => date('Y-m-d')
+                'created_at' => date('Y-m-d'),
+                'password_hash' => password_hash($password, PASSWORD_DEFAULT),
             ];
-            add_activity($state, "Created $role account for $name.", $_SESSION['display_name'] ?? 'Admin');
-            if (save_portal_state($state)) {
-                flash('success', 'New account created successfully. Share credentials with the user.');
+
+            portal_record_activity($state, "Created $role account for $name.", $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Account created. Share the credentials securely with the user.');
             } else {
-                flash('error', 'Unable to save the new account. Please try again.');
+                flash('error', 'Unable to save the new account.');
             }
-            redirect_with_flash();
+
+            redirect_with_flash('accounts');
+
         case 'update_user_status':
             $userId = $_POST['user_id'] ?? '';
             $status = $_POST['status'] ?? 'active';
             $notes = trim($_POST['notes'] ?? '');
-            $validStatuses = ['active', 'pending', 'onboarding', 'suspended', 'disabled'];
+
+            if (!in_array($status, $validUserStatuses, true)) {
+                $status = 'active';
+            }
 
             $found = false;
             foreach ($state['users'] as &$user) {
-                if ($user['id'] === $userId) {
-                    $found = true;
-                    $oldStatus = $user['status'] ?? '';
-                    if (!in_array($status, $validStatuses, true)) {
-                        $status = $oldStatus;
+                if (($user['id'] ?? '') === $userId) {
+                    if (($user['role'] ?? '') === 'admin' && strcasecmp($user['email'] ?? '', OWNER_EMAIL) === 0) {
+                        flash('error', 'The owner admin account cannot be edited here.');
+                        redirect_with_flash('accounts');
                     }
+
                     $user['status'] = $status;
                     if ($notes !== '') {
                         $user['notes'] = $notes;
                     }
-                    add_activity($state, "Updated {$user['name']}'s status to {$user['status']}.", $_SESSION['display_name'] ?? 'Admin');
+                    $found = true;
+                    portal_record_activity($state, "Updated {$user['name']}'s portal access.", $actorName);
                     break;
                 }
             }
@@ -217,32 +208,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!$found) {
                 flash('error', 'Unable to locate the selected account.');
-                redirect_with_flash();
+                redirect_with_flash('accounts');
             }
 
-            if (save_portal_state($state)) {
+            if (portal_save_state($state)) {
                 flash('success', 'Account details updated.');
             } else {
-                flash('error', 'Failed to update the account. Please retry.');
+                flash('error', 'Unable to update the account.');
             }
-            redirect_with_flash();
+
+            redirect_with_flash('accounts');
+
+        case 'reset_user_password':
+            $userId = $_POST['user_id'] ?? '';
+            $newPassword = $_POST['new_password'] ?? '';
+            $confirmPassword = $_POST['confirm_password'] ?? '';
+
+            if ($newPassword === '' || $confirmPassword === '') {
+                flash('error', 'Provide and confirm the new password.');
+                redirect_with_flash('accounts');
+            }
+
+            if ($newPassword !== $confirmPassword) {
+                flash('error', 'The passwords do not match.');
+                redirect_with_flash('accounts');
+            }
+
+            if (strlen($newPassword) < 8) {
+                flash('error', 'Passwords must be at least 8 characters long.');
+                redirect_with_flash('accounts');
+            }
+
+            $updated = false;
+            foreach ($state['users'] as &$user) {
+                if (($user['id'] ?? '') === $userId) {
+                    if (($user['role'] ?? '') === 'admin' && strcasecmp($user['email'] ?? '', OWNER_EMAIL) === 0) {
+                        flash('error', 'The owner admin password is managed separately.');
+                        redirect_with_flash('accounts');
+                    }
+
+                    $user['password_hash'] = password_hash($newPassword, PASSWORD_DEFAULT);
+                    portal_record_activity($state, "Reset {$user['name']}'s password.", $actorName);
+                    $updated = true;
+                    break;
+                }
+            }
+            unset($user);
+
+            if (!$updated) {
+                flash('error', 'Unable to locate the selected account.');
+                redirect_with_flash('accounts');
+            }
+
+            if (portal_save_state($state)) {
+                flash('success', 'Password updated. Share the new credentials securely.');
+            } else {
+                flash('error', 'Unable to reset the password.');
+            }
+
+            redirect_with_flash('accounts');
+
         case 'delete_user':
             $userId = $_POST['user_id'] ?? '';
+
             $initialCount = count($state['users']);
-            $state['users'] = array_values(array_filter($state['users'], static fn($user) => $user['id'] !== $userId));
+            $state['users'] = array_values(array_filter(
+                $state['users'],
+                static function (array $user) use ($userId): bool {
+                    if (($user['role'] ?? '') === 'admin' && strcasecmp($user['email'] ?? '', OWNER_EMAIL) === 0) {
+                        return true;
+                    }
+
+                    return ($user['id'] ?? '') !== $userId;
+                }
+            ));
 
             if ($initialCount === count($state['users'])) {
                 flash('error', 'Account already removed or not found.');
-                redirect_with_flash();
+                redirect_with_flash('accounts');
             }
 
-            add_activity($state, 'Removed a user account from the portal.', $_SESSION['display_name'] ?? 'Admin');
-            if (save_portal_state($state)) {
+            portal_record_activity($state, 'Removed a portal account.', $actorName);
+
+            if (portal_save_state($state)) {
                 flash('success', 'Account removed successfully.');
             } else {
-                flash('error', 'Unable to remove the account. Please retry.');
+                flash('error', 'Unable to remove the account.');
             }
-            redirect_with_flash();
+
+            redirect_with_flash('accounts');
+
         case 'create_project':
             $name = trim($_POST['project_name'] ?? '');
             $owner = trim($_POST['project_owner'] ?? '');
@@ -251,74 +306,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $targetDate = trim($_POST['target_date'] ?? '');
 
             if ($name === '' || $owner === '' || $stage === '') {
-                flash('error', 'Projects need a name, stage, and owner.');
-                redirect_with_flash();
+                flash('error', 'Projects need a name, an owner, and a current stage.');
+                redirect_with_flash('projects');
             }
 
-            $validStatuses = ['on-track', 'planning', 'at-risk', 'delayed', 'completed'];
-            if (!in_array($status, $validStatuses, true)) {
+            if (!in_array($status, $projectStatusOptions, true)) {
                 $status = 'on-track';
             }
 
-            try {
-                $id = 'proj_' . bin2hex(random_bytes(4));
-            } catch (Exception $e) {
-                $id = 'proj_' . uniqid();
-            }
-
             $state['projects'][] = [
-                'id' => $id,
+                'id' => portal_generate_id('proj_'),
                 'name' => $name,
                 'owner' => $owner,
                 'stage' => $stage,
                 'status' => $status,
-                'target_date' => $targetDate
+                'target_date' => $targetDate,
             ];
 
-            add_activity($state, "Logged new project $name.", $_SESSION['display_name'] ?? 'Admin');
-            if (save_portal_state($state)) {
+            portal_record_activity($state, "Logged new project $name.", $actorName);
+
+            if (portal_save_state($state)) {
                 flash('success', 'Project added to the tracker.');
             } else {
-                flash('error', 'Unable to save the new project. Please try again.');
+                flash('error', 'Unable to save the new project.');
             }
-            redirect_with_flash();
+
+            redirect_with_flash('projects');
+
         case 'update_project':
             $projectId = $_POST['project_id'] ?? '';
             $stage = trim($_POST['stage'] ?? '');
             $status = $_POST['status'] ?? 'on-track';
             $targetDate = trim($_POST['target_date'] ?? '');
 
-            $validStatuses = ['on-track', 'planning', 'at-risk', 'delayed', 'completed'];
-            if (!in_array($status, $validStatuses, true)) {
+            if (!in_array($status, $projectStatusOptions, true)) {
                 $status = 'on-track';
             }
 
-            $found = false;
+            $updated = false;
             foreach ($state['projects'] as &$project) {
-                if ($project['id'] === $projectId) {
-                    $found = true;
-                    $project['stage'] = $stage !== '' ? $stage : $project['stage'];
+                if (($project['id'] ?? '') === $projectId) {
+                    if ($stage !== '') {
+                        $project['stage'] = $stage;
+                    }
                     $project['status'] = $status;
                     if ($targetDate !== '') {
                         $project['target_date'] = $targetDate;
                     }
-                    add_activity($state, "Updated {$project['name']} project details.", $_SESSION['display_name'] ?? 'Admin');
+                    portal_record_activity($state, "Updated {$project['name']} project details.", $actorName);
+                    $updated = true;
                     break;
                 }
             }
             unset($project);
 
-            if (!$found) {
+            if (!$updated) {
                 flash('error', 'Project not found.');
-                redirect_with_flash();
+                redirect_with_flash('projects');
             }
 
-            if (save_portal_state($state)) {
+            if (portal_save_state($state)) {
                 flash('success', 'Project updated successfully.');
             } else {
-                flash('error', 'Unable to update the project. Please retry.');
+                flash('error', 'Unable to update the project.');
             }
-            redirect_with_flash();
+
+            redirect_with_flash('projects');
+
+        case 'delete_project':
+            $projectId = $_POST['project_id'] ?? '';
+            $initialCount = count($state['projects']);
+            $state['projects'] = array_values(array_filter(
+                $state['projects'],
+                static fn(array $project): bool => ($project['id'] ?? '') !== $projectId
+            ));
+
+            if ($initialCount === count($state['projects'])) {
+                flash('error', 'Project already removed or not found.');
+                redirect_with_flash('projects');
+            }
+
+            portal_record_activity($state, 'Removed a project from the tracker.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Project removed.');
+            } else {
+                flash('error', 'Unable to remove the project.');
+            }
+
+            redirect_with_flash('projects');
+
         case 'create_task':
             $title = trim($_POST['task_title'] ?? '');
             $assignee = trim($_POST['task_assignee'] ?? '');
@@ -327,90 +404,93 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($title === '' || $assignee === '') {
                 flash('error', 'Tasks require a title and an assignee.');
-                redirect_with_flash();
+                redirect_with_flash('tasks');
             }
 
-            $validStatuses = ['Pending', 'In progress', 'Blocked', 'Completed'];
-            if (!in_array($status, $validStatuses, true)) {
+            if (!in_array($status, $taskStatusOptions, true)) {
                 $status = 'Pending';
             }
 
-            try {
-                $id = 'task_' . bin2hex(random_bytes(4));
-            } catch (Exception $e) {
-                $id = 'task_' . uniqid();
-            }
-
             $state['tasks'][] = [
-                'id' => $id,
+                'id' => portal_generate_id('task_'),
                 'title' => $title,
                 'assignee' => $assignee,
                 'status' => $status,
-                'due_date' => $dueDate
+                'due_date' => $dueDate,
             ];
 
-            add_activity($state, "Added new task: $title.", $_SESSION['display_name'] ?? 'Admin');
-            if (save_portal_state($state)) {
-                flash('success', 'Task added to the queue.');
+            portal_record_activity($state, "Added new task: $title.", $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Task added to the workboard.');
             } else {
-                flash('error', 'Unable to save the new task. Please try again.');
+                flash('error', 'Unable to save the new task.');
             }
-            redirect_with_flash();
+
+            redirect_with_flash('tasks');
+
         case 'update_task':
             $taskId = $_POST['task_id'] ?? '';
             $status = $_POST['status'] ?? 'Pending';
             $dueDate = trim($_POST['due_date'] ?? '');
 
-            $validStatuses = ['Pending', 'In progress', 'Blocked', 'Completed'];
-            if (!in_array($status, $validStatuses, true)) {
+            if (!in_array($status, $taskStatusOptions, true)) {
                 $status = 'Pending';
             }
 
-            $found = false;
+            $updated = false;
             foreach ($state['tasks'] as &$task) {
-                if ($task['id'] === $taskId) {
-                    $found = true;
+                if (($task['id'] ?? '') === $taskId) {
                     $task['status'] = $status;
                     if ($dueDate !== '') {
                         $task['due_date'] = $dueDate;
                     }
-                    add_activity($state, "Updated task {$task['title']}.", $_SESSION['display_name'] ?? 'Admin');
+                    portal_record_activity($state, "Updated task {$task['title']}.", $actorName);
+                    $updated = true;
                     break;
                 }
             }
             unset($task);
 
-            if (!$found) {
+            if (!$updated) {
                 flash('error', 'Task not found.');
-                redirect_with_flash();
+                redirect_with_flash('tasks');
             }
 
-            if (save_portal_state($state)) {
+            if (portal_save_state($state)) {
                 flash('success', 'Task updated successfully.');
             } else {
                 flash('error', 'Unable to update the task.');
             }
-            redirect_with_flash();
+
+            redirect_with_flash('tasks');
+
         case 'delete_task':
             $taskId = $_POST['task_id'] ?? '';
             $initialCount = count($state['tasks']);
-            $state['tasks'] = array_values(array_filter($state['tasks'], static fn($task) => $task['id'] !== $taskId));
+            $state['tasks'] = array_values(array_filter(
+                $state['tasks'],
+                static fn(array $task): bool => ($task['id'] ?? '') !== $taskId
+            ));
 
             if ($initialCount === count($state['tasks'])) {
                 flash('error', 'Task already removed or not found.');
-                redirect_with_flash();
+                redirect_with_flash('tasks');
             }
 
-            add_activity($state, 'Removed a task from the dashboard.', $_SESSION['display_name'] ?? 'Admin');
-            if (save_portal_state($state)) {
+            portal_record_activity($state, 'Removed a task from the dashboard.', $actorName);
+
+            if (portal_save_state($state)) {
                 flash('success', 'Task removed successfully.');
             } else {
                 flash('error', 'Unable to remove the task.');
             }
-            redirect_with_flash();
+
+            redirect_with_flash('tasks');
+
         default:
             flash('error', 'Unknown action requested.');
-            redirect_with_flash();
+            redirect_with_flash($redirectView);
     }
 }
 
@@ -428,35 +508,107 @@ $roleLabels = [
     'installer' => 'Installer',
     'customer' => 'Customer',
     'referrer' => 'Referral partner',
-    'employee' => 'Employee'
+    'employee' => 'Employee',
 ];
 
-$userCounts = [
-    'total' => count($users),
-    'admin' => 0,
-    'installer' => 0,
-    'customer' => 0,
-    'referrer' => 0,
-    'employee' => 0
-];
+$userRoleCounts = array_fill_keys(array_keys($roleLabels), 0);
+$userStatusCounts = array_fill_keys($validUserStatuses, 0);
 
 foreach ($users as $user) {
-    $role = $user['role'] ?? '';
-    if (isset($userCounts[$role])) {
-        $userCounts[$role]++;
+    $role = $user['role'] ?? 'employee';
+    if (isset($userRoleCounts[$role])) {
+        $userRoleCounts[$role]++;
+    }
+
+    $status = $user['status'] ?? 'active';
+    if (isset($userStatusCounts[$status])) {
+        $userStatusCounts[$status]++;
     }
 }
 
-$projectStatuses = [
-    'on-track' => 'On track',
-    'planning' => 'Planning',
-    'at-risk' => 'At risk',
-    'delayed' => 'Delayed',
-    'completed' => 'Completed'
-];
+$openTasksList = array_values(array_filter($tasks, static function (array $task): bool {
+    return strcasecmp($task['status'] ?? '', 'Completed') !== 0;
+}));
 
-$taskStatuses = ['Pending', 'In progress', 'Blocked', 'Completed'];
+usort($openTasksList, static function (array $a, array $b): int {
+    $aDue = $a['due_date'] ?? '';
+    $bDue = $b['due_date'] ?? '';
 
+    if ($aDue === '' && $bDue === '') {
+        return strcmp($a['title'] ?? '', $b['title'] ?? '');
+    }
+
+    if ($aDue === '') {
+        return 1;
+    }
+
+    if ($bDue === '') {
+        return -1;
+    }
+
+    $aTime = strtotime($aDue) ?: PHP_INT_MAX;
+    $bTime = strtotime($bDue) ?: PHP_INT_MAX;
+
+    if ($aTime === $bTime) {
+        return strcmp($a['title'] ?? '', $b['title'] ?? '');
+    }
+
+    return $aTime <=> $bTime;
+});
+
+$nextTask = $openTasksList[0] ?? null;
+$openTasksCount = count($openTasksList);
+
+$projectsByTarget = $projects;
+usort($projectsByTarget, static function (array $a, array $b): int {
+    $aDate = $a['target_date'] ?? '';
+    $bDate = $b['target_date'] ?? '';
+
+    if ($aDate === '' && $bDate === '') {
+        return strcmp($a['name'] ?? '', $b['name'] ?? '');
+    }
+
+    if ($aDate === '') {
+        return 1;
+    }
+
+    if ($bDate === '') {
+        return -1;
+    }
+
+    $aTime = strtotime($aDate) ?: PHP_INT_MAX;
+    $bTime = strtotime($bDate) ?: PHP_INT_MAX;
+
+    if ($aTime === $bTime) {
+        return strcmp($a['name'] ?? '', $b['name'] ?? '');
+    }
+
+    return $aTime <=> $bTime;
+});
+
+$upcomingProjects = array_slice($projectsByTarget, 0, 3);
+
+$projectStatusSummary = [];
+foreach ($projects as $project) {
+    $status = $project['status'] ?? 'on-track';
+    $projectStatusSummary[$status] = ($projectStatusSummary[$status] ?? 0) + 1;
+}
+
+$recentActivity = array_slice($activityLog, 0, 6);
+$lastUpdatedLabel = '';
+if (!empty($state['last_updated'])) {
+    $timestamp = strtotime($state['last_updated']);
+    if ($timestamp !== false) {
+        $lastUpdatedLabel = date('j M Y, g:i A', $timestamp);
+    }
+}
+
+$lastAdminLogin = $_SESSION['last_login'] ?? null;
+$siteAnnouncement = trim($siteSettings['announcement'] ?? '');
+$siteFocus = trim($siteSettings['company_focus'] ?? '');
+$siteContact = trim($siteSettings['primary_contact'] ?? '');
+$siteSupportEmail = trim($siteSettings['support_email'] ?? '');
+$siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -477,9 +629,10 @@ $taskStatuses = ['Pending', 'In progress', 'Blocked', 'Completed'];
       --muted: rgba(15, 23, 42, 0.6);
       --border: rgba(15, 23, 42, 0.08);
       --primary: #2563eb;
-      --primary-dark: #1d4ed8;
-      --error: #dc2626;
+      --primary-strong: #1d4ed8;
       --success: #16a34a;
+      --danger: #dc2626;
+      --warning: #f97316;
     }
 
     * {
@@ -489,29 +642,29 @@ $taskStatuses = ['Pending', 'In progress', 'Blocked', 'Completed'];
     body {
       margin: 0;
       font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: linear-gradient(180deg, #0f172a 0%, #1e293b 60%, #0f172a 100%);
+      background: radial-gradient(circle at top, rgba(37, 99, 235, 0.25), transparent 55%), var(--bg);
       min-height: 100vh;
-      color: #0f172a;
-      padding: 2.5rem 1.5rem;
       display: flex;
       justify-content: center;
+      padding: clamp(2rem, 4vw, 3rem) 1.5rem;
+      color: #0f172a;
     }
 
-    .dashboard-shell {
+    main.dashboard-shell {
       width: min(1200px, 100%);
       background: var(--surface);
-      border-radius: 2rem;
-      box-shadow: 0 40px 80px -45px rgba(15, 23, 42, 0.6);
-      padding: clamp(2rem, 4vw, 3rem);
+      border-radius: 1.75rem;
+      box-shadow: 0 40px 70px -45px rgba(15, 23, 42, 0.65);
       display: grid;
       gap: clamp(1.5rem, 3vw, 2.5rem);
+      padding: clamp(2rem, 4vw, 3rem);
     }
 
     header.dashboard-header {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: flex-start;
-      flex-wrap: wrap;
       gap: 1.5rem;
     }
 
@@ -520,31 +673,77 @@ $taskStatuses = ['Pending', 'In progress', 'Blocked', 'Completed'];
       letter-spacing: 0.18em;
       font-size: 0.75rem;
       font-weight: 600;
+      margin: 0 0 0.35rem;
       color: var(--primary);
-      margin: 0 0 0.5rem;
     }
 
     h1 {
-      margin: 0 0 0.35rem;
+      margin: 0;
       font-size: clamp(1.8rem, 3vw, 2.4rem);
       font-weight: 700;
     }
 
     .subhead {
-      margin: 0;
-      font-size: 0.95rem;
+      margin: 0.25rem 0 0;
       color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .dashboard-header__actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
     }
 
     .logout-btn {
       border: none;
-      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-      color: #f8fafc;
       border-radius: 999px;
-      padding: 0.65rem 1.4rem;
+      padding: 0.65rem 1.35rem;
       font-weight: 600;
+      background: rgba(37, 99, 235, 0.12);
+      color: var(--primary-strong);
       cursor: pointer;
-      box-shadow: 0 20px 35px -25px rgba(37, 99, 235, 0.9);
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    .logout-btn:hover,
+    .logout-btn:focus {
+      background: rgba(37, 99, 235, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .view-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+
+    .view-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.55rem 1rem;
+      border-radius: 999px;
+      border: 1px solid rgba(37, 99, 235, 0.18);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .view-link.is-active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #f8fafc;
+    }
+
+    .view-link:not(.is-active):hover,
+    .view-link:not(.is-active):focus {
+      background: rgba(37, 99, 235, 0.1);
+      border-color: rgba(37, 99, 235, 0.25);
+      color: var(--primary-strong);
     }
 
     .flash-list {
@@ -554,180 +753,168 @@ $taskStatuses = ['Pending', 'In progress', 'Blocked', 'Completed'];
 
     .flash-message {
       border-radius: 1rem;
-      padding: 0.9rem 1rem;
+      padding: 0.75rem 1rem;
+      font-weight: 500;
       font-size: 0.95rem;
       border: 1px solid transparent;
     }
 
     .flash-message[data-tone="success"] {
       background: rgba(22, 163, 74, 0.12);
-      border-color: rgba(22, 163, 74, 0.3);
+      border-color: rgba(22, 163, 74, 0.28);
       color: #166534;
     }
 
     .flash-message[data-tone="error"] {
       background: rgba(220, 38, 38, 0.12);
-      border-color: rgba(220, 38, 38, 0.3);
-      color: var(--error);
+      border-color: rgba(220, 38, 38, 0.28);
+      color: #991b1b;
     }
 
-    .panel {
+    section.panel {
       border: 1px solid var(--border);
       border-radius: 1.5rem;
-      padding: clamp(1.5rem, 2.5vw, 2rem);
-      display: grid;
-      gap: 1.25rem;
+      padding: clamp(1.5rem, 3vw, 2rem);
       background: #f8fafc;
+      display: grid;
+      gap: 1rem;
     }
 
-    .panel h2 {
+    section.panel h2 {
       margin: 0;
       font-size: 1.2rem;
       font-weight: 600;
-      color: #0f172a;
     }
 
-    .panel .lead {
+    .lead {
       margin: 0;
       color: var(--muted);
       font-size: 0.95rem;
-    }
-
-    form {
-      display: grid;
-      gap: 1rem;
-    }
-
-    .form-grid {
-      display: grid;
-      gap: 1rem;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-    }
-
-    .form-group label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: rgba(15, 23, 42, 0.65);
-    }
-
-    .form-group input,
-    .form-group textarea,
-    .form-group select {
-      border-radius: 0.85rem;
-      border: 1px solid rgba(148, 163, 184, 0.4);
-      padding: 0.65rem 0.85rem;
-      font-size: 0.95rem;
-      font-family: inherit;
-      color: #0f172a;
-      background: #ffffff;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .form-group textarea {
-      min-height: 110px;
-      resize: vertical;
-    }
-
-    .form-group input:focus,
-    .form-group textarea:focus,
-    .form-group select:focus {
-      outline: none;
-      border-color: rgba(37, 99, 235, 0.7);
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-    }
-
-    .form-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      justify-content: flex-end;
-      align-items: center;
-    }
-
-    .btn-primary {
-      border: none;
-      background: linear-gradient(135deg, #1d4ed8, #2563eb);
-      color: #f8fafc;
-      border-radius: 999px;
-      padding: 0.75rem 1.6rem;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 20px 35px -25px rgba(37, 99, 235, 0.9);
-    }
-
-    .btn-outline {
-      border-radius: 999px;
-      padding: 0.6rem 1.2rem;
-      font-weight: 600;
-      border: 1px dashed rgba(37, 99, 235, 0.6);
-      background: rgba(241, 245, 249, 0.7);
-      color: #1d4ed8;
-      cursor: pointer;
-    }
-
-    .btn-ghost {
-      border: none;
-      background: transparent;
-      color: #b91c1c;
-      font-weight: 600;
-      cursor: pointer;
     }
 
     .metric-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     }
 
     .metric-card {
       background: #ffffff;
-      border-radius: 1.2rem;
-      border: 1px solid rgba(37, 99, 235, 0.12);
-      padding: 1.1rem 1.2rem;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+      border-radius: 1.1rem;
+      padding: 1rem 1.1rem;
+      border: 1px solid rgba(37, 99, 235, 0.16);
+      display: grid;
+      gap: 0.4rem;
     }
 
     .metric-label {
-      font-size: 0.85rem;
-      letter-spacing: 0.04em;
+      font-size: 0.8rem;
       text-transform: uppercase;
-      color: rgba(15, 23, 42, 0.55);
-      margin: 0 0 0.35rem;
+      letter-spacing: 0.08em;
+      color: rgba(15, 23, 42, 0.6);
+      margin: 0;
     }
 
     .metric-value {
-      font-size: 1.6rem;
       margin: 0;
+      font-size: 1.6rem;
       font-weight: 700;
-      color: #0f172a;
     }
 
     .metric-helper {
-      margin: 0.25rem 0 0;
+      margin: 0;
       font-size: 0.85rem;
       color: var(--muted);
     }
 
-    .two-column {
+    .summary-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .summary-card {
+      background: #ffffff;
+      border-radius: 1.25rem;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      padding: 1.1rem 1.2rem;
+      display: grid;
+      gap: 0.7rem;
+    }
+
+    .summary-card h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .summary-list {
+      margin: 0;
+      padding-left: 1.1rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .link-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      border-radius: 999px;
+      padding: 0.55rem 1.05rem;
+      font-weight: 600;
+      text-decoration: none;
+      background: rgba(37, 99, 235, 0.12);
+      color: var(--primary-strong);
+      border: 1px solid rgba(37, 99, 235, 0.25);
+      transition: background 0.2s ease, color 0.2s ease;
+      width: fit-content;
+    }
+
+    .link-button:hover,
+    .link-button:focus {
+      background: rgba(37, 99, 235, 0.2);
+      color: var(--primary-strong);
+    }
+
+    .activity-list {
+      display: grid;
+      gap: 0.6rem;
+    }
+
+    .activity-item {
+      background: #ffffff;
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      display: grid;
+      gap: 0.25rem;
+    }
+
+    .activity-item small {
+      color: var(--muted);
+    }
+
+    .workspace-grid {
       display: grid;
       gap: 1.5rem;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+      align-items: start;
+    }
+
+    .table-wrapper {
+      background: #ffffff;
+      border-radius: 1.2rem;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      overflow-x: auto;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      background: #ffffff;
-      border-radius: 1.25rem;
-      overflow: hidden;
+      min-width: 720px;
     }
 
     table thead {
@@ -736,75 +923,256 @@ $taskStatuses = ['Pending', 'In progress', 'Blocked', 'Completed'];
 
     table th,
     table td {
-      padding: 0.85rem 1rem;
+      padding: 0.8rem 1rem;
       text-align: left;
       font-size: 0.95rem;
-      border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+      border-bottom: 1px solid rgba(148, 163, 184, 0.2);
     }
 
     table tbody tr:last-child td {
       border-bottom: none;
     }
 
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: rgba(37, 99, 235, 0.12);
+      color: var(--primary-strong);
+      border-radius: 999px;
+      padding: 0.2rem 0.65rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
     .status-chip {
       display: inline-flex;
       align-items: center;
-      gap: 0.4rem;
+      padding: 0.25rem 0.7rem;
       border-radius: 999px;
-      padding: 0.25rem 0.75rem;
-      font-size: 0.85rem;
       font-weight: 600;
+      font-size: 0.85rem;
       text-transform: capitalize;
     }
 
     .status-chip[data-status="active"],
     .status-chip[data-status="on-track"],
     .status-chip[data-status="Pending"] {
-      background: rgba(16, 185, 129, 0.14);
-      color: #047857;
+      background: rgba(34, 197, 94, 0.18);
+      color: #166534;
     }
 
     .status-chip[data-status="pending"],
     .status-chip[data-status="planning"] {
-      background: rgba(37, 99, 235, 0.12);
+      background: rgba(59, 130, 246, 0.18);
       color: #1d4ed8;
+    }
+
+    .status-chip[data-status="onboarding"],
+    .status-chip[data-status="In progress"] {
+      background: rgba(249, 115, 22, 0.18);
+      color: #c2410c;
     }
 
     .status-chip[data-status="suspended"],
     .status-chip[data-status="at-risk"],
     .status-chip[data-status="Blocked"] {
-      background: rgba(248, 113, 113, 0.18);
+      background: rgba(248, 113, 113, 0.2);
       color: #b91c1c;
     }
 
-    .status-chip[data-status="onboarding"],
-    .status-chip[data-status="In progress"] {
-      background: rgba(249, 115, 22, 0.16);
-      color: #c2410c;
-    }
-
+    .status-chip[data-status="disabled"],
+    .status-chip[data-status="delayed"],
     .status-chip[data-status="Completed"],
     .status-chip[data-status="completed"] {
       background: rgba(37, 99, 235, 0.18);
       color: #1d4ed8;
     }
 
-    .activity-log {
+    details.manage {
+      display: block;
+    }
+
+    details.manage summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--primary-strong);
+      outline: none;
+      list-style: none;
+    }
+
+    details.manage summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.manage[open] summary {
+      margin-bottom: 0.6rem;
+    }
+
+    .manage-forms {
+      display: grid;
+      gap: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      background: rgba(37, 99, 235, 0.05);
+      border-radius: 0.9rem;
+    }
+
+    form {
       display: grid;
       gap: 0.75rem;
     }
 
-    .activity-row {
-      background: #ffffff;
-      border-radius: 1rem;
-      border: 1px solid rgba(15, 23, 42, 0.08);
-      padding: 0.85rem 1rem;
+    .form-grid {
       display: grid;
-      gap: 0.25rem;
+      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     }
 
-    .activity-row small {
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(15, 23, 42, 0.65);
+      display: block;
+    }
+
+    input,
+    select,
+    textarea {
+      border-radius: 0.85rem;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      padding: 0.6rem 0.75rem;
+      font-size: 0.95rem;
+      font-family: inherit;
+      background: #ffffff;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    textarea {
+      min-height: 96px;
+      resize: vertical;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: rgba(37, 99, 235, 0.8);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+      outline: none;
+    }
+
+    .btn-primary,
+    .btn-secondary,
+    .btn-ghost,
+    .btn-destructive {
+      border: none;
+      border-radius: 999px;
+      padding: 0.55rem 1.15rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #f8fafc;
+    }
+
+    .btn-primary:hover,
+    .btn-primary:focus {
+      background: var(--primary-strong);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(37, 99, 235, 0.12);
+      color: var(--primary-strong);
+    }
+
+    .btn-secondary:hover,
+    .btn-secondary:focus {
+      background: rgba(37, 99, 235, 0.2);
+    }
+
+    .btn-ghost {
+      background: transparent;
       color: var(--muted);
+    }
+
+    .btn-ghost:hover,
+    .btn-ghost:focus {
+      color: var(--primary-strong);
+    }
+
+    .btn-destructive {
+      background: rgba(220, 38, 38, 0.12);
+      color: #b91c1c;
+    }
+
+    .btn-destructive:hover,
+    .btn-destructive:focus {
+      background: rgba(220, 38, 38, 0.2);
+    }
+
+    .form-helper {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin: -0.25rem 0 0;
+    }
+
+    .workspace-aside {
+      background: #ffffff;
+      border-radius: 1.2rem;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      padding: 1.1rem 1.2rem;
+      display: grid;
+      gap: 0.9rem;
+    }
+
+    .workspace-aside h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .pill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .pill-list li {
+      border-radius: 999px;
+      padding: 0.35rem 0.8rem;
+      background: rgba(37, 99, 235, 0.1);
+      color: var(--primary-strong);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .two-column {
+      display: grid;
+      gap: 1.2rem;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    @media (max-width: 960px) {
+      .workspace-grid {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        min-width: unset;
+      }
     }
 
     @media (max-width: 720px) {
@@ -812,39 +1180,51 @@ $taskStatuses = ['Pending', 'In progress', 'Blocked', 'Completed'];
         padding: 1.5rem;
       }
 
-      .dashboard-shell {
+      main.dashboard-shell {
         border-radius: 1.5rem;
+        padding: 1.75rem;
       }
 
-      table th,
-      table td {
-        padding: 0.75rem 0.65rem;
-        font-size: 0.9rem;
+      .view-nav {
+        gap: 0.4rem;
+      }
+
+      .view-link {
+        font-size: 0.85rem;
+        padding: 0.45rem 0.85rem;
       }
     }
   </style>
 </head>
-<body>
+<body data-view="<?= htmlspecialchars($currentView); ?>">
   <main class="dashboard-shell">
     <header class="dashboard-header">
       <div>
         <p class="eyebrow">Admin portal</p>
         <h1>Welcome back, <?= htmlspecialchars($_SESSION['display_name'] ?? 'Administrator'); ?></h1>
         <p class="subhead">
-          <?php if (!empty($_SESSION['last_login'])): ?>
-            Last signed in on <?= htmlspecialchars($_SESSION['last_login']); ?>.
-          <?php else: ?>
-            You're securely signed in to the Dakshayani Enterprises control centre.
+          Signed in as <?= htmlspecialchars(OWNER_EMAIL); ?>
+          <?php if ($lastAdminLogin): ?>
+            · Last login <?= htmlspecialchars($lastAdminLogin); ?>
           <?php endif; ?>
         </p>
       </div>
-      <form method="post" action="logout.php">
-        <button class="logout-btn" type="submit">Log out</button>
-      </form>
+      <div class="dashboard-header__actions">
+        <form method="post" action="logout.php">
+          <button class="logout-btn" type="submit">Log out</button>
+        </form>
+      </div>
     </header>
 
+    <nav class="view-nav" aria-label="Dashboard sections">
+      <?php foreach ($viewLabels as $viewKey => $label): ?>
+        <?php $href = $viewKey === 'overview' ? 'admin-dashboard.php' : 'admin-dashboard.php?view=' . urlencode($viewKey); ?>
+        <a class="view-link <?= $viewKey === $currentView ? 'is-active' : ''; ?>" href="<?= htmlspecialchars($href); ?>"><?= htmlspecialchars($label); ?></a>
+      <?php endforeach; ?>
+    </nav>
+
     <?php if (!empty($flashMessages['success']) || !empty($flashMessages['error'])): ?>
-      <div class="flash-list">
+      <div class="flash-list" role="status">
         <?php foreach ($flashMessages['success'] as $message): ?>
           <div class="flash-message" data-tone="success"><?= htmlspecialchars($message); ?></div>
         <?php endforeach; ?>
@@ -854,399 +1234,582 @@ $taskStatuses = ['Pending', 'In progress', 'Blocked', 'Completed'];
       </div>
     <?php endif; ?>
 
-    <section class="panel">
-      <h2>Operations snapshot</h2>
-      <p class="lead">Monitor how the business is performing today.</p>
-      <div class="metric-grid">
-        <article class="metric-card">
-          <p class="metric-label">Active users</p>
-          <p class="metric-value"><?= htmlspecialchars((string) $userCounts['total']); ?></p>
-          <p class="metric-helper">Portal accounts with visibility</p>
-        </article>
-        <article class="metric-card">
-          <p class="metric-label">Active projects</p>
-          <p class="metric-value"><?= htmlspecialchars((string) count($projects)); ?></p>
-          <p class="metric-helper">Projects currently tracked</p>
-        </article>
-        <article class="metric-card">
-          <p class="metric-label">Open tasks</p>
-          <p class="metric-value"><?php
-            $openTasks = array_reduce($tasks, static function ($carry, $task) {
-                return $carry + (strcasecmp($task['status'] ?? '', 'Completed') === 0 ? 0 : 1);
-            }, 0);
-            echo htmlspecialchars((string) $openTasks);
-          ?></p>
-          <p class="metric-helper">Items needing action</p>
-        </article>
-        <article class="metric-card">
-          <p class="metric-label">Last updated</p>
-          <p class="metric-value" style="font-size:1rem;"><?= htmlspecialchars(date('j M Y, g:i A', strtotime($state['last_updated']))); ?></p>
-          <p class="metric-helper">Auto-updates on every change</p>
-        </article>
-      </div>
-    </section>
+    <?php if ($currentView === 'overview'): ?>
+      <section class="panel">
+        <h2>Today at a glance</h2>
+        <p class="lead">High-level summary of Dakshayani Enterprises operations.</p>
+        <div class="metric-grid">
+          <article class="metric-card">
+            <p class="metric-label">Active users</p>
+            <p class="metric-value"><?= htmlspecialchars((string) ($userStatusCounts['active'] ?? 0)); ?></p>
+            <p class="metric-helper">Portal accounts with access enabled</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Projects tracked</p>
+            <p class="metric-value"><?= htmlspecialchars((string) count($projects)); ?></p>
+            <p class="metric-helper">Across all business units</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Open tasks</p>
+            <p class="metric-value"><?= htmlspecialchars((string) $openTasksCount); ?></p>
+            <p class="metric-helper">Pending follow-ups for the leadership team</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Last data refresh</p>
+            <p class="metric-value" style="font-size:1.05rem;">
+              <?= $lastUpdatedLabel !== '' ? htmlspecialchars($lastUpdatedLabel) : 'Just now'; ?>
+            </p>
+            <p class="metric-helper">Automatically updated after each change</p>
+          </article>
+        </div>
+      </section>
 
-    <section class="panel">
-      <h2>Site configuration</h2>
-      <p class="lead">Update what the public website communicates to prospects and customers.</p>
-      <form method="post" autocomplete="off">
-        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-        <input type="hidden" name="action" value="update_site_settings" />
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="company_focus">Company focus</label>
-            <textarea id="company_focus" name="company_focus" required><?= htmlspecialchars($siteSettings['company_focus'] ?? ''); ?></textarea>
-          </div>
-          <div class="form-group">
-            <label for="announcement">Homepage announcement</label>
-            <textarea id="announcement" name="announcement"><?= htmlspecialchars($siteSettings['announcement'] ?? ''); ?></textarea>
-          </div>
+      <section class="panel">
+        <h2>Highlights</h2>
+        <p class="lead">Quick insights with links to the detailed workspaces.</p>
+        <div class="summary-grid">
+          <article class="summary-card">
+            <h3>Portal accounts</h3>
+            <ul class="summary-list">
+              <li>Total accounts: <strong><?= htmlspecialchars((string) count($users)); ?></strong></li>
+              <li>Active now: <strong><?= htmlspecialchars((string) ($userStatusCounts['active'] ?? 0)); ?></strong></li>
+              <?php foreach ($userRoleCounts as $role => $count): ?>
+                <?php if ($role !== 'admin' && $count > 0): ?>
+                  <li><?= htmlspecialchars($roleLabels[$role]); ?>: <strong><?= htmlspecialchars((string) $count); ?></strong></li>
+                <?php endif; ?>
+              <?php endforeach; ?>
+              <?php if (($userStatusCounts['pending'] ?? 0) > 0): ?>
+                <li>Pending activation: <strong><?= htmlspecialchars((string) $userStatusCounts['pending']); ?></strong></li>
+              <?php endif; ?>
+            </ul>
+            <a class="link-button" href="admin-dashboard.php?view=accounts">Open accounts workspace</a>
+          </article>
+          <article class="summary-card">
+            <h3>Project tracker</h3>
+            <ul class="summary-list">
+              <li>Projects in motion: <strong><?= htmlspecialchars((string) count($projects)); ?></strong></li>
+              <?php foreach ($projectStatusSummary as $status => $count): ?>
+                <li><?= htmlspecialchars(ucwords(str_replace('-', ' ', $status))); ?>: <strong><?= htmlspecialchars((string) $count); ?></strong></li>
+              <?php endforeach; ?>
+              <?php if (!empty($upcomingProjects)): ?>
+                <?php $firstProject = $upcomingProjects[0]; ?>
+                <li>Next milestone: <strong><?= htmlspecialchars($firstProject['name']); ?></strong><?php if (!empty($firstProject['target_date'])): ?> · <?= htmlspecialchars(date('j M Y', strtotime($firstProject['target_date']))); ?><?php endif; ?></li>
+              <?php endif; ?>
+            </ul>
+            <a class="link-button" href="admin-dashboard.php?view=projects">Review project details</a>
+          </article>
+          <article class="summary-card">
+            <h3>Leadership tasks</h3>
+            <ul class="summary-list">
+              <li>Open actions: <strong><?= htmlspecialchars((string) $openTasksCount); ?></strong></li>
+              <li>Completed: <strong><?= htmlspecialchars((string) max(count($tasks) - $openTasksCount, 0)); ?></strong></li>
+              <?php if ($nextTask): ?>
+                <li>Next due: <strong><?= htmlspecialchars($nextTask['title']); ?></strong><?php if (!empty($nextTask['due_date'])): ?> · <?= htmlspecialchars(date('j M Y', strtotime($nextTask['due_date']))); ?><?php endif; ?></li>
+              <?php endif; ?>
+            </ul>
+            <a class="link-button" href="admin-dashboard.php?view=tasks">Manage task board</a>
+          </article>
+          <article class="summary-card">
+            <h3>Site configuration</h3>
+            <ul class="summary-list">
+              <?php if ($siteAnnouncement !== ''): ?>
+                <li>Announcement: <strong><?= htmlspecialchars($siteAnnouncement); ?></strong></li>
+              <?php endif; ?>
+              <?php if ($siteFocus !== ''): ?>
+                <li>Focus: <?= htmlspecialchars($siteFocus); ?></li>
+              <?php endif; ?>
+              <?php if ($siteContact !== ''): ?>
+                <li>Primary contact: <strong><?= htmlspecialchars($siteContact); ?></strong></li>
+              <?php endif; ?>
+              <?php if ($siteSupportEmail !== ''): ?>
+                <li>Email: <?= htmlspecialchars($siteSupportEmail); ?></li>
+              <?php endif; ?>
+              <?php if ($siteSupportPhone !== ''): ?>
+                <li>Phone: <?= htmlspecialchars($siteSupportPhone); ?></li>
+              <?php endif; ?>
+            </ul>
+            <a class="link-button" href="admin-dashboard.php?view=settings">Edit public details</a>
+          </article>
         </div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="primary_contact">Primary contact</label>
-            <input id="primary_contact" name="primary_contact" type="text" value="<?= htmlspecialchars($siteSettings['primary_contact'] ?? ''); ?>" required />
-          </div>
-          <div class="form-group">
-            <label for="support_email">Support email</label>
-            <input id="support_email" name="support_email" type="email" value="<?= htmlspecialchars($siteSettings['support_email'] ?? ''); ?>" required />
-          </div>
-          <div class="form-group">
-            <label for="support_phone">Support phone</label>
-            <input id="support_phone" name="support_phone" type="text" value="<?= htmlspecialchars($siteSettings['support_phone'] ?? ''); ?>" />
-          </div>
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="btn-primary">Save site settings</button>
-        </div>
-      </form>
-    </section>
+      </section>
 
-    <section class="panel">
-      <div class="two-column">
-        <div>
-          <h2>Portal accounts</h2>
-          <p class="lead">Manage who can access dashboards across teams.</p>
-          <?php if (empty($users)): ?>
-            <p>No user accounts exist yet.</p>
-          <?php else: ?>
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Contact</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php foreach ($users as $user): ?>
-                  <tr>
-                    <td>
-                      <strong><?= htmlspecialchars($user['name']); ?></strong><br />
-                      <small><?= htmlspecialchars($user['email']); ?></small>
-                    </td>
-                    <td><?= htmlspecialchars($roleLabels[$user['role']] ?? ucfirst($user['role'])); ?></td>
-                    <td><span class="status-chip" data-status="<?= htmlspecialchars($user['status']); ?>"><?= htmlspecialchars($user['status']); ?></span></td>
-                    <td>
-                      <?php if (!empty($user['phone'])): ?>
-                        <div><?= htmlspecialchars($user['phone']); ?></div>
-                      <?php endif; ?>
-                      <small>Created <?= htmlspecialchars($user['created_at'] ?? ''); ?></small>
-                    </td>
-                    <td>
-                      <form method="post" style="margin-bottom:0.5rem;">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-                        <input type="hidden" name="action" value="update_user_status" />
-                        <input type="hidden" name="user_id" value="<?= htmlspecialchars($user['id']); ?>" />
-                        <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
-                          <div class="form-group">
-                            <label for="status-<?= htmlspecialchars($user['id']); ?>">Status</label>
-                            <select id="status-<?= htmlspecialchars($user['id']); ?>" name="status">
-                              <?php foreach (['active', 'pending', 'onboarding', 'suspended', 'disabled'] as $status): ?>
-                                <option value="<?= htmlspecialchars($status); ?>" <?= ($user['status'] ?? '') === $status ? 'selected' : ''; ?>><?= htmlspecialchars(ucfirst($status)); ?></option>
-                              <?php endforeach; ?>
-                            </select>
-                          </div>
-                          <div class="form-group">
-                            <label for="notes-<?= htmlspecialchars($user['id']); ?>">Notes</label>
-                            <textarea id="notes-<?= htmlspecialchars($user['id']); ?>" name="notes" placeholder="Optional remarks"><?= htmlspecialchars($user['notes'] ?? ''); ?></textarea>
-                          </div>
-                        </div>
-                        <div class="form-actions">
-                          <button type="submit" class="btn-primary">Update</button>
-                        </div>
-                      </form>
-                      <?php if ($user['role'] !== 'admin'): ?>
-                        <form method="post" onsubmit="return confirm('Remove this account?');">
-                          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-                          <input type="hidden" name="action" value="delete_user" />
-                          <input type="hidden" name="user_id" value="<?= htmlspecialchars($user['id']); ?>" />
-                          <button type="submit" class="btn-ghost">Remove</button>
-                        </form>
-                      <?php endif; ?>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
-              </tbody>
-            </table>
-          <?php endif; ?>
-        </div>
-        <aside>
-          <h3 style="margin-top:0;">Add a new account</h3>
-          <form method="post" autocomplete="off">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-            <input type="hidden" name="action" value="create_user" />
-            <div class="form-group">
-              <label for="create-name">Full name</label>
-              <input id="create-name" name="name" type="text" placeholder="Aarav Sharma" required />
-            </div>
-            <div class="form-group">
-              <label for="create-email">Email</label>
-              <input id="create-email" name="email" type="email" placeholder="user@dakshayani.in" required />
-            </div>
-            <div class="form-group">
-              <label for="create-phone">Phone</label>
-              <input id="create-phone" name="phone" type="tel" placeholder="+91 90000 00000" />
-            </div>
-            <div class="form-group">
-              <label for="create-role">Role</label>
-              <select id="create-role" name="role">
-                <?php foreach ($roleLabels as $key => $label): ?>
-                  <option value="<?= htmlspecialchars($key); ?>" <?= $key === 'referrer' ? 'selected' : ''; ?>><?= htmlspecialchars($label); ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="create-status">Status</label>
-              <select id="create-status" name="status">
-                <?php foreach (['active', 'pending', 'onboarding', 'suspended', 'disabled'] as $status): ?>
-                  <option value="<?= htmlspecialchars($status); ?>" <?= $status === 'active' ? 'selected' : ''; ?>><?= htmlspecialchars(ucfirst($status)); ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="create-notes">Internal notes</label>
-              <textarea id="create-notes" name="notes" placeholder="e.g. Access limited to Ranchi installs"></textarea>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn-primary">Create account</button>
-            </div>
-          </form>
-        </aside>
-      </div>
-    </section>
+      <section class="panel">
+        <h2>Recent activity</h2>
+        <p class="lead">Automatic log of important actions across the portal.</p>
+        <?php if (empty($recentActivity)): ?>
+          <p>No activity recorded yet. Actions will appear here automatically.</p>
+        <?php else: ?>
+          <div class="activity-list">
+            <?php foreach ($recentActivity as $log): ?>
+              <div class="activity-item">
+                <strong><?= htmlspecialchars($log['event']); ?></strong>
+                <small><?= htmlspecialchars($log['actor']); ?> · <?= htmlspecialchars(date('j M Y, g:i A', strtotime($log['timestamp']))); ?></small>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+      </section>
+    <?php elseif ($currentView === 'accounts'): ?>
+      <section class="panel">
+        <h2>Portal accounts</h2>
+        <p class="lead">Create credentials for installers, referrers, customers, and team members. The owner admin account remains exclusive to <?= htmlspecialchars(OWNER_EMAIL); ?>.</p>
+        <div class="workspace-grid">
+          <div>
+            <?php if (empty($users)): ?>
+              <p>No portal users yet. Use the form to add your first collaborator.</p>
+            <?php else: ?>
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th>Last login</th>
+                      <th>Created</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($users as $user): ?>
+                      <?php
+                        $role = $user['role'] ?? 'employee';
+                        $status = $user['status'] ?? 'active';
+                        $statusLabel = ucwords(str_replace('-', ' ', $status));
+                        $roleLabel = $roleLabels[$role] ?? ucfirst($role);
+                        $isOwnerAdmin = ($role === 'admin' && strcasecmp($user['email'] ?? '', OWNER_EMAIL) === 0);
+                        $lastLogin = $user['last_login'] ?? '';
+                        $lastLoginFormatted = ($lastLogin && strtotime($lastLogin)) ? date('j M Y, g:i A', strtotime($lastLogin)) : '—';
+                        $createdAt = $user['created_at'] ?? '';
+                        $createdFormatted = ($createdAt && strtotime($createdAt)) ? date('j M Y', strtotime($createdAt)) : '—';
+                      ?>
+                      <tr>
+                        <td>
+                          <strong><?= htmlspecialchars($user['name'] ?? ''); ?></strong>
+                          <?php if (!empty($user['phone'])): ?>
+                            <div class="form-helper">Phone: <?= htmlspecialchars($user['phone']); ?></div>
+                          <?php endif; ?>
+                          <?php if (!empty($user['notes'])): ?>
+                            <div class="form-helper">Note: <?= htmlspecialchars($user['notes']); ?></div>
+                          <?php endif; ?>
+                        </td>
+                        <td><?= htmlspecialchars($user['email'] ?? ''); ?></td>
+                        <td><?= htmlspecialchars($roleLabel); ?></td>
+                        <td><span class="status-chip" data-status="<?= htmlspecialchars($status); ?>"><?= htmlspecialchars($statusLabel); ?></span></td>
+                        <td><?= htmlspecialchars($lastLoginFormatted); ?></td>
+                        <td><?= htmlspecialchars($createdFormatted); ?></td>
+                        <td>
+                          <?php if ($isOwnerAdmin): ?>
+                            <span class="badge">Owner admin</span>
+                          <?php else: ?>
+                            <details class="manage">
+                              <summary>Manage</summary>
+                              <div class="manage-forms">
+                                <form method="post">
+                                  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                                  <input type="hidden" name="action" value="update_user_status" />
+                                  <input type="hidden" name="redirect_view" value="accounts" />
+                                  <input type="hidden" name="user_id" value="<?= htmlspecialchars($user['id'] ?? ''); ?>" />
+                                  <div class="form-grid">
+                                    <div>
+                                      <label for="status-<?= htmlspecialchars($user['id'] ?? ''); ?>">Status</label>
+                                      <select id="status-<?= htmlspecialchars($user['id'] ?? ''); ?>" name="status">
+                                        <?php foreach ($validUserStatuses as $option): ?>
+                                          <option value="<?= htmlspecialchars($option); ?>" <?= $status === $option ? 'selected' : ''; ?>><?= htmlspecialchars(ucwords(str_replace('-', ' ', $option))); ?></option>
+                                        <?php endforeach; ?>
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label for="notes-<?= htmlspecialchars($user['id'] ?? ''); ?>">Notes</label>
+                                      <textarea id="notes-<?= htmlspecialchars($user['id'] ?? ''); ?>" name="notes" placeholder="Status update or context"><?= htmlspecialchars($user['notes'] ?? ''); ?></textarea>
+                                    </div>
+                                  </div>
+                                  <button class="btn-primary" type="submit">Save changes</button>
+                                </form>
 
-    <section class="panel">
-      <div class="two-column">
-        <div>
-          <h2>Project tracker</h2>
-          <p class="lead">Stay on top of EPC delivery deadlines.</p>
-          <?php if (empty($projects)): ?>
-            <p>No projects have been logged yet.</p>
-          <?php else: ?>
-            <table>
-              <thead>
-                <tr>
-                  <th>Project</th>
-                  <th>Stage</th>
-                  <th>Status</th>
-                  <th>Target date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php foreach ($projects as $project): ?>
-                  <tr>
-                    <td>
-                      <strong><?= htmlspecialchars($project['name']); ?></strong><br />
-                      <small>Owner: <?= htmlspecialchars($project['owner']); ?></small>
-                    </td>
-                    <td><?= htmlspecialchars($project['stage']); ?></td>
-                    <td><span class="status-chip" data-status="<?= htmlspecialchars($project['status']); ?>"><?= htmlspecialchars($projectStatuses[$project['status']] ?? ucfirst($project['status'])); ?></span></td>
-                    <td><?= htmlspecialchars($project['target_date']); ?></td>
-                    <td>
-                      <form method="post">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-                        <input type="hidden" name="action" value="update_project" />
-                        <input type="hidden" name="project_id" value="<?= htmlspecialchars($project['id']); ?>" />
-                        <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
-                          <div class="form-group">
-                            <label for="stage-<?= htmlspecialchars($project['id']); ?>">Stage</label>
-                            <input id="stage-<?= htmlspecialchars($project['id']); ?>" type="text" name="stage" value="<?= htmlspecialchars($project['stage']); ?>" />
-                          </div>
-                          <div class="form-group">
-                            <label for="status-<?= htmlspecialchars($project['id']); ?>">Status</label>
-                            <select id="status-<?= htmlspecialchars($project['id']); ?>" name="status">
-                              <?php foreach ($projectStatuses as $value => $label): ?>
-                                <option value="<?= htmlspecialchars($value); ?>" <?= ($project['status'] ?? '') === $value ? 'selected' : ''; ?>><?= htmlspecialchars($label); ?></option>
-                              <?php endforeach; ?>
-                            </select>
-                          </div>
-                          <div class="form-group">
-                            <label for="target-<?= htmlspecialchars($project['id']); ?>">Target date</label>
-                            <input id="target-<?= htmlspecialchars($project['id']); ?>" type="date" name="target_date" value="<?= htmlspecialchars($project['target_date']); ?>" />
-                          </div>
-                        </div>
-                        <div class="form-actions">
-                          <button type="submit" class="btn-primary">Update</button>
-                        </div>
-                      </form>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
-              </tbody>
-            </table>
-          <?php endif; ?>
-        </div>
-        <aside>
-          <h3 style="margin-top:0;">Log new project</h3>
-          <form method="post" autocomplete="off">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-            <input type="hidden" name="action" value="create_project" />
-            <div class="form-group">
-              <label for="project-name">Project name</label>
-              <input id="project-name" name="project_name" type="text" placeholder="Smart Rooftop - Ranchi" required />
-            </div>
-            <div class="form-group">
-              <label for="project-owner">Owner</label>
-              <input id="project-owner" name="project_owner" type="text" placeholder="Priya Sharma" required />
-            </div>
-            <div class="form-group">
-              <label for="project-stage">Current stage</label>
-              <input id="project-stage" name="project_stage" type="text" placeholder="Installation" required />
-            </div>
-            <div class="form-group">
-              <label for="project-status">Status</label>
-              <select id="project-status" name="project_status">
-                <?php foreach ($projectStatuses as $value => $label): ?>
-                  <option value="<?= htmlspecialchars($value); ?>" <?= $value === 'on-track' ? 'selected' : ''; ?>><?= htmlspecialchars($label); ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="project-target">Target date</label>
-              <input id="project-target" name="target_date" type="date" />
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn-primary">Add project</button>
-            </div>
-          </form>
-        </aside>
-      </div>
-    </section>
+                                <form method="post">
+                                  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                                  <input type="hidden" name="action" value="reset_user_password" />
+                                  <input type="hidden" name="redirect_view" value="accounts" />
+                                  <input type="hidden" name="user_id" value="<?= htmlspecialchars($user['id'] ?? ''); ?>" />
+                                  <div class="form-grid">
+                                    <div>
+                                      <label for="new-pass-<?= htmlspecialchars($user['id'] ?? ''); ?>">New password</label>
+                                      <input id="new-pass-<?= htmlspecialchars($user['id'] ?? ''); ?>" type="password" name="new_password" minlength="8" required />
+                                    </div>
+                                    <div>
+                                      <label for="confirm-pass-<?= htmlspecialchars($user['id'] ?? ''); ?>">Confirm password</label>
+                                      <input id="confirm-pass-<?= htmlspecialchars($user['id'] ?? ''); ?>" type="password" name="confirm_password" minlength="8" required />
+                                    </div>
+                                  </div>
+                                  <p class="form-helper">Share the updated password securely with the user.</p>
+                                  <button class="btn-secondary" type="submit">Reset password</button>
+                                </form>
 
-    <section class="panel">
-      <div class="two-column">
-        <div>
-          <h2>Task board</h2>
-          <p class="lead">Keep the leadership team accountable for next steps.</p>
-          <?php if (empty($tasks)): ?>
-            <p>No tasks recorded. Use the form to add one.</p>
-          <?php else: ?>
-            <table>
-              <thead>
-                <tr>
-                  <th>Task</th>
-                  <th>Assignee</th>
-                  <th>Status</th>
-                  <th>Due</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php foreach ($tasks as $task): ?>
-                  <tr>
-                    <td><?= htmlspecialchars($task['title']); ?></td>
-                    <td><?= htmlspecialchars($task['assignee']); ?></td>
-                    <td><span class="status-chip" data-status="<?= htmlspecialchars($task['status']); ?>"><?= htmlspecialchars($task['status']); ?></span></td>
-                    <td><?= htmlspecialchars($task['due_date']); ?></td>
-                    <td>
-                      <form method="post" style="margin-bottom:0.5rem;">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-                        <input type="hidden" name="action" value="update_task" />
-                        <input type="hidden" name="task_id" value="<?= htmlspecialchars($task['id']); ?>" />
-                        <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
-                          <div class="form-group">
-                            <label for="task-status-<?= htmlspecialchars($task['id']); ?>">Status</label>
-                            <select id="task-status-<?= htmlspecialchars($task['id']); ?>" name="status">
-                              <?php foreach ($taskStatuses as $status): ?>
-                                <option value="<?= htmlspecialchars($status); ?>" <?= ($task['status'] ?? '') === $status ? 'selected' : ''; ?>><?= htmlspecialchars($status); ?></option>
-                              <?php endforeach; ?>
-                            </select>
-                          </div>
-                          <div class="form-group">
-                            <label for="task-due-<?= htmlspecialchars($task['id']); ?>">Due date</label>
-                            <input id="task-due-<?= htmlspecialchars($task['id']); ?>" type="date" name="due_date" value="<?= htmlspecialchars($task['due_date']); ?>" />
-                          </div>
-                        </div>
-                        <div class="form-actions">
-                          <button type="submit" class="btn-primary">Update</button>
-                        </div>
-                      </form>
-                      <form method="post" onsubmit="return confirm('Remove this task?');">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-                        <input type="hidden" name="action" value="delete_task" />
-                        <input type="hidden" name="task_id" value="<?= htmlspecialchars($task['id']); ?>" />
-                        <button type="submit" class="btn-ghost">Remove</button>
-                      </form>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
-              </tbody>
-            </table>
-          <?php endif; ?>
+                                <form method="post" onsubmit="return confirm('Remove this account?');">
+                                  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                                  <input type="hidden" name="action" value="delete_user" />
+                                  <input type="hidden" name="redirect_view" value="accounts" />
+                                  <input type="hidden" name="user_id" value="<?= htmlspecialchars($user['id'] ?? ''); ?>" />
+                                  <button class="btn-destructive" type="submit">Delete account</button>
+                                </form>
+                              </div>
+                            </details>
+                          <?php endif; ?>
+                        </td>
+                      </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php endif; ?>
+          </div>
+          <aside class="workspace-aside">
+            <h3>Create a portal account</h3>
+            <form method="post" autocomplete="off">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="create_user" />
+              <input type="hidden" name="redirect_view" value="accounts" />
+              <div class="form-grid">
+                <div>
+                  <label for="new-user-name">Full name</label>
+                  <input id="new-user-name" name="name" type="text" placeholder="Priya Sharma" required />
+                </div>
+                <div>
+                  <label for="new-user-email">Email</label>
+                  <input id="new-user-email" name="email" type="email" placeholder="name@example.com" required />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-user-role">Role</label>
+                  <select id="new-user-role" name="role">
+                    <?php foreach ($validUserRoles as $role): ?>
+                      <option value="<?= htmlspecialchars($role); ?>"><?= htmlspecialchars(ucwords($role)); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div>
+                  <label for="new-user-status">Status</label>
+                  <select id="new-user-status" name="status">
+                    <?php foreach ($validUserStatuses as $statusOption): ?>
+                      <option value="<?= htmlspecialchars($statusOption); ?>" <?= $statusOption === 'active' ? 'selected' : ''; ?>><?= htmlspecialchars(ucwords(str_replace('-', ' ', $statusOption))); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-user-phone">Phone</label>
+                  <input id="new-user-phone" name="phone" type="text" placeholder="+91 90000 00000" />
+                </div>
+                <div>
+                  <label for="new-user-password">Password</label>
+                  <input id="new-user-password" name="password" type="password" minlength="8" required />
+                </div>
+                <div>
+                  <label for="new-user-password-confirm">Confirm password</label>
+                  <input id="new-user-password-confirm" name="password_confirm" type="password" minlength="8" required />
+                </div>
+              </div>
+              <div>
+                <label for="new-user-notes">Notes (optional)</label>
+                <textarea id="new-user-notes" name="notes" placeholder="Internal context for this account"></textarea>
+              </div>
+              <button class="btn-primary" type="submit">Create account</button>
+              <p class="form-helper">Share credentials privately. Users can now sign in with their email and password.</p>
+            </form>
+          </aside>
         </div>
-        <aside>
-          <h3 style="margin-top:0;">Add a task</h3>
-          <form method="post" autocomplete="off">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-            <input type="hidden" name="action" value="create_task" />
-            <div class="form-group">
-              <label for="task-title">Task title</label>
-              <input id="task-title" name="task_title" type="text" placeholder="Approve installer onboarding" required />
-            </div>
-            <div class="form-group">
-              <label for="task-assignee">Assignee</label>
-              <input id="task-assignee" name="task_assignee" type="text" placeholder="Deepak Entranchi" required />
-            </div>
-            <div class="form-group">
-              <label for="task-status">Status</label>
-              <select id="task-status" name="task_status">
-                <?php foreach ($taskStatuses as $status): ?>
-                  <option value="<?= htmlspecialchars($status); ?>" <?= $status === 'Pending' ? 'selected' : ''; ?>><?= htmlspecialchars($status); ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="task-due-date">Due date</label>
-              <input id="task-due-date" name="task_due_date" type="date" />
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="btn-primary">Add task</button>
-            </div>
-          </form>
-        </aside>
-      </div>
-    </section>
-
-    <section class="panel">
-      <h2>Recent activity</h2>
-      <p class="lead">Automatic log of important actions across the portal.</p>
-      <?php if (empty($activityLog)): ?>
-        <p>No activity recorded yet.</p>
-      <?php else: ?>
-        <div class="activity-log">
-          <?php foreach ($activityLog as $log): ?>
-            <div class="activity-row">
-              <strong><?= htmlspecialchars($log['event']); ?></strong>
-              <small><?= htmlspecialchars($log['actor']); ?> · <?= htmlspecialchars(date('j M Y, g:i A', strtotime($log['timestamp']))); ?></small>
-            </div>
-          <?php endforeach; ?>
+      </section>
+    <?php elseif ($currentView === 'projects'): ?>
+      <section class="panel">
+        <h2>Project tracker</h2>
+        <p class="lead">Monitor EPC and financing engagements, and update progress as teams execute.</p>
+        <div class="workspace-grid">
+          <div>
+            <?php if (empty($projects)): ?>
+              <p>No projects logged yet. Use the form to add your first initiative.</p>
+            <?php else: ?>
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Project</th>
+                      <th>Owner</th>
+                      <th>Stage</th>
+                      <th>Status</th>
+                      <th>Target date</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($projects as $project): ?>
+                      <?php
+                        $status = $project['status'] ?? 'on-track';
+                        $statusLabel = ucwords(str_replace('-', ' ', $status));
+                        $targetDate = $project['target_date'] ?? '';
+                        $targetFormatted = ($targetDate && strtotime($targetDate)) ? date('j M Y', strtotime($targetDate)) : '—';
+                      ?>
+                      <tr>
+                        <td>
+                          <strong><?= htmlspecialchars($project['name'] ?? ''); ?></strong>
+                          <?php if (!empty($project['stage'])): ?>
+                            <div class="form-helper">Stage: <?= htmlspecialchars($project['stage']); ?></div>
+                          <?php endif; ?>
+                        </td>
+                        <td><?= htmlspecialchars($project['owner'] ?? ''); ?></td>
+                        <td><?= htmlspecialchars($project['stage'] ?? '—'); ?></td>
+                        <td><span class="status-chip" data-status="<?= htmlspecialchars($status); ?>"><?= htmlspecialchars($statusLabel); ?></span></td>
+                        <td><?= htmlspecialchars($targetFormatted); ?></td>
+                        <td>
+                          <details class="manage">
+                            <summary>Manage</summary>
+                            <div class="manage-forms">
+                              <form method="post">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                                <input type="hidden" name="action" value="update_project" />
+                                <input type="hidden" name="redirect_view" value="projects" />
+                                <input type="hidden" name="project_id" value="<?= htmlspecialchars($project['id'] ?? ''); ?>" />
+                                <div class="form-grid">
+                                  <div>
+                                    <label for="project-stage-<?= htmlspecialchars($project['id'] ?? ''); ?>">Stage</label>
+                                    <input id="project-stage-<?= htmlspecialchars($project['id'] ?? ''); ?>" name="stage" type="text" value="<?= htmlspecialchars($project['stage'] ?? ''); ?>" />
+                                  </div>
+                                  <div>
+                                    <label for="project-status-<?= htmlspecialchars($project['id'] ?? ''); ?>">Status</label>
+                                    <select id="project-status-<?= htmlspecialchars($project['id'] ?? ''); ?>" name="status">
+                                      <?php foreach ($projectStatusOptions as $option): ?>
+                                        <option value="<?= htmlspecialchars($option); ?>" <?= $status === $option ? 'selected' : ''; ?>><?= htmlspecialchars(ucwords(str_replace('-', ' ', $option))); ?></option>
+                                      <?php endforeach; ?>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label for="project-target-<?= htmlspecialchars($project['id'] ?? ''); ?>">Target date</label>
+                                    <input id="project-target-<?= htmlspecialchars($project['id'] ?? ''); ?>" name="target_date" type="date" value="<?= htmlspecialchars($project['target_date'] ?? ''); ?>" />
+                                  </div>
+                                </div>
+                                <button class="btn-primary" type="submit">Update project</button>
+                              </form>
+                              <form method="post" onsubmit="return confirm('Remove this project?');">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                                <input type="hidden" name="action" value="delete_project" />
+                                <input type="hidden" name="redirect_view" value="projects" />
+                                <input type="hidden" name="project_id" value="<?= htmlspecialchars($project['id'] ?? ''); ?>" />
+                                <button class="btn-destructive" type="submit">Delete project</button>
+                              </form>
+                            </div>
+                          </details>
+                        </td>
+                      </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php endif; ?>
+          </div>
+          <aside class="workspace-aside">
+            <h3>Log a project</h3>
+            <form method="post" autocomplete="off">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="create_project" />
+              <input type="hidden" name="redirect_view" value="projects" />
+              <div class="form-grid">
+                <div>
+                  <label for="new-project-name">Project name</label>
+                  <input id="new-project-name" name="project_name" type="text" placeholder="Rooftop rollout - Ranchi" required />
+                </div>
+                <div>
+                  <label for="new-project-owner">Owner</label>
+                  <input id="new-project-owner" name="project_owner" type="text" placeholder="Priya Sharma" required />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-project-stage">Current stage</label>
+                  <input id="new-project-stage" name="project_stage" type="text" placeholder="Installation" required />
+                </div>
+                <div>
+                  <label for="new-project-status">Status</label>
+                  <select id="new-project-status" name="project_status">
+                    <?php foreach ($projectStatusOptions as $option): ?>
+                      <option value="<?= htmlspecialchars($option); ?>" <?= $option === 'on-track' ? 'selected' : ''; ?>><?= htmlspecialchars(ucwords(str_replace('-', ' ', $option))); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label for="new-project-date">Target date</label>
+                <input id="new-project-date" name="target_date" type="date" />
+              </div>
+              <button class="btn-primary" type="submit">Add project</button>
+            </form>
+          </aside>
         </div>
-      <?php endif; ?>
-    </section>
+      </section>
+    <?php elseif ($currentView === 'tasks'): ?>
+      <section class="panel">
+        <h2>Leadership task board</h2>
+        <p class="lead">Assign follow-ups, track due dates, and clear completed work.</p>
+        <div class="workspace-grid">
+          <div>
+            <?php if (empty($tasks)): ?>
+              <p>No tasks recorded. Create one using the form.</p>
+            <?php else: ?>
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Task</th>
+                      <th>Assignee</th>
+                      <th>Status</th>
+                      <th>Due</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($tasks as $task): ?>
+                      <?php
+                        $status = $task['status'] ?? 'Pending';
+                        $dueDate = $task['due_date'] ?? '';
+                        $dueFormatted = ($dueDate && strtotime($dueDate)) ? date('j M Y', strtotime($dueDate)) : '—';
+                      ?>
+                      <tr>
+                        <td><?= htmlspecialchars($task['title'] ?? ''); ?></td>
+                        <td><?= htmlspecialchars($task['assignee'] ?? ''); ?></td>
+                        <td><span class="status-chip" data-status="<?= htmlspecialchars($status); ?>"><?= htmlspecialchars($status); ?></span></td>
+                        <td><?= htmlspecialchars($dueFormatted); ?></td>
+                        <td>
+                          <details class="manage">
+                            <summary>Manage</summary>
+                            <div class="manage-forms">
+                              <form method="post">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                                <input type="hidden" name="action" value="update_task" />
+                                <input type="hidden" name="redirect_view" value="tasks" />
+                                <input type="hidden" name="task_id" value="<?= htmlspecialchars($task['id'] ?? ''); ?>" />
+                                <div class="form-grid">
+                                  <div>
+                                    <label for="task-status-<?= htmlspecialchars($task['id'] ?? ''); ?>">Status</label>
+                                    <select id="task-status-<?= htmlspecialchars($task['id'] ?? ''); ?>" name="status">
+                                      <?php foreach ($taskStatusOptions as $option): ?>
+                                        <option value="<?= htmlspecialchars($option); ?>" <?= $status === $option ? 'selected' : ''; ?>><?= htmlspecialchars($option); ?></option>
+                                      <?php endforeach; ?>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label for="task-due-<?= htmlspecialchars($task['id'] ?? ''); ?>">Due date</label>
+                                    <input id="task-due-<?= htmlspecialchars($task['id'] ?? ''); ?>" name="due_date" type="date" value="<?= htmlspecialchars($task['due_date'] ?? ''); ?>" />
+                                  </div>
+                                </div>
+                                <button class="btn-primary" type="submit">Update task</button>
+                              </form>
+                              <form method="post" onsubmit="return confirm('Remove this task?');">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                                <input type="hidden" name="action" value="delete_task" />
+                                <input type="hidden" name="redirect_view" value="tasks" />
+                                <input type="hidden" name="task_id" value="<?= htmlspecialchars($task['id'] ?? ''); ?>" />
+                                <button class="btn-destructive" type="submit">Delete task</button>
+                              </form>
+                            </div>
+                          </details>
+                        </td>
+                      </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php endif; ?>
+          </div>
+          <aside class="workspace-aside">
+            <h3>Add a task</h3>
+            <form method="post" autocomplete="off">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="create_task" />
+              <input type="hidden" name="redirect_view" value="tasks" />
+              <div class="form-grid">
+                <div>
+                  <label for="new-task-title">Task title</label>
+                  <input id="new-task-title" name="task_title" type="text" placeholder="Approve installer onboarding" required />
+                </div>
+                <div>
+                  <label for="new-task-assignee">Assignee</label>
+                  <input id="new-task-assignee" name="task_assignee" type="text" placeholder="Deepak Entranchi" required />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-task-status">Status</label>
+                  <select id="new-task-status" name="task_status">
+                    <?php foreach ($taskStatusOptions as $option): ?>
+                      <option value="<?= htmlspecialchars($option); ?>" <?= $option === 'Pending' ? 'selected' : ''; ?>><?= htmlspecialchars($option); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div>
+                  <label for="new-task-due">Due date</label>
+                  <input id="new-task-due" name="task_due_date" type="date" />
+                </div>
+              </div>
+              <button class="btn-primary" type="submit">Add task</button>
+            </form>
+          </aside>
+        </div>
+      </section>
+    <?php elseif ($currentView === 'settings'): ?>
+      <section class="panel">
+        <h2>Public site configuration</h2>
+        <p class="lead">Control the focus statement, contact details, and homepage announcement displayed to prospects.</p>
+        <form method="post" autocomplete="off">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+          <input type="hidden" name="action" value="update_site_settings" />
+          <input type="hidden" name="redirect_view" value="settings" />
+          <div class="form-grid">
+            <div>
+              <label for="settings-focus">Company focus</label>
+              <textarea id="settings-focus" name="company_focus" required><?= htmlspecialchars($siteSettings['company_focus'] ?? ''); ?></textarea>
+            </div>
+            <div>
+              <label for="settings-announcement">Homepage announcement</label>
+              <textarea id="settings-announcement" name="announcement" placeholder="Optional update for customers"><?= htmlspecialchars($siteSettings['announcement'] ?? ''); ?></textarea>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div>
+              <label for="settings-contact">Primary contact</label>
+              <input id="settings-contact" name="primary_contact" type="text" value="<?= htmlspecialchars($siteSettings['primary_contact'] ?? ''); ?>" required />
+            </div>
+            <div>
+              <label for="settings-email">Support email</label>
+              <input id="settings-email" name="support_email" type="email" value="<?= htmlspecialchars($siteSettings['support_email'] ?? ''); ?>" required />
+            </div>
+            <div>
+              <label for="settings-phone">Support phone</label>
+              <input id="settings-phone" name="support_phone" type="text" value="<?= htmlspecialchars($siteSettings['support_phone'] ?? ''); ?>" />
+            </div>
+          </div>
+          <button class="btn-primary" type="submit">Save configuration</button>
+        </form>
+      </section>
+    <?php elseif ($currentView === 'activity'): ?>
+      <section class="panel">
+        <h2>Audit history</h2>
+        <p class="lead">Chronological record of updates made across the admin workspace.</p>
+        <?php if (empty($activityLog)): ?>
+          <p>No activity recorded yet.</p>
+        <?php else: ?>
+          <div class="activity-list">
+            <?php foreach ($activityLog as $log): ?>
+              <div class="activity-item">
+                <strong><?= htmlspecialchars($log['event']); ?></strong>
+                <small><?= htmlspecialchars($log['actor']); ?> · <?= htmlspecialchars(date('j M Y, g:i A', strtotime($log['timestamp']))); ?></small>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+      </section>
+    <?php endif; ?>
   </main>
 </body>
 </html>

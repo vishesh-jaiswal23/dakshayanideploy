@@ -1,3 +1,43 @@
+<?php
+declare(strict_types=1);
+
+session_start();
+
+if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'employee') {
+  header('Location: login.php');
+  exit;
+}
+
+require_once __DIR__ . '/portal-state.php';
+
+$state = portal_load_state();
+$currentUserId = $_SESSION['user_id'] ?? '';
+$userRecord = null;
+
+foreach ($state['users'] as $user) {
+  if (($user['id'] ?? '') === $currentUserId) {
+    $userRecord = $user;
+    break;
+  }
+}
+
+$displayName = $_SESSION['display_name'] ?? ($userRecord['name'] ?? 'Team member');
+$lastLogin = $_SESSION['last_login'] ?? null;
+$userEmail = $_SESSION['user_email'] ?? ($userRecord['email'] ?? '');
+
+$roleLabels = [
+  'customer' => 'Customer',
+  'employee' => 'Employee',
+  'installer' => 'Installer',
+  'referrer' => 'Referral partner',
+  'admin' => 'Administrator',
+];
+
+$roleLabel = $roleLabels[$_SESSION['user_role']] ?? ucfirst($_SESSION['user_role']);
+$userPhone = $userRecord['phone'] ?? '—';
+$userCity = $userRecord['city'] ?? '—';
+$accountId = $userRecord['id'] ?? '—';
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -299,10 +339,17 @@
     <header>
       <div>
         <p class="eyebrow">Employee portal</p>
-        <h1>Hi, <span data-user-name>Employee</span></h1>
-        <p class="subhead">Signed in as <span data-user-email>employee@dakshayani.in</span></p>
+        <h1>Hi, <?= htmlspecialchars($displayName); ?></h1>
+        <p class="subhead">
+          Signed in as <?= htmlspecialchars($userEmail); ?>
+          <?php if ($lastLogin): ?>
+            · Last login <?= htmlspecialchars($lastLogin); ?>
+          <?php endif; ?>
+        </p>
       </div>
-      <button class="logout-btn" type="button" data-logout>Sign out</button>
+      <form method="post" action="logout.php">
+        <button class="logout-btn" type="submit">Sign out</button>
+      </form>
     </header>
 
     <div class="status-banner" data-dashboard-status hidden></div>
@@ -401,19 +448,19 @@
       <div class="details-grid">
         <div>
           <strong>User ID</strong>
-          <span data-user-id>—</span>
+          <span><?= htmlspecialchars($accountId); ?></span>
         </div>
         <div>
           <strong>Role</strong>
-          <span data-user-role>Employee</span>
+          <span><?= htmlspecialchars($roleLabel); ?></span>
         </div>
         <div>
           <strong>Phone</strong>
-          <span data-user-phone>—</span>
+          <span><?= htmlspecialchars($userPhone === '' ? '—' : $userPhone); ?></span>
         </div>
         <div>
-          <strong>City</strong>
-          <span data-user-city>—</span>
+          <strong>Email</strong>
+          <span><?= htmlspecialchars($userEmail); ?></span>
         </div>
       </div>
     </section>

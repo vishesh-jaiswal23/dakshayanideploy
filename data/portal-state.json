@@ -1,5 +1,5 @@
 {
-  "last_updated": "2024-10-10T12:00:00+05:30",
+  "last_updated": "2024-10-20T00:00:00+05:30",
   "site_settings": {
     "company_focus": "Utility-scale and rooftop solar EPC projects, O&M, and financing assistance across Jharkhand and Bihar.",
     "primary_contact": "Deepak Entranchi",
@@ -16,110 +16,11 @@
       "phone": "+91 62030 01452",
       "status": "active",
       "notes": "Primary organisation owner.",
-      "created_at": "2024-01-05"
-    },
-    {
-      "id": "usr_inst_01",
-      "name": "Sanjay Kumar",
-      "email": "sanjay.kumar@dakshayanienterprises.com",
-      "role": "installer",
-      "phone": "+91 88770 22014",
-      "status": "active",
-      "notes": "Team lead for North Ranchi installs.",
-      "created_at": "2024-03-18"
-    },
-    {
-      "id": "usr_emp_01",
-      "name": "Priya Sharma",
-      "email": "priya.sharma@dakshayanienterprises.com",
-      "role": "employee",
-      "phone": "+91 90444 18222",
-      "status": "active",
-      "notes": "Customer success manager.",
-      "created_at": "2024-02-01"
-    },
-    {
-      "id": "usr_ref_01",
-      "name": "Ankit Verma",
-      "email": "ankit.verma@partners.com",
-      "role": "referrer",
-      "phone": "+91 98001 22119",
-      "status": "pending",
-      "notes": "Gold tier referrer awaiting latest payout.",
-      "created_at": "2024-04-26"
-    },
-    {
-      "id": "usr_cust_01",
-      "name": "Nisha Patel",
-      "email": "nisha.patel@example.com",
-      "role": "customer",
-      "phone": "+91 90312 88011",
-      "status": "onboarding",
-      "notes": "5 kW rooftop system in Jamshedpur.",
-      "created_at": "2024-05-14"
+      "created_at": "2024-01-05",
+      "password_hash": ""
     }
   ],
-  "projects": [
-    {
-      "id": "proj_ran_rooftop",
-      "name": "Ranchi Rooftop Cluster",
-      "owner": "Priya Sharma",
-      "stage": "Installation",
-      "status": "on-track",
-      "target_date": "2024-11-05"
-    },
-    {
-      "id": "proj_bokaro_sme",
-      "name": "Bokaro SME Solar",
-      "owner": "Sanjay Kumar",
-      "stage": "Procurement",
-      "status": "at-risk",
-      "target_date": "2024-12-12"
-    },
-    {
-      "id": "proj_patna_resi",
-      "name": "Patna Residential Pilot",
-      "owner": "Priya Sharma",
-      "stage": "Design",
-      "status": "planning",
-      "target_date": "2025-01-20"
-    }
-  ],
-  "tasks": [
-    {
-      "id": "task_finance_docs",
-      "title": "Review PNB financing documentation",
-      "assignee": "Deepak Entranchi",
-      "status": "In progress",
-      "due_date": "2024-10-12"
-    },
-    {
-      "id": "task_q4_targets",
-      "title": "Publish Q4 installer deployment targets",
-      "assignee": "Sanjay Kumar",
-      "status": "Pending",
-      "due_date": "2024-10-15"
-    },
-    {
-      "id": "task_customer_forum",
-      "title": "Schedule customer education forum",
-      "assignee": "Priya Sharma",
-      "status": "Completed",
-      "due_date": "2024-09-30"
-    }
-  ],
-  "activity_log": [
-    {
-      "id": "log1",
-      "event": "Initial admin workspace created",
-      "actor": "System",
-      "timestamp": "2024-10-10T12:00:00+05:30"
-    },
-    {
-      "id": "log2",
-      "event": "Imported legacy user accounts",
-      "actor": "System",
-      "timestamp": "2024-10-10T12:05:00+05:30"
-    }
-  ]
+  "projects": [],
+  "tasks": [],
+  "activity_log": []
 }
