@@ -13,7 +13,7 @@ Follow these steps when uploading the PHP backend to GoDaddy (or any Apache-base
 - If you created the `server/data` folder manually, ensure the folder itself is at least `0755` so PHP can open it.
 
 ## 3. Bridge `/api/*` requests to the new folder
-The frontend JavaScript still calls URLs like `/api/login`. Because the PHP files live in `/portal/api/`, you need one rewrite rule at the site root to forward those requests.
+The frontend JavaScript still calls URLs like `/api/login`. Because the PHP files live in `/portal/api/`, you need one rewrite rule at the site root to forward those requests straight to the PHP scripts.
 
 1. Download the helper file `server/portal.htaccess` from this project.
 2. Upload it to `public_html/` and rename it to `.htaccess` (merge it with any existing directives if you already have a `.htaccess`).
@@ -22,15 +22,20 @@ The frontend JavaScript still calls URLs like `/api/login`. Because the PHP file
    ```apache
    RewriteEngine On
 
-   RewriteRule ^api$ portal/api/ [L]
-   RewriteRule ^api/(.*)$ portal/api/$1 [QSA,L]
+   # Map each API endpoint to its PHP script under /portal/api/
+   RewriteRule ^api/?$ portal/api/index.php [QSA,L]
+   RewriteRule ^api/(login|signup|me|logout)/?$ portal/api/$1.php [QSA,L]
+   RewriteRule ^api/admin/users/?$ portal/api/admin.users.php [QSA,L]
+   RewriteRule ^api/admin/users/(.*)$ portal/api/admin.users.php?path=$1 [QSA,L]
+   RewriteRule ^api/dashboard/([a-z]+)/?$ portal/api/dashboard.$1.php [QSA,L]
    ```
 
-   After saving, requests to `https://yourdomain.com/api/login` will automatically execute `public_html/portal/api/login.php`.
+   After saving, requests to `https://yourdomain.com/api/login` will automatically execute `public_html/portal/api/login.php`. Because the `.php` extension is appended directly in the rewrite, the inner `.htaccess` inside `portal/api/` is only used for optional niceties.
 
 ## 4. Verify the API
-1. Visit `https://yourdomain.com/api/me` in your browser. You should see a JSON response with `{ "authenticated": false }`.
-2. Open the developer console on the login page and log in with the main admin (`d.entranchi@gmail.com / Dakshayani@2311`).
-3. The Network tab should show a `200` response for `/api/login`. Any `404` at this stage means the root `.htaccess` bridge is either missing or not saved correctly.
+1. Visit `https://yourdomain.com/api` in your browser. You should see a JSON response confirming the API is reachable.
+2. Visit `https://yourdomain.com/api/me`. You should see a JSON response with `{ "authenticated": false }`.
+3. Open the developer console on the login page and log in with the main admin (`d.entranchi@gmail.com / Dakshayani@2311`).
+4. The Network tab should show a `200` response for `/api/login`. Any `404` at this stage means the root `.htaccess` bridge is either missing or not saved correctly.
 
 If you run into other issues, share the exact response body and the contents of both `.htaccess` files so we can troubleshoot further.

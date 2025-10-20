@@ -5,6 +5,7 @@ RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
+RewriteRule ^$ index.php [QSA,L]
 RewriteRule ^login/?$ login.php [QSA,L]
 RewriteRule ^signup/?$ signup.php [QSA,L]
 RewriteRule ^me/?$ me.php [QSA,L]
