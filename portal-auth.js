@@ -50,8 +50,76 @@
     }
   }
 
+  function buildApiFallbacks(path) {
+    if (API_BASE) {
+      return [];
+    }
+
+    const questionIndex = typeof path === 'string' ? path.indexOf('?') : -1;
+    const pathname = questionIndex === -1 ? path : path.slice(0, questionIndex);
+    if (typeof pathname !== 'string' || !pathname.startsWith('/api/')) {
+      return [];
+    }
+
+    const search = questionIndex === -1 ? '' : path.slice(questionIndex + 1);
+    const originalParams = new URLSearchParams(search);
+    const slug = pathname.slice(5).replace(/^\/+|\/+$/g, '');
+    const candidates = [];
+
+    const pushCandidate = (basePath, extraParams) => {
+      const params = new URLSearchParams(originalParams);
+      if (extraParams && typeof extraParams === 'object') {
+        Object.entries(extraParams).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            params.set(key, value);
+          }
+        });
+      }
+      const query = params.toString();
+      const candidate = query ? `${basePath}?${query}` : basePath;
+      if (!candidates.includes(candidate)) {
+        candidates.push(candidate);
+      }
+    };
+
+    const scriptMap = {
+      '': 'index.php',
+      login: 'login.php',
+      signup: 'signup.php',
+      me: 'me.php',
+      logout: 'logout.php',
+      'auth/google': 'auth.google.php',
+    };
+
+    if (Object.prototype.hasOwnProperty.call(scriptMap, slug)) {
+      const script = scriptMap[slug];
+      pushCandidate(`/portal/api/${script}`);
+      pushCandidate(`/server/api/${script}`);
+      return candidates;
+    }
+
+    if (slug.startsWith('admin/users')) {
+      const remainder = slug.slice('admin/users'.length).replace(/^\/+/, '');
+      const extra = remainder ? { path: remainder } : undefined;
+      pushCandidate('/portal/api/admin.users.php', extra);
+      pushCandidate('/server/api/admin.users.php', extra);
+      return candidates;
+    }
+
+    if (slug.startsWith('dashboard/')) {
+      const role = slug.slice('dashboard/'.length).split('/')[0] || '';
+      if (role) {
+        const script = `dashboard.${role}.php`;
+        pushCandidate(`/portal/api/${script}`);
+        pushCandidate(`/server/api/${script}`);
+      }
+      return candidates;
+    }
+
+    return candidates;
+  }
+
   async function request(path, options = {}) {
-    const url = resolveApi(path);
     const config = { method: 'GET', headers: {}, credentials: 'same-origin', ...options };
     config.method = (config.method || 'GET').toUpperCase();
     config.headers = { ...config.headers };
@@ -63,29 +131,53 @@
       }
     }
 
-    let response;
-    try {
-      response = await fetch(url, config);
-    } catch (networkError) {
-      const error = new Error('Unable to reach the Dakshayani portal API. Please check your connection or start the server.');
-      error.isNetworkError = true;
-      throw error;
-    }
+    const attempts = [path, ...buildApiFallbacks(path)];
+    let lastError = null;
 
-    let data = {};
-    try {
-      data = await response.json();
-    } catch (parseError) {
-      data = {};
-    }
+    for (let index = 0; index < attempts.length; index += 1) {
+      const attemptPath = attempts[index];
+      const url = resolveApi(attemptPath);
+      const attemptConfig = { ...config, headers: { ...config.headers } };
 
-    if (!response.ok) {
+      let response;
+      try {
+        response = await fetch(url, attemptConfig);
+      } catch (networkError) {
+        lastError = networkError;
+        continue;
+      }
+
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        data = {};
+      }
+
+      if (response.ok) {
+        return data;
+      }
+
+      if (response.status === 404 && index < attempts.length - 1) {
+        lastError = new Error(`Request failed with status ${response.status}`);
+        lastError.status = response.status;
+        continue;
+      }
+
       const error = new Error(data.error || `Request failed with status ${response.status}`);
       error.status = response.status;
       throw error;
     }
 
-    return data;
+    if (lastError) {
+      const networkError = new Error('Unable to reach the Dakshayani portal API. Please check your connection or start the server.');
+      networkError.isNetworkError = true;
+      throw networkError;
+    }
+
+    const fallbackError = new Error('Unable to reach the Dakshayani portal API. Please check your connection or start the server.');
+    fallbackError.isNetworkError = true;
+    throw fallbackError;
   }
 
   function setFeedback(target, type, message) {
