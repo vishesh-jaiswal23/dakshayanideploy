@@ -1,14 +1,14 @@
 # Deploying the Dakshayani Backend on cPanel
 
-This guide walks you through uploading the Dakshayani portal (static front end + Node.js backend API) to a cPanel hosting account that looks like the tool layout in the screenshot you shared (icons such as **File Manager**, **Terminal**, **Git Version Control**, **Setup Node.js App**, **Subdomains**, **SSL/TLS Status**, etc.). It assumes you want a working login/sign-up experience for the five dashboard personas bundled with the project (admin, customer, employee, installer, referrer).
+This guide walks you through uploading the Dakshayani site (static front end + Node.js backend API for public forms and integrations) to a cPanel hosting account that looks like the tool layout in the screenshot you shared (icons such as **File Manager**, **Terminal**, **Git Version Control**, **Setup Node.js App**, **Subdomains**, **SSL/TLS Status**, etc.).
 
-The server already ships with production-ready endpoints for authentication, dashboards, and administrative user management located at `server/index.js`. You will:
+With portal authentication retired, the Node.js server now focuses on contact flows (WhatsApp leads, calculators, etc.). You will:
 
 1. Prepare the project locally.
 2. Upload the codebase to your hosting space with **File Manager** (or **Git Version Control** if you prefer).
 3. Provision the Node.js application from **Setup Node.js App** (found under the **Software** section of your screenshot).
 4. Connect your domain or subdomain with the **Domains → Subdomains** or **Domains** icons.
-5. Issue SSL with **SSL/TLS Status** and verify that log in, sign up, and admin management work.
+5. Issue SSL with **SSL/TLS Status** and confirm the marketing site and public API endpoints respond as expected.
 
 > **Tip for first-timers:** Keep a text editor open with these instructions while you work inside cPanel so you can tick each step off as you go.
 
@@ -26,10 +26,7 @@ The server already ships with production-ready endpoints for authentication, das
    ```bash
    npm start
    ```
-   Visit `http://localhost:4000` and confirm you can:
-   * Sign in with the administrator credentials you configured in `.env`.
-   * Sign up as a new user (defaults to the referrer role).
-   * Access `customer-dashboard.html` etc. after logging in.
+   Visit `http://localhost:4000` and confirm the homepage, calculators, and contact forms behave as expected.
 
 5. Zip everything (including the `server` folder and the root HTML files) so that you have an archive ready to upload.
 
@@ -47,7 +44,6 @@ The server already ships with production-ready endpoints for authentication, das
    ```
    portal/
      index.html
-     login.html
      server/
        index.js
        data/
@@ -93,23 +89,20 @@ For primary domain usage, ensure the document root you configured is the one ser
 
 ---
 
-## 5. Verify login, signup, and admin management
+## 5. Smoke-test the deployment
 
-1. Open the URL configured in Application Manager. The static homepage should load.
-2. Navigate to `/login.html` and sign in with the administrator account you configured.
-3. Confirm that:
-   * You can switch to the admin dashboard (links in the UI) and see metrics populated by the API.
-   * The browser network tab shows requests hitting `/api/login`, `/api/me`, and `/api/dashboard/admin` successfully.
-4. Test the sign-up flow by creating a new account on `/login.html` → “Create account”. A confirmation toast should appear, and you should be redirected to the appropriate dashboard.
-5. After signing up, log back in as the admin and call the `/api/admin/users` endpoint via the dashboard or with a tool like `curl`/Postman to verify the new account is listed.
-6. Review the `server/data` folder in File Manager – the `users.json` file should now contain the new user, demonstrating that persistence works on the filesystem.
+1. Open the URL configured in Application Manager. The static homepage should load over HTTPS.
+2. Submit the consultation form on the homepage and confirm WhatsApp launches with the prefilled message.
+3. Visit `calculator.html` and ensure the savings calculator renders.
+4. Load one of the sample dashboards directly (e.g. `/admin-dashboard.html`). You should see demo data along with a notice that portal sign-in is disabled.
+5. Monitor the **View Logs** panel in Application Manager for any JSON parsing errors after each interaction.
 
 ---
 
 ## 6. Optional hardening & housekeeping
 
 * **Change default passwords**: Edit `server/data/users.json` or sign in as admin and reset passwords via the API to secure the seeded accounts.
-* **Set environment variables**: Add `MAIN_ADMIN_EMAIL` and `MAIN_ADMIN_PASSWORD` (plus optional `MAIN_ADMIN_NAME`, `MAIN_ADMIN_PHONE`, and `MAIN_ADMIN_CITY`) in Application Manager so the super admin account is seeded. You can also define other variables such as `PORT=8080` or `HOST=0.0.0.0` if needed.
+* **Set environment variables**: Define values such as `PORT=8080` or `HOST=0.0.0.0` in Application Manager if you need to override the defaults used by Passenger.
 * **Automated backups**: Use cPanel’s backup tools or configure Git Version Control to keep a copy of your data files.
 * **Log monitoring**: Application Manager exposes a **View Logs** button. Use it to tail real-time stdout and catch any JSON parsing errors from malformed requests.
 
@@ -121,8 +114,7 @@ For primary domain usage, ensure the document root you configured is the one ser
 | --- | --- | --- |
 | Visiting the URL downloads a file instead of rendering HTML | Node app not running; Apache is serving the raw file. | Ensure Application Manager shows the app as running and restart it. |
 | 503 Service Unavailable | Node process crashed or is restarting. | Check **View Logs** for stack traces, run **Restart App**. |
-| Signup returns `409` (conflict) | Email already exists in `users.json`. | Use a different email or delete the entry from `users.json`. |
-| Admin dashboard shows `401` errors | Browser lost the token. | Clear storage or log back in; tokens are in-memory and invalidated on restart. |
+| WhatsApp lead does not send | Integration not configured on the server. | Enable the WhatsApp access token or disable the quick connect button. |
 
 ---
 
@@ -132,4 +124,4 @@ For primary domain usage, ensure the document root you configured is the one ser
 * Migrate the JSON files to MySQL via cPanel’s **MySQL® Database Wizard** if you need multi-user concurrency or reporting.
 * Enable Cloudflare or another CDN in front of your domain for global performance and caching of the static assets.
 
-You now have a fully functioning login/sign-up backend running on cPanel with dashboards for every user role. Keep this document handy for future deployments or when onboarding teammates.
+You now have the Dakshayani marketing site and supporting APIs running on cPanel. Keep this document handy for future deployments or when onboarding teammates.
