@@ -3,11 +3,29 @@ session_start();
 
 date_default_timezone_set('Asia/Kolkata');
 
+require_once __DIR__ . '/portal-state.php';
+
 const ADMIN_EMAIL = 'd.entranchi@gmail.com';
 const ADMIN_PASSWORD_HASH = '$2y$12$P60S2OQ/W/h453B6A6hROuX96Ec3wVBQ8hG7Dx.G9QOkSV8D/hob.';
 
-if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin') {
-    header('Location: admin-dashboard.php');
+$dashboardRoutes = [
+    'admin' => 'admin-dashboard.php',
+    'installer' => 'installer-dashboard.php',
+    'customer' => 'customer-dashboard.php',
+    'referrer' => 'referrer-dashboard.php',
+    'employee' => 'employee-dashboard.php',
+];
+
+$roleLabels = [
+    'admin' => 'Admin',
+    'installer' => 'Installer',
+    'customer' => 'Customer',
+    'referrer' => 'Referral partner',
+    'employee' => 'Employee',
+];
+
+if (isset($_SESSION['user_role']) && isset($dashboardRoutes[$_SESSION['user_role']])) {
+    header('Location: ' . $dashboardRoutes[$_SESSION['user_role']]);
     exit;
 }
 
@@ -19,19 +37,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     $role = $_POST['role'] ?? 'admin';
 
-    if (!in_array($role, ['admin', 'installer', 'customer', 'referrer', 'employee'], true)) {
+    if (!isset($dashboardRoutes[$role])) {
         $error = 'Please select a valid account type.';
-    } elseif ($role !== 'admin') {
-        $error = 'Logins for this account type will be activated soon. Please ask the admin team to create your access.';
-    } elseif (strcasecmp($email, ADMIN_EMAIL) !== 0 || !password_verify($password, ADMIN_PASSWORD_HASH)) {
-        $error = 'Incorrect email or password. Please try again.';
+    } elseif ($role === 'admin') {
+        if (strcasecmp($email, ADMIN_EMAIL) !== 0 || !password_verify($password, ADMIN_PASSWORD_HASH)) {
+            $error = 'Incorrect email or password. Please try again.';
+        } else {
+            $_SESSION['user_role'] = 'admin';
+            $_SESSION['display_name'] = 'Dakshayani Admin';
+            $_SESSION['user_email'] = ADMIN_EMAIL;
+            $_SESSION['last_login'] = date('j F Y, g:i A');
+            try {
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+            } catch (Exception $e) {
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(16));
+            }
+            header('Location: ' . $dashboardRoutes['admin']);
+            exit;
+        }
     } else {
-        $_SESSION['user_role'] = 'admin';
-        $_SESSION['display_name'] = 'Dakshayani Admin';
-        $_SESSION['last_login'] = date('j F Y, g:i A');
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-        header('Location: admin-dashboard.php');
-        exit;
+        $state = portal_load_state();
+        $matchedUser = null;
+        foreach ($state['users'] as $user) {
+            if (strcasecmp($user['email'] ?? '', $email) === 0 && ($user['role'] ?? '') === $role) {
+                $matchedUser = $user;
+                break;
+            }
+        }
+
+        if ($matchedUser === null) {
+            $error = 'No account found for this email and role. Please contact the admin team.';
+        } elseif (($matchedUser['status'] ?? 'active') !== 'active') {
+            $statusLabel = ucwords(str_replace('-', ' ', $matchedUser['status'] ?? 'inactive'));
+            $error = "This account is currently {$statusLabel}. Please ask the admin to enable access.";
+        } elseif (empty($matchedUser['password_hash'])) {
+            $error = 'This account does not have a password yet. Please ask the admin to reset it for you.';
+        } elseif (!password_verify($password, $matchedUser['password_hash'])) {
+            $error = 'Incorrect email or password. Please try again.';
+        } else {
+            $_SESSION['user_role'] = $role;
+            $_SESSION['user_id'] = $matchedUser['id'];
+            $_SESSION['display_name'] = $matchedUser['name'] ?? 'Portal user';
+            $_SESSION['user_email'] = $matchedUser['email'] ?? $email;
+            $_SESSION['last_login'] = date('j F Y, g:i A');
+            try {
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+            } catch (Exception $e) {
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(16));
+            }
+
+            $loginIso = date('c');
+            foreach ($state['users'] as &$user) {
+                if (($user['id'] ?? '') === $matchedUser['id']) {
+                    $user['last_login'] = $loginIso;
+                    break;
+                }
+            }
+            unset($user);
+
+            portal_record_activity($state, sprintf('%s signed in as %s', $matchedUser['name'] ?? $email, $roleLabels[$role] ?? ucfirst($role)), $matchedUser['name'] ?? 'Portal user');
+            portal_save_state($state);
+
+            header('Location: ' . $dashboardRoutes[$role]);
+            exit;
+        }
     }
 }
 ?>
@@ -185,7 +254,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <main class="login-shell">
     <header>
       <h1>Portal sign in</h1>
-      <p>Choose your account type to sign in to the Dakshayani Enterprises portal. At present only the admin workspace is active.</p>
+      <p>Choose your account type to access the Dakshayani Enterprises workspace. Installers, employees, customers, and referral partners can now use their assigned credentials.</p>
     </header>
 
     <?php if ($error): ?>
@@ -198,11 +267,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="form-group">
         <label for="role">Account type</label>
         <select id="role" name="role" required>
-          <option value="admin" <?= $role === 'admin' ? 'selected' : ''; ?>>Admin</option>
-          <option value="installer" <?= $role === 'installer' ? 'selected' : ''; ?> disabled>Installer</option>
-          <option value="customer" <?= $role === 'customer' ? 'selected' : ''; ?> disabled>Customer</option>
-          <option value="referrer" <?= $role === 'referrer' ? 'selected' : ''; ?> disabled>Customer referrer</option>
-          <option value="employee" <?= $role === 'employee' ? 'selected' : ''; ?> disabled>Employee</option>
+          <?php foreach ($dashboardRoutes as $value => $route): ?>
+            <option value="<?= htmlspecialchars($value); ?>" <?= $role === $value ? 'selected' : ''; ?>><?= htmlspecialchars($roleLabels[$value] ?? ucfirst($value)); ?></option>
+          <?php endforeach; ?>
         </select>
       </div>
 
@@ -219,7 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <button type="submit" class="submit-btn">Sign in</button>
     </form>
 
-    <p class="fine-print">Need help accessing the portal? Reach out to the Dakshayani Enterprises leadership team for account setup.</p>
+    <p class="fine-print">Need help accessing the portal? Reach out to the Dakshayani Enterprises leadership team at <?= htmlspecialchars(ADMIN_EMAIL); ?> for account setup or password resets.</p>
   </main>
 </body>
 </html>

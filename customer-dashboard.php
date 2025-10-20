@@ -1,0 +1,476 @@
+<?php
+declare(strict_types=1);
+
+session_start();
+
+if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'customer') {
+  header('Location: login.php');
+  exit;
+}
+
+require_once __DIR__ . '/portal-state.php';
+
+$state = portal_load_state();
+$currentUserId = $_SESSION['user_id'] ?? '';
+$userRecord = null;
+
+foreach ($state['users'] as $user) {
+  if (($user['id'] ?? '') === $currentUserId) {
+    $userRecord = $user;
+    break;
+  }
+}
+
+$displayName = $_SESSION['display_name'] ?? ($userRecord['name'] ?? 'Customer');
+$lastLogin = $_SESSION['last_login'] ?? null;
+$userEmail = $_SESSION['user_email'] ?? ($userRecord['email'] ?? '');
+
+$roleLabels = [
+  'customer' => 'Customer',
+  'employee' => 'Employee',
+  'installer' => 'Installer',
+  'referrer' => 'Referral partner',
+  'admin' => 'Administrator',
+];
+
+$roleLabel = $roleLabels[$_SESSION['user_role']] ?? ucfirst($_SESSION['user_role']);
+$userPhone = $userRecord['phone'] ?? '—';
+$userCity = $userRecord['city'] ?? '—';
+$accountId = $userRecord['id'] ?? '—';
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Customer Dashboard | Dakshayani Enterprises</title>
+  <meta name="description" content="Customer dashboard showing your solar project status, appointments, and action items." />
+  <link rel="icon" href="images/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #10b981;
+      --muted: rgba(15, 23, 42, 0.6);
+      --border: rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: radial-gradient(circle at 20% 20%, rgba(16, 185, 129, 0.12), transparent 55%), #0f172a;
+      min-height: 100vh;
+      padding: 2.5rem 1.5rem;
+      display: flex;
+      justify-content: center;
+      color: #0f172a;
+    }
+
+    .dashboard-shell {
+      width: min(1080px, 100%);
+      background: #ffffff;
+      border-radius: 2rem;
+      padding: clamp(2rem, 4vw, 3rem);
+      box-shadow: 0 40px 70px -45px rgba(15, 23, 42, 0.65);
+      display: grid;
+      gap: clamp(1.4rem, 3vw, 2.3rem);
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+    }
+
+    .eyebrow {
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      font-size: 0.75rem;
+      color: var(--primary);
+      margin: 0 0 0.45rem;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.7rem, 3vw, 2.3rem);
+      font-weight: 700;
+    }
+
+    .subhead {
+      margin: 0;
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+
+    .logout-btn {
+      border: none;
+      background: var(--primary);
+      color: #f8fafc;
+      padding: 0.65rem 1.35rem;
+      border-radius: 999px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 20px 35px -25px rgba(16, 185, 129, 0.7);
+    }
+
+    .status-banner {
+      border-radius: 1.25rem;
+      padding: 1rem 1.2rem;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: #047857;
+      font-size: 0.95rem;
+    }
+
+    .status-banner[data-tone="error"] {
+      background: #fee2e2;
+      color: #b91c1c;
+      border-color: #fecaca;
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 1.5rem;
+      padding: clamp(1.4rem, 2.6vw, 2rem);
+      background: #f8fafc;
+      display: grid;
+      gap: 1rem;
+    }
+
+    .panel h2 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+
+    .panel .lead {
+      margin: 0;
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 1rem;
+    }
+
+    .metric-card {
+      background: #ffffff;
+      border-radius: 1.2rem;
+      padding: 1rem 1.1rem;
+      border: 1px solid rgba(16, 185, 129, 0.18);
+    }
+
+    .metric-label {
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 0.75rem;
+      color: rgba(15, 23, 42, 0.55);
+      margin: 0 0 0.3rem;
+    }
+
+    .metric-value {
+      margin: 0;
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .metric-helper {
+      margin: 0.35rem 0 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .timeline-list, .task-list, .step-list, .resource-grid {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .timeline-row, .task-row, .step-card, .resource-card {
+      background: #ffffff;
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+      padding: 0.85rem 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .timeline-label {
+      font-weight: 600;
+      margin: 0;
+      color: #0f172a;
+    }
+
+    .timeline-date, .timeline-status, .task-status, .resource-meta {
+      margin: 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .step-card {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.45rem;
+    }
+
+    .step-header {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .step-index {
+      display: inline-flex;
+      width: 2.35rem;
+      height: 2.35rem;
+      border-radius: 999px;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      color: #0f172a;
+      background: rgba(16, 185, 129, 0.14);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .step-card[data-state="done"] .step-index {
+      background: rgba(16, 185, 129, 0.28);
+    }
+
+    .step-card[data-state="pending"] .step-index {
+      background: rgba(250, 204, 21, 0.2);
+      border-color: rgba(250, 204, 21, 0.35);
+    }
+
+    .step-card[data-state="action"] {
+      border-color: rgba(220, 38, 38, 0.25);
+      box-shadow: 0 12px 20px -18px rgba(220, 38, 38, 0.55);
+    }
+
+    .step-card[data-state="action"] .step-index {
+      background: rgba(220, 38, 38, 0.16);
+      border-color: rgba(220, 38, 38, 0.45);
+    }
+
+    .step-title {
+      margin: 0;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .step-helper {
+      margin: 0;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    .resource-card {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.55rem;
+      min-height: 150px;
+    }
+
+    .resource-title {
+      margin: 0;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .resource-meta strong {
+      color: #0f172a;
+    }
+
+    .resource-actions {
+      margin-top: auto;
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .resource-actions a {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .resource-actions a:hover,
+    .resource-actions a:focus {
+      text-decoration: underline;
+    }
+
+    .details-grid {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    }
+
+    .details-grid span {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .details-grid strong {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+      color: #0f172a;
+    }
+
+    .empty {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 720px) {
+      body { padding: 1.5rem; }
+      .dashboard-shell { border-radius: 1.5rem; }
+    }
+  </style>
+</head>
+<body data-role="customer">
+  <main class="dashboard-shell">
+    <header>
+      <div>
+        <p class="eyebrow">Customer portal</p>
+        <h1>Welcome back, <?= htmlspecialchars($displayName); ?></h1>
+        <p class="subhead">
+          Signed in as <?= htmlspecialchars($_SESSION['user_email'] ?? ''); ?>
+          <?php if ($lastLogin): ?>
+            · Last login <?= htmlspecialchars($lastLogin); ?>
+          <?php endif; ?>
+        </p>
+      </div>
+      <form method="post" action="logout.php">
+        <button class="logout-btn" type="submit">Sign out</button>
+      </form>
+    </header>
+
+    <div class="status-banner" data-dashboard-status hidden></div>
+
+    <section class="panel">
+      <h2>Your project snapshot</h2>
+      <p class="lead" data-dashboard-headline>Loading overview…</p>
+    </section>
+
+    <section class="panel">
+      <h2>Key metrics</h2>
+      <div class="metric-grid" data-metrics></div>
+    </section>
+
+    <section class="panel">
+      <h2>Upcoming appointments</h2>
+      <div class="timeline-list" data-timeline></div>
+    </section>
+
+    <section class="panel">
+      <h2>Things to complete</h2>
+      <div class="task-list" data-tasks></div>
+    </section>
+
+    <section class="panel">
+      <h2>Installation tracker</h2>
+      <p class="lead">Keep an eye on the milestone steps for your rooftop system.</p>
+      <div class="step-list">
+        <article class="step-card" data-state="done">
+          <div class="step-header">
+            <span class="step-index">1</span>
+            <p class="step-title">Design package approved</p>
+          </div>
+          <p class="step-helper">Final schematics and layout shared on 28 Sep 2024.</p>
+        </article>
+        <article class="step-card" data-state="done">
+          <div class="step-header">
+            <span class="step-index">2</span>
+            <p class="step-title">Equipment dispatched</p>
+          </div>
+          <p class="step-helper">Modules and inverters reached the site warehouse on 05 Oct 2024.</p>
+        </article>
+        <article class="step-card" data-state="action">
+          <div class="step-header">
+            <span class="step-index">3</span>
+            <p class="step-title">Net metering documents</p>
+          </div>
+          <p class="step-helper">Upload the signed application so we can submit it to the DISCOM.</p>
+        </article>
+        <article class="step-card" data-state="pending">
+          <div class="step-header">
+            <span class="step-index">4</span>
+            <p class="step-title">Commissioning walkthrough</p>
+          </div>
+          <p class="step-helper">Installer will confirm your preferred slot after the electrical inspection.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Documents &amp; support</h2>
+      <div class="resource-grid">
+        <article class="resource-card">
+          <h3 class="resource-title">Project paperwork</h3>
+          <p class="resource-meta"><strong>Latest uploads:</strong> Survey report, structural assessment, financing agreement.</p>
+          <div class="resource-actions">
+            <a href="#">Download ZIP</a>
+            <a href="#">Share feedback</a>
+          </div>
+        </article>
+        <article class="resource-card">
+          <h3 class="resource-title">Your Dakshayani crew</h3>
+          <p class="resource-meta">Project manager: <strong>Rohit Kumar</strong> · +91 88000 00000</p>
+          <p class="resource-meta">Support hours: Mon–Sat, 9:00–19:00 IST</p>
+          <div class="resource-actions">
+            <a href="mailto:care@dakshayani.co.in">Email support</a>
+            <a href="#">Book a call</a>
+          </div>
+        </article>
+        <article class="resource-card">
+          <h3 class="resource-title">Knowledge centre</h3>
+          <p class="resource-meta">Guides for monitoring apps, warranty claims, and maintenance checklists.</p>
+          <div class="resource-actions">
+            <a href="#">View guides</a>
+            <a href="#">WhatsApp updates</a>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Your contact details</h2>
+      <div class="details-grid">
+        <div>
+          <strong>User ID</strong>
+          <span><?= htmlspecialchars($accountId); ?></span>
+        </div>
+        <div>
+          <strong>Role</strong>
+          <span><?= htmlspecialchars($roleLabel); ?></span>
+        </div>
+        <div>
+          <strong>Phone</strong>
+          <span><?= htmlspecialchars($userPhone === '' ? '—' : $userPhone); ?></span>
+        </div>
+        <div>
+          <strong>Email</strong>
+          <span><?= htmlspecialchars($userEmail); ?></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="portal-demo-data.js"></script>
+  <script src="dashboard-auth.js"></script>
+</body>
+</html>
