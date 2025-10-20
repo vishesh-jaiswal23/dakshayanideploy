@@ -92,6 +92,9 @@
 
   let session = parseSession();
 
+  disablePortalAccess();
+  return;
+
   function resolveApi(path) {
     if (!API_BASE) {
       return path;
@@ -515,8 +518,31 @@
     delete statusBar.dataset.tone;
   }
 
+  function disablePortalAccess() {
+    removeSession();
+
+    logoutButtons.forEach((button) => {
+      button.disabled = true;
+      button.setAttribute('aria-disabled', 'true');
+      button.textContent = 'Portal access disabled';
+    });
+
+    useDemoDashboard('Portal sign-in is disabled. Showing sample dashboard insights.');
+
+    if (role === 'admin') {
+      useDemoUserAdmin('Portal sign-in is disabled. Account management is unavailable.');
+      useDemoBlogAdmin('Portal sign-in is disabled. Blog management is unavailable.');
+      if (siteSettingsForm) {
+        toggleSiteSettingsDisabled(true);
+        showSettingsFeedback('Portal sign-in is disabled. Décor controls are unavailable.', 'error');
+      }
+    } else if (siteSettingsForm) {
+      toggleSiteSettingsDisabled(true);
+    }
+  }
+
   function redirectToLogin() {
-    window.location.href = 'login.html?loggedOut=1';
+    disablePortalAccess();
   }
 
   function bindUserDetails(user) {
