@@ -500,14 +500,21 @@
       setFeedback(loginFeedback, 'success', `Welcome back ${user.name || ''}! Redirecting to the ${user.role} dashboard…`);
       setTimeout(() => redirectToDashboard(user.role), 450);
     } catch (error) {
-      const fallback = loginWithDemo(email, password, role);
+      const fallback = demoUsers.length > 0 ? loginWithDemo(email, password, role) : null;
       if (fallback && fallback.user) {
         setFeedback(loginFeedback, 'success', `Demo mode active — redirecting to the ${fallback.user.role} dashboard.`);
         setTimeout(() => redirectToDashboard(fallback.user.role), 500);
         toggleFormDisabled(loginForm, false);
         return;
       }
-      setFeedback(loginFeedback, 'error', error.message || 'Unable to sign in right now.');
+      const fallbackHint = demoUsers.length === 0
+        ? ' Verify your administrator email and password or contact connect@dakshayani.co.in for assistance.'
+        : '';
+      setFeedback(
+        loginFeedback,
+        'error',
+        (error && error.message ? error.message : 'Unable to sign in right now.') + fallbackHint
+      );
     } finally {
       toggleFormDisabled(loginForm, false);
     }

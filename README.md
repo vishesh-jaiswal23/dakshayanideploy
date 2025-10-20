@@ -51,23 +51,12 @@ curl -s http://localhost:4000/api/dashboard/admin \
   -H "Authorization: Bearer <token>"
 ```
 
-### Demo credentials for non-admin roles
+### Secure access defaults
 
-| Role             | Email                    | Password        |
-| ---------------- | ------------------------ | --------------- |
-| Customer         | `customer@dakshayani.in` | `Customer@123`  |
-| Employee         | `employee@dakshayani.in` | `Employee@123`  |
-| Installer        | `installer@dakshayani.in`| `Installer@123` |
-| Referral partner | `referrer@dakshayani.in` | `Referrer@123`  |
-
-For a full end-to-end run, open `login.html` in a browser (or via the server above) and sign in with the published demo accounts. Each dashboard page will automatically fetch its data once authenticated.
-
-### Sign up vs. log in cheatsheet
-
-1. **Log in** – Choose your portal role on the login form, enter the matching email/password pair, then submit. Successful logins redirect to the role-specific dashboard. When the API is offline (for example on cPanel), the same form validates the bundled demo accounts entirely in the browser.
-2. **Sign up** – Complete the “Create a new account” form with your name, email, password, optional phone/city, and preferred role. On self-hosted installs the Node.js API creates the account instantly and signs you in. On static-only deployments the form shows contact details (`connect@dakshayani.co.in`) so the team can activate your access manually.
-
-> **Tip:** reCAPTCHA is optional. When the site key and secret are left at their placeholders (common on cPanel while you finish DNS verification), the API now treats missing tokens as a demo-mode bypass so real logins and signups still work.
+- The PHP backend now reads a `.env` file automatically (it looks in the project root and `server/` directories). Define `MAIN_ADMIN_*` there to seed your super administrator without committing secrets to version control.
+- Only the main administrator is created automatically. Add additional users from the admin dashboard after signing in.
+- Public self-signup and offline demo credentials are disabled to keep production data safe. Prospective users should email `connect@dakshayani.co.in` so the operations team can provision access.
+- reCAPTCHA remains optional — if the secret is blank the API skips verification while still requiring valid credentials.
 
 ### Deploying on cPanel
 

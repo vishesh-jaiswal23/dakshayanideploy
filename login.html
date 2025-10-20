@@ -507,7 +507,7 @@
       <div class="form-stack">
         <div class="form-section">
           <h2>Welcome back</h2>
-          <p class="form-subtitle">Sign in with your Dakshayani portal credentials.</p>
+          <p class="form-subtitle">Only administrator accounts configured by Dakshayani Enterprises can access the portal.</p>
           <form data-login-form class="login-form" autocomplete="on">
             <div>
               <label for="login-email">Email address</label>
@@ -533,36 +533,10 @@
                 >Show</button>
               </div>
             </div>
-            <div class="quick-demo" role="group" aria-labelledby="quick-demo-heading">
-              <p id="quick-demo-heading" class="quick-demo-title">Quick demo logins</p>
-              <div class="quick-demo-grid">
-                <button type="button" class="quick-demo-button" data-demo-role="customer" aria-pressed="false">
-                  <span class="quick-demo-label">Customer</span>
-                  <span class="quick-demo-credentials">customer@dakshayani.in • Customer@123</span>
-                </button>
-                <button type="button" class="quick-demo-button" data-demo-role="employee" aria-pressed="false">
-                  <span class="quick-demo-label">Employee</span>
-                  <span class="quick-demo-credentials">employee@dakshayani.in • Employee@123</span>
-                </button>
-                <button type="button" class="quick-demo-button" data-demo-role="installer" aria-pressed="false">
-                  <span class="quick-demo-label">Installer</span>
-                  <span class="quick-demo-credentials">installer@dakshayani.in • Installer@123</span>
-                </button>
-                <button type="button" class="quick-demo-button" data-demo-role="referrer" aria-pressed="false">
-                  <span class="quick-demo-label">Referral partner</span>
-                  <span class="quick-demo-credentials">referrer@dakshayani.in • Referrer@123</span>
-                </button>
-              </div>
-              <p class="form-note" data-demo-helper>Tap a role to autofill the available demo credentials.</p>
-            </div>
             <div>
               <label for="login-role">Choose a portal</label>
               <select id="login-role" name="role" required>
                 <option value="admin">Administrator</option>
-                <option value="customer">Customer</option>
-                <option value="employee">Employee</option>
-                <option value="installer">Installer</option>
-                <option value="referrer">Referral partner</option>
               </select>
             </div>
             <label class="consent-checkbox">
@@ -575,156 +549,35 @@
             </div>
             <p class="feedback" data-login-feedback role="status" aria-live="assertive"></p>
             <button type="submit">Log in</button>
-            <p class="form-note">Forgot your password? Email <a href="mailto:connect@dakshayani.co.in">connect@dakshayani.co.in</a> for a reset.</p>
+            <p class="form-note">Forgot your password? Email <a href="mailto:connect@dakshayani.co.in">connect@dakshayani.co.in</a> for a secure reset.</p>
           </form>
         </div>
 
         <div class="form-section form-section--accent">
-          <h2>Create a new account</h2>
-          <p class="form-subtitle">Track subsidy progress, manage referrals, or support customers with a personalised login.</p>
-          <form data-signup-form class="login-form" autocomplete="on">
-            <div class="fieldset-grid">
-              <div>
-                <label for="signup-name">Full name</label>
-                <input type="text" id="signup-name" name="name" placeholder="Your name" autocomplete="name" required />
-              </div>
-              <div>
-                <label for="signup-email">Email address</label>
-                <input type="email" id="signup-email" name="email" placeholder="you@dakshayani.in" autocomplete="email" required />
-              </div>
-            </div>
-            <div class="fieldset-grid">
-              <div>
-                <label for="signup-phone">Phone</label>
-                <input type="tel" id="signup-phone" name="phone" placeholder="e.g. +91 90000 00000" autocomplete="tel" />
-              </div>
-              <div>
-                <label for="signup-city">City</label>
-                <input type="text" id="signup-city" name="city" placeholder="Ranchi, Jamshedpur…" autocomplete="address-level2" />
-              </div>
-            </div>
-            <div>
-              <label for="signup-role">Portal role</label>
-              <select id="signup-role" name="role" required>
-                <option value="customer">Customer</option>
-                <option value="referrer">Referral partner</option>
-                <option value="employee">Employee</option>
-                <option value="installer">Installer</option>
-              </select>
-            </div>
-            <div>
-              <label for="signup-password">Create password</label>
-              <div class="input-with-toggle">
-                <input
-                  type="password"
-                  id="signup-password"
-                  name="password"
-                  placeholder="Minimum 8 characters"
-                  autocomplete="new-password"
-                  required
-                />
-                <button
-                  type="button"
-                  class="password-toggle"
-                  data-password-toggle="signup-password"
-                  aria-controls="signup-password"
-                  aria-pressed="false"
-                >Show</button>
-              </div>
-              <div class="password-meter" data-password-meter>
-                <div class="password-meter-bar" data-password-meter-bar></div>
-                <span class="password-meter-label" data-password-meter-label>Password strength</span>
-              </div>
-            </div>
-            <div>
-              <label for="signup-password-confirm">Confirm password</label>
-              <div class="input-with-toggle">
-                <input
-                  type="password"
-                  id="signup-password-confirm"
-                  name="confirmPassword"
-                  placeholder="Re-type password"
-                  autocomplete="new-password"
-                  required
-                />
-                <button
-                  type="button"
-                  class="password-toggle"
-                  data-password-toggle="signup-password-confirm"
-                  aria-controls="signup-password-confirm"
-                  aria-pressed="false"
-                >Show</button>
-              </div>
-            </div>
-            <label class="consent-checkbox">
-              <input type="checkbox" name="consent" value="yes" required />
-              <span>I agree to Dakshayani Enterprises storing my details to set up portal access.</span>
-            </label>
-            <label class="consent-checkbox">
-              <input type="checkbox" name="marketing" value="yes" />
-              <span>Keep me posted about subsidies, training, and partner rewards.</span>
-            </label>
-            <p class="feedback" data-signup-feedback role="status" aria-live="assertive"></p>
-            <button type="submit">Create my portal access</button>
-            <p class="form-note">By continuing you agree to Dakshayani Enterprises' privacy policy and responsible data usage.</p>
-          </form>
+          <h2>Need a portal account?</h2>
+          <p class="form-subtitle">Self-registration is disabled to protect customer data. The operations team will provision access for trusted partners.</p>
+          <div class="login-form" style="gap: 1rem;">
+            <p style="margin: 0; color: rgba(15, 23, 42, 0.78);">To request access:</p>
+            <ul style="margin: 0; padding-left: 1.2rem; display: grid; gap: 0.35rem; color: rgba(15, 23, 42, 0.75);">
+              <li>Email <a href="mailto:connect@dakshayani.co.in">connect@dakshayani.co.in</a> with your name, organisation, and role.</li>
+              <li>The admin team will verify your details and send a secure activation link.</li>
+              <li>Once approved, you can set your password and log in from this page.</li>
+            </ul>
+            <p class="form-note" style="margin: 0;">If you already received credentials, sign in using the form on the left.</p>
+          </div>
         </div>
       </div>
 
       <div class="form-divider"></div>
 
       <div>
-        <h2 style="margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 700; color: #0f172a;">How to log in</h2>
+        <h2 style="margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 700; color: #0f172a;">Secure access checklist</h2>
         <ol style="margin: 0 0 1.35rem 1.25rem; color: rgba(15, 23, 42, 0.75); font-size: 0.95rem; display: grid; gap: 0.55rem;">
-          <li>Pick the matching role from the <strong>Choose a portal</strong> dropdown (Admin, Customer, Employee, Installer, or Referral partner).</li>
-          <li>Enter the email address and password for that role. You can tap one of the <strong>Quick demo</strong> tiles to auto-fill credentials for the public demo accounts.</li>
-          <li>Hit <strong>Log in</strong>. A success message appears and the portal redirects you to the correct dashboard.</li>
-          <li>If the backend API is offline (for example on static cPanel hosting), the same form validates the demo accounts right in your browser.</li>
+          <li>Confirm that the portal server has the correct administrator email and password set in its <strong>.env</strong> configuration.</li>
+          <li>Enter the same email address and password shared with you by the operations team.</li>
+          <li>Click <strong>Log in</strong>. A success message will appear and you will be redirected to the administrator dashboard.</li>
+          <li>If you see an error, contact <a href="mailto:connect@dakshayani.co.in">connect@dakshayani.co.in</a> for support.</li>
         </ol>
-
-        <h2 style="margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 700; color: #0f172a;">How to sign up</h2>
-        <ol style="margin: 0 0 1.35rem 1.25rem; color: rgba(15, 23, 42, 0.75); font-size: 0.95rem; display: grid; gap: 0.55rem;">
-          <li>Fill in your name, email, and a strong password in the <strong>Create a new account</strong> form.</li>
-          <li>Add your phone number and city (optional) so the Dakshayani team can reach you with project updates.</li>
-          <li>Select the role that best fits you. Customers can track project progress, referral partners monitor rewards, installers and employees manage daily work.</li>
-          <li>Submit the form to create your portal login. Successful signups immediately open the chosen dashboard. If the live API is unavailable, email <a href="mailto:connect@dakshayani.co.in">connect@dakshayani.co.in</a> and the team will provision access manually.</li>
-        </ol>
-
-        <h2 style="margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 700; color: #0f172a;">Demo credentials (works offline)</h2>
-        <div style="overflow-x: auto; border-radius: 1rem; border: 1px solid rgba(15, 23, 42, 0.08);">
-          <table>
-            <thead>
-              <tr>
-                <th>Portal</th>
-                <th>Email</th>
-                <th>Password</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Customer</td>
-                <td><code>customer@dakshayani.in</code></td>
-                <td><code>Customer@123</code></td>
-              </tr>
-              <tr>
-                <td>Employee</td>
-                <td><code>employee@dakshayani.in</code></td>
-                <td><code>Employee@123</code></td>
-              </tr>
-              <tr>
-                <td>Installer</td>
-                <td><code>installer@dakshayani.in</code></td>
-                <td><code>Installer@123</code></td>
-              </tr>
-              <tr>
-                <td>Referral partner</td>
-                <td><code>referrer@dakshayani.in</code></td>
-                <td><code>Referrer@123</code></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p class="notice" style="margin-top: 0.75rem;">Select the matching role above, enter the email and password, and you will be redirected instantly to the corresponding dashboard.</p>
       </div>
     </section>
   </div>

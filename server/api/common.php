@@ -1,6 +1,87 @@
 <?php
 declare(strict_types=1);
 
+function set_env_value(string $key, string $value): void
+{
+    if ($key === '') {
+        return;
+    }
+
+    $_ENV[$key] = $value;
+    $_SERVER[$key] = $value;
+
+    if ($value === '') {
+        putenv($key);
+    } else {
+        putenv($key . '=' . $value);
+    }
+}
+
+function load_env_file(?string $path = null): void
+{
+    static $loaded = false;
+    if ($loaded) {
+        return;
+    }
+    $loaded = true;
+
+    $candidates = [];
+    if ($path !== null) {
+        $candidates[] = $path;
+    }
+    $candidates[] = dirname(__DIR__, 2) . '/.env';
+    $candidates[] = dirname(__DIR__) . '/.env';
+    $candidates[] = __DIR__ . '/.env';
+
+    foreach ($candidates as $candidate) {
+        if (!is_string($candidate) || $candidate === '') {
+            continue;
+        }
+        if (!is_file($candidate) || !is_readable($candidate)) {
+            continue;
+        }
+
+        $lines = file($candidate, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines === false) {
+            continue;
+        }
+
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || $trimmed[0] === '#') {
+                continue;
+            }
+            $separatorPosition = strpos($trimmed, '=');
+            if ($separatorPosition === false) {
+                continue;
+            }
+            $key = trim(substr($trimmed, 0, $separatorPosition));
+            if ($key === '') {
+                continue;
+            }
+
+            if (array_key_exists($key, $_ENV) || array_key_exists($key, $_SERVER) || getenv($key) !== false) {
+                continue;
+            }
+
+            $value = trim(substr($trimmed, $separatorPosition + 1));
+            $length = strlen($value);
+            if ($length >= 2) {
+                $first = $value[0];
+                $last = $value[$length - 1];
+                if (($first === '"' && $last === '"') || ($first === "'" && $last === "'")) {
+                    $value = substr($value, 1, $length - 2);
+                }
+            }
+            $value = str_replace(['\\n', '\\r'], ["\n", "\r"], $value);
+
+            set_env_value($key, $value);
+        }
+    }
+}
+
+load_env_file();
+
 function env_string(string $key, ?string $default = null): ?string
 {
     $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key);
@@ -31,6 +112,23 @@ function env_list(array $keys): array
         }
     }
     return $results;
+}
+
+function env_bool(string $key, bool $default = false): bool
+{
+    $value = env_string($key);
+    if ($value === null) {
+        return $default;
+    }
+
+    $normalised = strtolower($value);
+    if (in_array($normalised, ['1', 'true', 'yes', 'on'], true)) {
+        return true;
+    }
+    if (in_array($normalised, ['0', 'false', 'no', 'off'], true)) {
+        return false;
+    }
+    return $default;
 }
 
 const DATA_DIR = __DIR__ . '/../data';
@@ -347,12 +445,12 @@ function seed_users(array $existing): array
     }
 
     $seedTimestamp = gmdate('c');
-    $mainAdminEmail = normalise_email(getenv('MAIN_ADMIN_EMAIL') ?: null);
-    $mainAdminPassword = getenv('MAIN_ADMIN_PASSWORD') ?: null;
-    $mainAdminName = trim((string) (getenv('MAIN_ADMIN_NAME') ?: 'Head Administrator'));
+    $mainAdminEmail = normalise_email(env_string('MAIN_ADMIN_EMAIL'));
+    $mainAdminPassword = env_string('MAIN_ADMIN_PASSWORD');
+    $mainAdminName = trim((string) (env_string('MAIN_ADMIN_NAME', 'Head Administrator') ?? 'Head Administrator'));
     $mainAdminName = $mainAdminName !== '' ? $mainAdminName : 'Head Administrator';
-    $mainAdminPhone = trim((string) (getenv('MAIN_ADMIN_PHONE') ?: ''));
-    $mainAdminCity = trim((string) (getenv('MAIN_ADMIN_CITY') ?: ''));
+    $mainAdminPhone = trim((string) (env_string('MAIN_ADMIN_PHONE') ?? ''));
+    $mainAdminCity = trim((string) (env_string('MAIN_ADMIN_CITY') ?? ''));
 
     $seeders = [];
 
@@ -376,69 +474,6 @@ function seed_users(array $existing): array
     } elseif ($mainAdminEmail || $mainAdminPassword) {
         error_log('MAIN_ADMIN configuration incomplete. Please set both MAIN_ADMIN_EMAIL and MAIN_ADMIN_PASSWORD.');
     }
-
-    $seeders += [
-        'customer@dakshayani.in' => function () {
-            $timestamp = gmdate('c');
-            return [
-                'id' => 'usr-customer-1',
-                'name' => 'Asha Verma',
-                'email' => 'customer@dakshayani.in',
-                'phone' => '+91 90000 00000',
-                'city' => 'Jamshedpur',
-                'role' => 'customer',
-                'status' => 'active',
-                'password' => create_password_record('Customer@123'),
-                'createdAt' => $timestamp,
-                'updatedAt' => $timestamp,
-            ];
-        },
-        'employee@dakshayani.in' => function () {
-            $timestamp = gmdate('c');
-            return [
-                'id' => 'usr-employee-1',
-                'name' => 'Rohit Kumar',
-                'email' => 'employee@dakshayani.in',
-                'phone' => '+91 88000 00000',
-                'city' => 'Bokaro',
-                'role' => 'employee',
-                'status' => 'active',
-                'password' => create_password_record('Employee@123'),
-                'createdAt' => $timestamp,
-                'updatedAt' => $timestamp,
-            ];
-        },
-        'installer@dakshayani.in' => function () {
-            $timestamp = gmdate('c');
-            return [
-                'id' => 'usr-installer-1',
-                'name' => 'Sunita Singh',
-                'email' => 'installer@dakshayani.in',
-                'phone' => '+91 86000 00000',
-                'city' => 'Dhanbad',
-                'role' => 'installer',
-                'status' => 'active',
-                'password' => create_password_record('Installer@123'),
-                'createdAt' => $timestamp,
-                'updatedAt' => $timestamp,
-            ];
-        },
-        'referrer@dakshayani.in' => function () {
-            $timestamp = gmdate('c');
-            return [
-                'id' => 'usr-referrer-1',
-                'name' => 'Sanjay Patel',
-                'email' => 'referrer@dakshayani.in',
-                'phone' => '+91 94000 00000',
-                'city' => 'Hazaribagh',
-                'role' => 'referrer',
-                'status' => 'active',
-                'password' => create_password_record('Referrer@123'),
-                'createdAt' => $timestamp,
-                'updatedAt' => $timestamp,
-            ];
-        },
-    ];
 
     foreach ($seeders as $email => $builder) {
         if (!isset($byEmail[$email])) {

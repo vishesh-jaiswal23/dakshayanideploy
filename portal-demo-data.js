@@ -1,11 +1,4 @@
 (function () {
-  const users = [
-    { id: 'customer-1', role: 'customer', name: 'Asha Verma', email: 'customer@dakshayani.in', password: 'Customer@123', phone: '+91 90000 00000', city: 'Jamshedpur' },
-    { id: 'employee-1', role: 'employee', name: 'Rohit Kumar', email: 'employee@dakshayani.in', password: 'Employee@123', phone: '+91 88000 00000', city: 'Bokaro' },
-    { id: 'installer-1', role: 'installer', name: 'Sunita Singh', email: 'installer@dakshayani.in', password: 'Installer@123', phone: '+91 86000 00000', city: 'Dhanbad' },
-    { id: 'referrer-1', role: 'referrer', name: 'Sanjay Patel', email: 'referrer@dakshayani.in', password: 'Referrer@123', phone: '+91 94000 00000', city: 'Hazaribagh' }
-  ];
-
   const dashboards = {
     admin: {
       headline: 'Company operations overview',
@@ -99,5 +92,5 @@
     }
   };
 
-  window.DAKSHAYANI_PORTAL_DEMO = Object.freeze({ users, dashboards });
+  window.DAKSHAYANI_PORTAL_DEMO = Object.freeze({ users: [], dashboards });
 })();
