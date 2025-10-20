@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['user_role'] = 'admin';
         $_SESSION['display_name'] = 'Dakshayani Admin';
         $_SESSION['last_login'] = date('j F Y, g:i A');
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         header('Location: admin-dashboard.php');
         exit;
     }
