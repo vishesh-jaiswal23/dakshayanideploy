@@ -1,3 +1,14 @@
+<?php
+session_start();
+
+if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
+  header('Location: login.php');
+  exit;
+}
+
+$displayName = $_SESSION['display_name'] ?? 'Administrator';
+$lastLogin = $_SESSION['last_login'] ?? null;
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -670,10 +681,18 @@
     <header class="dashboard-header">
       <div>
         <p class="eyebrow">Admin portal</p>
-        <h1>Hello, <span data-user-name>Admin</span></h1>
-        <p class="subhead">Signed in as <span data-user-email>your account</span></p>
+        <h1>Hello, <span data-user-name><?= htmlspecialchars($displayName); ?></span></h1>
+        <p class="subhead">
+          <?php if ($lastLogin): ?>
+            Last signed in on <?= htmlspecialchars($lastLogin); ?>.
+          <?php else: ?>
+            You're securely signed in to the Dakshayani Enterprises control centre.
+          <?php endif; ?>
+        </p>
       </div>
-      <button class="logout-btn" type="button" data-logout>Sign out</button>
+      <form method="post" action="logout.php">
+        <button class="logout-btn" type="submit" data-logout>Sign out</button>
+      </form>
     </header>
 
     <div class="status-banner" data-dashboard-status hidden></div>
