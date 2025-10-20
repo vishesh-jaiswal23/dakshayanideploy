@@ -38,7 +38,7 @@ The frontend JavaScript still calls URLs like `/api/login`. Because the PHP file
 ## 4. Verify the API
 1. Visit `https://yourdomain.com/api` in your browser. You should see a JSON response confirming the API is reachable.
 2. Visit `https://yourdomain.com/api/me`. You should see a JSON response with `{ "authenticated": false }`.
-3. Open the developer console on the login page and log in with the main admin (`d.entranchi@gmail.com / Dakshayani@2311`).
+3. Open the developer console on the login page and log in with the administrator credentials you configured via the `MAIN_ADMIN_*` environment variables.
 4. The Network tab should show a `200` response for `/api/login`. Any `404` at this stage means the root `.htaccess` bridge is either missing or not saved correctly.
 
 If you run into other issues, share the exact response body and the contents of both `.htaccess` files so we can troubleshoot further.

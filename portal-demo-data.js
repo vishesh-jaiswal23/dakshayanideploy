@@ -1,7 +1,5 @@
 (function () {
   const users = [
-    { id: 'admin-head', role: 'admin', name: 'Vishesh Entranchi', email: 'd.entranchi@gmail.com', password: 'Dakshayani@2311', phone: '+91 70702 78178', city: 'Ranchi', superAdmin: true },
-    { id: 'admin-1', role: 'admin', name: 'Dakshayani Admin', email: 'admin@dakshayani.in', password: 'Admin@123', phone: '+91 70000 00000', city: 'Ranchi' },
     { id: 'customer-1', role: 'customer', name: 'Asha Verma', email: 'customer@dakshayani.in', password: 'Customer@123', phone: '+91 90000 00000', city: 'Jamshedpur' },
     { id: 'employee-1', role: 'employee', name: 'Rohit Kumar', email: 'employee@dakshayani.in', password: 'Employee@123', phone: '+91 88000 00000', city: 'Bokaro' },
     { id: 'installer-1', role: 'installer', name: 'Sunita Singh', email: 'installer@dakshayani.in', password: 'Installer@123', phone: '+91 86000 00000', city: 'Dhanbad' },

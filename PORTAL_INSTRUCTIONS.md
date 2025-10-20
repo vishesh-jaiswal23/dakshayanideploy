@@ -57,7 +57,7 @@ You should see a version number such as `v18.x.x`.
    http://localhost:4000/login.html
    ```
 
-2. The login page now lists the demo email and password for every role. You can also click **Use demo admin** to auto-fill the administrator details.
+2. The login page now lists the demo email and password for the customer, employee, installer, and referral partner roles so you can explore each dashboard quickly.
 
 3. Select the appropriate role from the *Login as* dropdown before signing in.
 
@@ -65,18 +65,16 @@ You should see a version number such as `v18.x.x`.
 
 ## 4. Demo accounts
 
-These accounts are pre-loaded automatically each time the server starts. Use the credentials below to explore each dashboard:
+These demo accounts are pre-loaded automatically each time the server starts. Use the credentials below to explore each dashboard:
 
-| Role                | Email                     | Password          |
-| ------------------- | ------------------------- | ----------------- |
-| Head administrator  | `d.entranchi@gmail.com`   | `Dakshayani@2311` |
-| Administrator       | `admin@dakshayani.in`     | `Admin@123`       |
-| Customer            | `customer@dakshayani.in`  | `Customer@123`    |
-| Employee            | `employee@dakshayani.in`  | `Employee@123`    |
-| Installer           | `installer@dakshayani.in` | `Installer@123`   |
-| Referral partner    | `referrer@dakshayani.in`  | `Referrer@123`    |
+| Role             | Email                     | Password        |
+| ---------------- | ------------------------- | --------------- |
+| Customer         | `customer@dakshayani.in`  | `Customer@123`  |
+| Employee         | `employee@dakshayani.in`  | `Employee@123`  |
+| Installer        | `installer@dakshayani.in` | `Installer@123` |
+| Referral partner | `referrer@dakshayani.in`  | `Referrer@123`  |
 
-> **Tip:** When you log in successfully, you will be redirected automatically to the matching `*-dashboard.html` page for your role.
+> **Tip:** Configure your real administrator credentials with the `MAIN_ADMIN_*` environment variables before deploying. When you log in successfully, you will be redirected automatically to the matching `*-dashboard.html` page for your role.
 
 ---
 
