@@ -12,9 +12,15 @@ if (strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
 $body = read_request_json();
 $email = normalise_email($body['email'] ?? '');
 $password = (string) ($body['password'] ?? '');
+$recaptchaToken = (string) ($body['recaptchaToken'] ?? '');
 
 if ($email === '' || $password === '') {
     send_error(400, 'Email and password are required.');
+}
+
+$recaptcha = verify_recaptcha_token($recaptchaToken, $_SERVER['REMOTE_ADDR'] ?? null);
+if (!$recaptcha['success'] && empty($recaptcha['skipped'])) {
+    send_error(400, 'reCAPTCHA validation failed. Please try again.');
 }
 
 $users = read_users();

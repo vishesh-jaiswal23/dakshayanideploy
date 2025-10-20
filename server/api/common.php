@@ -1,6 +1,38 @@
 <?php
 declare(strict_types=1);
 
+function env_string(string $key, ?string $default = null): ?string
+{
+    $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key);
+    if ($value === false) {
+        $value = null;
+    }
+    if ($value === null) {
+        return $default;
+    }
+    $value = trim((string) $value);
+    return $value === '' ? $default : $value;
+}
+
+function env_list(array $keys): array
+{
+    $results = [];
+    foreach ($keys as $key) {
+        $value = env_string($key);
+        if ($value === null) {
+            continue;
+        }
+        $parts = preg_split('/[,\s]+/', $value, -1, PREG_SPLIT_NO_EMPTY);
+        foreach ($parts as $part) {
+            $item = trim($part);
+            if ($item !== '' && !in_array($item, $results, true)) {
+                $results[] = $item;
+            }
+        }
+    }
+    return $results;
+}
+
 const DATA_DIR = __DIR__ . '/../data';
 const USERS_FILE = DATA_DIR . '/users.json';
 const ROLE_OPTIONS = ['admin', 'customer', 'employee', 'installer', 'referrer'];
@@ -8,6 +40,37 @@ const USER_STATUSES = ['active', 'suspended'];
 const PASSWORD_ITERATIONS = 100000;
 const PASSWORD_LENGTH = 64;
 const PASSWORD_ALGO = 'sha512';
+
+if (!defined('JWT_SECRET')) {
+    $jwtSecret = env_string('JWT_SECRET', 'change-me') ?? 'change-me';
+    define('JWT_SECRET', $jwtSecret);
+}
+
+if (!defined('JWT_TTL_SECONDS')) {
+    $jwtTtl = (int) (env_string('JWT_TTL', '21600') ?? '21600');
+    if ($jwtTtl <= 0) {
+        $jwtTtl = 21600;
+    }
+    define('JWT_TTL_SECONDS', $jwtTtl);
+}
+
+if (!defined('GOOGLE_RECAPTCHA_SECRET')) {
+    $recaptchaSecret = env_string('GOOGLE_RECAPTCHA_SECRET');
+    if ($recaptchaSecret === null) {
+        $recaptchaSecret = env_string('RECAPTCHA_SECRET', '');
+    }
+    define('GOOGLE_RECAPTCHA_SECRET', $recaptchaSecret ?? '');
+}
+
+if (!defined('GOOGLE_CLIENT_IDS')) {
+    $clientIds = env_list([
+        'GOOGLE_CLIENT_ID',
+        'GOOGLE_CLIENT_IDS',
+        'DAKSHAYANI_GOOGLE_CLIENT_ID',
+        'DAKSHAYANI_GOOGLE_CLIENT_IDS',
+    ]);
+    define('GOOGLE_CLIENT_IDS', $clientIds);
+}
 
 function respond_with_cors_headers(): void
 {
@@ -104,6 +167,140 @@ function verify_password(string $password, array $record): bool
     return hash_equals($expected, $candidate);
 }
 
+function base64url_encode(string $value): string
+{
+    return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+}
+
+function create_jwt(array $claims, int $ttlSeconds = JWT_TTL_SECONDS): string
+{
+    $secret = (string) JWT_SECRET;
+    if ($secret === '') {
+        return '';
+    }
+
+    $issuedAt = time();
+    $payload = array_merge([
+        'iat' => $issuedAt,
+        'exp' => $issuedAt + max($ttlSeconds, 60),
+    ], $claims);
+
+    $header = ['alg' => 'HS256', 'typ' => 'JWT'];
+    $segments = [
+        base64url_encode(json_encode($header, JSON_UNESCAPED_SLASHES)),
+        base64url_encode(json_encode($payload, JSON_UNESCAPED_SLASHES)),
+    ];
+
+    $signature = hash_hmac('sha256', implode('.', $segments), $secret, true);
+    $segments[] = base64url_encode($signature);
+
+    return implode('.', $segments);
+}
+
+function verify_recaptcha_token(?string $token, ?string $remoteIp = null): array
+{
+    $secret = (string) GOOGLE_RECAPTCHA_SECRET;
+    $trimmedToken = trim((string) $token);
+
+    if ($secret === '') {
+        return [
+            'success' => true,
+            'skipped' => true,
+        ];
+    }
+
+    if ($trimmedToken === '') {
+        return [
+            'success' => false,
+            'skipped' => false,
+            'error' => 'missing-input-response',
+        ];
+    }
+
+    $payload = http_build_query([
+        'secret' => $secret,
+        'response' => $trimmedToken,
+        'remoteip' => $remoteIp ?? '',
+    ], '', '&');
+
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+            'content' => $payload,
+            'timeout' => 6,
+        ],
+    ]);
+
+    $response = @file_get_contents('https://www.google.com/recaptcha/api/siteverify', false, $context);
+    if ($response === false) {
+        return [
+            'success' => false,
+            'skipped' => false,
+            'error' => 'request-failed',
+        ];
+    }
+
+    $data = json_decode($response, true);
+    if (!is_array($data)) {
+        return [
+            'success' => false,
+            'skipped' => false,
+            'error' => 'invalid-response',
+        ];
+    }
+
+    return [
+        'success' => (bool) ($data['success'] ?? false),
+        'score' => isset($data['score']) ? (float) $data['score'] : null,
+        'action' => isset($data['action']) ? (string) $data['action'] : null,
+        'errorCodes' => $data['error-codes'] ?? [],
+        'skipped' => false,
+    ];
+}
+
+function verify_google_id_token(string $token): array
+{
+    $trimmedToken = trim($token);
+    if ($trimmedToken === '') {
+        throw new RuntimeException('Missing Google ID token');
+    }
+
+    $allowedAudiences = GOOGLE_CLIENT_IDS;
+    if (empty($allowedAudiences)) {
+        throw new RuntimeException('Google Sign-In is not configured');
+    }
+
+    $url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode($trimmedToken);
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'timeout' => 6,
+        ],
+    ]);
+
+    $response = @file_get_contents($url, false, $context);
+    if ($response === false) {
+        throw new RuntimeException('Google token verification failed');
+    }
+
+    $profile = json_decode($response, true);
+    if (!is_array($profile) || !isset($profile['aud'])) {
+        throw new RuntimeException('Invalid Google token response');
+    }
+
+    $audience = (string) $profile['aud'];
+    if (!in_array($audience, $allowedAudiences, true)) {
+        throw new RuntimeException('Google token audience mismatch');
+    }
+
+    if (isset($profile['email_verified']) && !$profile['email_verified']) {
+        throw new RuntimeException('Google email address is not verified');
+    }
+
+    return $profile;
+}
+
 function ensure_user_shape(array $user): array
 {
     $email = normalise_email($user['email'] ?? '');
@@ -118,12 +315,15 @@ function ensure_user_shape(array $user): array
         $user['role'] = 'referrer';
     }
     $user['status'] = in_array($user['status'] ?? '', USER_STATUSES, true) ? $user['status'] : 'active';
+    $user['provider'] = $user['provider'] ?? 'local';
+    $user['marketingOptIn'] = !empty($user['marketingOptIn']);
     $user['superAdmin'] = !empty($user['superAdmin']) && $user['role'] === 'admin';
     $now = gmdate('c');
     $createdAt = $user['createdAt'] ?? $now;
     $user['createdAt'] = $createdAt;
     $user['updatedAt'] = $user['updatedAt'] ?? $createdAt;
     $user['passwordChangedAt'] = $user['passwordChangedAt'] ?? $user['updatedAt'];
+    $user['lastLoginAt'] = $user['lastLoginAt'] ?? null;
     if (!isset($user['password']) || !is_array($user['password']) || empty($user['password']['salt'])) {
         $user['password'] = create_password_record('ChangeMe@123');
     }
@@ -419,9 +619,14 @@ function issue_session_tokens(array $user): array
     session_regenerate_id(true);
     $_SESSION['user_id'] = $user['id'];
     $_SESSION['last_seen'] = time();
+    $jwt = create_jwt([
+        'sub' => $user['id'],
+        'email' => $user['email'] ?? '',
+        'role' => $user['role'] ?? 'referrer',
+    ]);
     return [
         'token' => session_id(),
-        'jwt' => null,
+        'jwt' => $jwt !== '' ? $jwt : null,
         'user' => sanitize_user($user),
     ];
 }
