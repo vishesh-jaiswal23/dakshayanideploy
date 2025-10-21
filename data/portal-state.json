@@ -1,5 +1,5 @@
 {
-  "last_updated": "2024-10-20T00:00:00+05:30",
+  "last_updated": "2024-01-01T00:00:00+05:30",
   "site_settings": {
     "company_focus": "Utility-scale and rooftop solar EPC projects, O&M, and financing assistance across Jharkhand and Bihar.",
     "primary_contact": "Deepak Entranchi",
@@ -7,19 +7,31 @@
     "support_phone": "+91 62030 01452",
     "announcement": "Welcome to the live operations console. Track projects, team workload, and customer updates in real time."
   },
-  "users": [
-    {
-      "id": "usr_admin",
-      "name": "Dakshayani Admin",
-      "email": "d.entranchi@gmail.com",
-      "role": "admin",
-      "phone": "+91 62030 01452",
-      "status": "active",
-      "notes": "Primary organisation owner.",
-      "created_at": "2024-01-05",
-      "password_hash": ""
-    }
-  ],
+  "site_theme": {
+    "active_theme": "evergreen",
+    "season_label": "Evergreen Solar Savings",
+    "accent_color": "#2563eb",
+    "background_image": "",
+    "announcement": "Energy independence for every household and MSME in Jharkhand."
+  },
+  "home_hero": {
+    "title": "Cut Your Electricity Bills. Power Your Future.",
+    "subtitle": "Join 500+ Jharkhand families saving lakhs with dependable rooftop and hybrid solar solutions designed around you.",
+    "image": "images/hero/hero.png",
+    "image_caption": "Live commissioning | Ranchi",
+    "bubble_heading": "24/7 monitoring",
+    "bubble_body": "Hybrid + storage ready",
+    "bullets": [
+      "Guaranteed MNRE/JREDA subsidy filing & DISCOM approvals in 21 days",
+      "Bank tie-ups for hassle-free EMI plans and zero-cost rooftop upgrades",
+      "Hybrid-ready systems with 24×7 monitoring and annual health audits"
+    ]
+  },
+  "home_offers": [],
+  "testimonials": [],
+  "blog_posts": [],
+  "case_studies": [],
+  "users": [],
   "projects": [],
   "tasks": [],
   "activity_log": []

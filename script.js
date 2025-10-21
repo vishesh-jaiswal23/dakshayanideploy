@@ -30,9 +30,8 @@ const INLINE_PARTIALS = {
               <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
             </button>
             <div class="nav-dropdown-menu" role="menu">
-              <a href="projects.html" class="nav-link" role="menuitem">Solar Projects</a>
+              <a href="solar-projects.html" class="nav-link" role="menuitem">Solar Projects</a>
               <a href="govt-epc.html" class="nav-link" role="menuitem">Govt. EPC &amp; Infrastructure</a>
-              <a href="case-studies.html" class="nav-link" role="menuitem">Case Studies</a>
               <a href="pm-surya-ghar.html" class="nav-link" role="menuitem">PM Surya Ghar Subsidy</a>
               <a href="meera-gh2.html" class="nav-link" role="menuitem">Meera GH2 Initiative</a>
               <a href="e-mobility.html" class="nav-link" role="menuitem">E-Mobility &amp; Charging</a>
@@ -52,7 +51,6 @@ const INLINE_PARTIALS = {
               <a href="policies.html" class="nav-link" role="menuitem">Policies &amp; Compliance</a>
             </div>
           </div>
-          <a href="projects.html#testimonials" class="nav-link">Testimonials</a>
         </nav>
 
         <div class="nav-actions" role="group" aria-label="Header quick actions">
@@ -78,14 +76,12 @@ const INLINE_PARTIALS = {
         <div class="nav-mobile-section" aria-label="Primary pages">
           <a href="index.html">Home</a>
           <a href="about.html">About Us</a>
-          <a href="projects.html">Projects Overview</a>
-          <a href="case-studies.html">Case Studies</a>
-          <a href="projects.html#testimonials">Testimonials</a>
+          <a href="solar-projects.html">Solar Projects</a>
         </div>
         <div class="nav-mobile-divider" role="presentation"></div>
         <div class="nav-mobile-section" aria-label="Solutions">
           <p class="nav-mobile-label">Solutions</p>
-          <a href="projects.html">Solar Projects</a>
+          <a href="solar-projects.html">Solar Projects</a>
           <a href="govt-epc.html">Govt. EPC &amp; Infrastructure</a>
           <a href="pm-surya-ghar.html">PM Surya Ghar Subsidy</a>
           <a href="meera-gh2.html">Meera GH2 Initiative</a>
@@ -165,8 +161,8 @@ const INLINE_PARTIALS = {
         <ul class="footer-links">
           <li><a href="pm-surya-ghar.html">PM Surya Ghar Yojana</a></li>
           <li><a href="financing.html">Financing &amp; Loans</a></li>
-          <li><a href="projects.html">Residential Solutions</a></li>
-          <li><a href="projects.html#commercial">Commercial / Industrial</a></li>
+          <li><a href="solar-projects.html#residential">Residential Solutions</a></li>
+          <li><a href="solar-projects.html#commercial">Commercial / Industrial</a></li>
       <li><a href="calculator.html">Solar Savings Calculator</a></li>
     </ul>
   </div>
