@@ -337,6 +337,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             redirect_with_flash('content');
 
+        case 'reset_site_theme':
+            $defaultState = portal_default_state();
+            $state['site_theme'] = $defaultState['site_theme'];
+
+            portal_record_activity($state, 'Restored the site theme to default settings.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Default theme applied successfully.');
+            } else {
+                flash('error', 'Unable to restore the default theme.');
+            }
+
+            redirect_with_flash('content');
+
         case 'update_home_hero':
             $heroTitle = trim($_POST['hero_title'] ?? '');
             $heroSubtitle = trim($_POST['hero_subtitle'] ?? '');
@@ -2694,6 +2708,24 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       background: rgba(220, 38, 38, 0.2);
     }
 
+    .form-actions {
+      margin-top: 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .reset-theme {
+      margin-top: 1rem;
+      display: grid;
+      gap: 0.4rem;
+    }
+
+    .reset-theme button {
+      justify-self: start;
+    }
+
     .form-helper {
       font-size: 0.85rem;
       color: var(--muted);
@@ -3594,7 +3626,16 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
                 <label for="theme-announcement">Theme announcement</label>
                 <textarea id="theme-announcement" name="theme_announcement" rows="3" placeholder="Optional seasonal headline"><?= htmlspecialchars($siteTheme['announcement'] ?? ''); ?></textarea>
               </div>
-              <button class="btn-primary" type="submit">Save theme</button>
+              <div class="form-actions">
+                <button class="btn-primary" type="submit">Save theme</button>
+              </div>
+            </form>
+            <form method="post" class="reset-theme" autocomplete="off">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="reset_site_theme" />
+              <input type="hidden" name="redirect_view" value="content" />
+              <button class="btn-ghost" type="submit">Restore default theme</button>
+              <p class="form-helper">Reset colours, announcements, and imagery back to the starter defaults.</p>
             </form>
           </div>
           <aside class="workspace-aside">
