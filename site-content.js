@@ -433,14 +433,18 @@
       ? normaliseHex(theme.palette.accent.text, contrastText(accentColor))
       : contrastText(accentColor);
 
+    const accentSoft = mixHex(accentColor, '#FFFFFF', 0.55);
+    const accentStrong = mixHex(accentColor, '#000000', 0.25);
+
     root.style.setProperty('--primary-main', accentColor);
     root.style.setProperty('--primary-dark', mixHex(accentColor, '#000000', 0.25));
     root.style.setProperty('--primary-light', mixHex(accentColor, '#FFFFFF', 0.35));
     root.style.setProperty('--accent-blue-main', accentColor);
     root.style.setProperty('--accent-blue-dark', mixHex(accentColor, '#000000', 0.2));
     root.style.setProperty('--theme-accent-text', accentText);
-    root.style.setProperty('--accent-soft', mixHex(accentColor, '#FFFFFF', 0.75));
-    root.style.setProperty('--accent-strong', mixHex(accentColor, '#000000', 0.15));
+    root.style.setProperty('--accent-soft', accentSoft);
+    root.style.setProperty('--accent-strong', accentStrong);
+    root.style.setProperty('--accent-soft-text', contrastText(accentSoft));
 
     if (heroSection) {
       if (theme.backgroundImage) {

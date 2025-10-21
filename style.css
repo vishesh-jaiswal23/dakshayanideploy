@@ -41,8 +41,9 @@
   --footer-background: #111827;
   --footer-text: #e2e8f0;
   --theme-accent-text: #ffffff;
-  --accent-soft: rgba(59, 130, 246, 0.14);
-  --accent-strong: rgba(37, 99, 235, 0.4);
+  --accent-soft: #dbeafe;
+  --accent-strong: #1e3a8a;
+  --accent-soft-text: #1e3a8a;
 }
 
 /* ============================================================
@@ -166,13 +167,25 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  background: rgba(15, 23, 42, 0.15);
-  color: var(--primary-light);
+  background: var(--accent-soft);
+  color: var(--accent-soft-text);
+  border: 1px solid var(--accent-strong);
   padding: 0.35rem 0.85rem;
   border-radius: 999px;
   font-size: 0.85rem;
   letter-spacing: 0.5px;
   text-transform: uppercase;
+  font-weight: 600;
+}
+
+.badge i {
+  color: currentColor;
+}
+
+.badge--on-dark {
+  background: var(--accent-blue-dark);
+  color: var(--surface);
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 .lead {
@@ -2094,7 +2107,8 @@ body.site-search-open {
   padding: 0.3rem 0.8rem;
   border-radius: 999px;
   background: var(--accent-soft);
-  color: var(--theme-accent-text);
+  color: var(--accent-soft-text);
+  border: 1px solid var(--accent-strong);
   font-size: 0.75rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2210,7 +2224,7 @@ body.site-search-open {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--theme-accent-text);
+  color: var(--accent-soft-text);
   letter-spacing: 1px;
   font-weight: 700;
   padding: 0.35rem 0.85rem;
@@ -2353,7 +2367,7 @@ body.site-search-open {
 
 .assurance-label {
   font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .hero-media {
@@ -2395,7 +2409,7 @@ body.site-search-open {
   align-items: center;
   gap: 0.5rem;
   background: var(--accent-soft);
-  color: var(--theme-accent-text);
+  color: var(--accent-soft-text);
   border: 1px solid var(--accent-strong);
   font-weight: 600;
   text-transform: uppercase;
@@ -2408,7 +2422,7 @@ body.site-search-open {
   top: 1rem;
   right: 1rem;
   background: var(--primary-main);
-  color: var(--theme-accent-text);
+  color: var(--base-900);
   border-radius: 1.1rem;
   padding: 0.9rem 1.1rem;
   box-shadow: 0 18px 36px -24px rgba(15, 23, 42, 0.35);
@@ -2499,7 +2513,7 @@ body.site-search-open {
   gap: 1.25rem;
   justify-content: center;
   align-items: center;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.85);
   font-size: 0.9rem;
 }
 
@@ -3853,7 +3867,7 @@ body.auth-page {
 }
 
 .footer-links a {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 0.95rem;
 }
 
@@ -3891,7 +3905,7 @@ body.auth-page {
   margin-top: 3rem;
   text-align: center;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 /* ============================================================
