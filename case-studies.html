@@ -2,148 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="refresh" content="0; url=solar-projects.html#case-studies" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Solar Case Studies | Dakshayani Enterprises</title>
-  <meta name="description" content="Deep dives into Dakshayani Enterprises residential, commercial, and agricultural solar projects with metrics, highlights, and route-to-market learnings." />
-  <link rel="icon" href="images/favicon.ico" />
-  <link rel="stylesheet" href="style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <title>Redirecting to Solar Projects Case Studies | Dakshayani Enterprises</title>
+  <link rel="canonical" href="solar-projects.html#case-studies" />
+  <meta name="robots" content="noindex" />
 </head>
-<body data-active-nav="case-studies">
-  <header class="site-header"></header>
-
-  <main>
-    <section class="section hero hero--case-studies">
-      <div class="container hero-grid">
-        <div class="hero-content">
-          <p class="badge">Project Library</p>
-          <h1>Case Studies with GA4-backed Impact Metrics</h1>
-          <p class="lead">
-            Learn how Dakshayani delivers rooftop, industrial, and agricultural solar plants with safety-first execution, subsidy management, and live monitoring APIs.
-          </p>
-          <div class="hero-actions">
-            <button class="btn btn-secondary" data-case-filter="">
-              <i class="fa-solid fa-layer-group"></i>
-              All Segments
-            </button>
-            <button class="btn btn-primary" data-open-search>
-              <i class="fa-solid fa-magnifying-glass"></i>
-              Search Knowledge Hub
-            </button>
-          </div>
-        </div>
-        <div class="hero-media">
-          <figure class="hero-media-main">
-            <img
-              src="images/knowledge/case-studies-hero.svg"
-              alt="Illustrated Dakshayani case studies for residential, commercial, and agriculture solar"
-              loading="lazy"
-            />
-          </figure>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" aria-labelledby="case-studies-title">
-      <div class="container">
-        <header class="section-head">
-          <h2 id="case-studies-title">Filter by segment</h2>
-          <p>Select a segment to view deployment metrics, energy yield, and subsidy status.</p>
-          <div class="case-filter-group" data-case-filters>
-            <button type="button" class="case-filter is-active" data-segment="">All</button>
-            <button type="button" class="case-filter" data-segment="residential">Residential</button>
-            <button type="button" class="case-filter" data-segment="commercial">Commercial</button>
-            <button type="button" class="case-filter" data-segment="agriculture">Agriculture</button>
-          </div>
-        </header>
-        <div class="case-study-grid" data-case-list>
-          <p class="site-search-loading">Loading case studies…</p>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="site-footer"></footer>
-
-  <script src="script.js" defer></script>
-  <script>
-    (function () {
-      const listHost = document.querySelector('[data-case-list]');
-      const filterButtons = document.querySelectorAll('[data-segment]');
-
-      function renderCaseStudies(items) {
-        if (!listHost) return;
-        if (!items.length) {
-          listHost.innerHTML = '<p class="site-search-empty">No case studies available yet.</p>';
-          return;
-        }
-        const fragment = document.createDocumentFragment();
-        items.forEach((study) => {
-          const card = document.createElement('article');
-          card.className = 'case-card';
-          card.innerHTML = `
-            <div class="case-media">
-              ${(study.media || []).map((media) => media.type === 'video'
-                ? `<iframe src="${media.src}" title="${media.title || study.title}" loading="lazy" allowfullscreen></iframe>`
-                : `<img src="${media.src}" alt="${media.alt || study.title}" loading="lazy" />`
-              ).join('')}
-            </div>
-            <div class="case-body">
-              <span class="case-segment">${study.segment}</span>
-              <h3>${study.title}</h3>
-              <p class="case-location"><i class="fa-solid fa-location-dot"></i> ${study.location}</p>
-              <p>${study.summary}</p>
-              <dl class="case-metrics">
-                <div><dt>Capacity</dt><dd>${study.capacityKw} kW</dd></div>
-                <div><dt>Annual generation</dt><dd>${study.metrics.annualGenerationKwh} kWh</dd></div>
-                <div><dt>CO₂ offset</dt><dd>${study.metrics.co2OffsetTonnes} t</dd></div>
-                <div><dt>Payback</dt><dd>${study.metrics.paybackYears} years</dd></div>
-              </dl>
-              <ul class="case-highlights">
-                ${(study.highlights || []).map((point) => `<li><i class="fa-solid fa-check"></i>${point}</li>`).join('')}
-              </ul>
-            </div>
-          `;
-          fragment.appendChild(card);
-        });
-        listHost.innerHTML = '';
-        listHost.appendChild(fragment);
-      }
-
-      function fetchCaseStudies(segment = '') {
-        if (!listHost) return;
-        listHost.innerHTML = '<p class="site-search-loading">Loading case studies…</p>';
-        const params = new URLSearchParams();
-        if (segment) {
-          params.append('segment', segment);
-        }
-        const url = params.toString() ? `/api/public/case-studies?${params.toString()}` : '/api/public/case-studies';
-        fetch(url)
-          .then((response) => {
-            if (!response.ok) throw new Error('Failed to load case studies');
-            return response.json();
-          })
-          .then((data) => {
-            renderCaseStudies(data.caseStudies || []);
-          })
-          .catch(() => {
-            listHost.innerHTML = '<p class="site-search-empty">Unable to load case studies right now.</p>';
-          });
-      }
-
-      filterButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-          filterButtons.forEach((btn) => btn.classList.remove('is-active'));
-          button.classList.add('is-active');
-          fetchCaseStudies(button.dataset.segment || '');
-        });
-      });
-
-      fetchCaseStudies();
-    })();
-  </script>
+<body>
+  <p>
+    Redirecting to <a href="solar-projects.html#case-studies">Solar Projects case studies</a>. If you are not redirected
+    automatically, please click the link.
+  </p>
 </body>
 </html>

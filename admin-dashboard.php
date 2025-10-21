@@ -34,6 +34,43 @@ function redirect_with_flash(?string $view = null): void
     exit;
 }
 
+function parse_newline_list(string $value): array
+{
+    $lines = preg_split("/\r?\n/", $value);
+    if ($lines === false) {
+        return [];
+    }
+
+    return array_values(array_filter(array_map(static fn($line) => trim((string) $line), $lines), static fn($line) => $line !== ''));
+}
+
+function parse_paragraphs(string $value): array
+{
+    $paragraphs = preg_split("/\n{2,}/", $value);
+    if ($paragraphs === false) {
+        return [];
+    }
+
+    return array_values(array_filter(array_map(static fn($paragraph) => trim((string) $paragraph), $paragraphs), static fn($paragraph) => $paragraph !== ''));
+}
+
+function parse_tags_input(string $value): array
+{
+    $parts = preg_split('/[,\n]+/', $value);
+    if ($parts === false) {
+        return [];
+    }
+
+    return array_values(array_filter(array_map(static fn($tag) => trim((string) $tag), $parts), static fn($tag) => $tag !== ''));
+}
+
+function sanitize_slug(string $value): string
+{
+    $slug = strtolower(trim($value));
+    $slug = preg_replace('/[^a-z0-9]+/i', '-', $slug) ?? '';
+    return trim($slug, '-');
+}
+
 if (empty($_SESSION['csrf_token'])) {
     try {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -49,6 +86,7 @@ $viewLabels = [
     'accounts' => 'Accounts',
     'projects' => 'Projects',
     'tasks' => 'Tasks',
+    'content' => 'Content manager',
     'settings' => 'Site settings',
     'activity' => 'Activity log',
 ];
@@ -109,6 +147,619 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             redirect_with_flash('settings');
+
+        case 'update_site_theme':
+            $themeName = trim($_POST['active_theme'] ?? 'seasonal');
+            if ($themeName === '') {
+                $themeName = 'seasonal';
+            }
+
+            $seasonLabel = trim($_POST['season_label'] ?? '');
+            $accentColor = trim($_POST['accent_color'] ?? '#2563eb');
+            $backgroundImage = trim($_POST['background_image'] ?? '');
+            $themeAnnouncement = trim($_POST['theme_announcement'] ?? '');
+
+            if ($seasonLabel === '') {
+                flash('error', 'Provide a headline for the active theme.');
+                redirect_with_flash('content');
+            }
+
+            if ($accentColor === '' || !preg_match('/^#([0-9a-f]{3}|[0-9a-f]{6})$/i', $accentColor)) {
+                flash('error', 'Use a valid hexadecimal colour value (for example #2563eb).');
+                redirect_with_flash('content');
+            }
+
+            $state['site_theme'] = [
+                'active_theme' => $themeName,
+                'season_label' => $seasonLabel,
+                'accent_color' => $accentColor,
+                'background_image' => $backgroundImage,
+                'announcement' => $themeAnnouncement,
+            ];
+
+            portal_record_activity($state, 'Updated seasonal theme and styling.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Seasonal theme updated successfully.');
+            } else {
+                flash('error', 'Unable to update the seasonal theme.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'update_home_hero':
+            $heroTitle = trim($_POST['hero_title'] ?? '');
+            $heroSubtitle = trim($_POST['hero_subtitle'] ?? '');
+            $heroImage = trim($_POST['hero_image'] ?? '');
+            $heroImageCaption = trim($_POST['hero_image_caption'] ?? '');
+            $heroBubbleHeading = trim($_POST['hero_bubble_heading'] ?? '');
+            $heroBubbleBody = trim($_POST['hero_bubble_body'] ?? '');
+            $heroBullets = parse_newline_list($_POST['hero_bullets'] ?? '');
+
+            if ($heroTitle === '' || $heroSubtitle === '') {
+                flash('error', 'Hero section needs both a title and subtitle.');
+                redirect_with_flash('content');
+            }
+
+            if ($heroImage === '') {
+                $heroImage = $state['home_hero']['image'] ?? 'images/hero/hero.png';
+            }
+
+            $state['home_hero'] = [
+                'title' => $heroTitle,
+                'subtitle' => $heroSubtitle,
+                'image' => $heroImage,
+                'image_caption' => $heroImageCaption,
+                'bubble_heading' => $heroBubbleHeading,
+                'bubble_body' => $heroBubbleBody,
+                'bullets' => $heroBullets,
+            ];
+
+            portal_record_activity($state, 'Updated home page hero messaging.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Home hero content updated.');
+            } else {
+                flash('error', 'Unable to update the hero content.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'create_offer':
+            $offerTitle = trim($_POST['offer_title'] ?? '');
+            $offerDescription = trim($_POST['offer_description'] ?? '');
+            $offerBadge = trim($_POST['offer_badge'] ?? '');
+            $offerStarts = trim($_POST['offer_starts_on'] ?? '');
+            $offerEnds = trim($_POST['offer_ends_on'] ?? '');
+            $offerStatus = $_POST['offer_status'] ?? 'draft';
+            $offerImage = trim($_POST['offer_image'] ?? '');
+            $offerCtaText = trim($_POST['offer_cta_text'] ?? '');
+            $offerCtaUrl = trim($_POST['offer_cta_url'] ?? '');
+
+            if ($offerTitle === '' && $offerDescription === '') {
+                flash('error', 'Provide at least a title or description for the offer.');
+                redirect_with_flash('content');
+            }
+
+            if (!in_array($offerStatus, ['draft', 'published'], true)) {
+                $offerStatus = 'draft';
+            }
+
+            $state['home_offers'][] = [
+                'id' => portal_generate_id('off_'),
+                'title' => $offerTitle,
+                'description' => $offerDescription,
+                'badge' => $offerBadge,
+                'starts_on' => $offerStarts,
+                'ends_on' => $offerEnds,
+                'status' => $offerStatus,
+                'image' => $offerImage,
+                'cta_text' => $offerCtaText,
+                'cta_url' => $offerCtaUrl,
+                'updated_at' => date('c'),
+            ];
+
+            portal_record_activity($state, 'Created a new seasonal offer.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Offer added to the home page.');
+            } else {
+                flash('error', 'Unable to add the new offer.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'update_offer':
+            $offerId = $_POST['offer_id'] ?? '';
+            $offerTitle = trim($_POST['offer_title'] ?? '');
+            $offerDescription = trim($_POST['offer_description'] ?? '');
+            $offerBadge = trim($_POST['offer_badge'] ?? '');
+            $offerStarts = trim($_POST['offer_starts_on'] ?? '');
+            $offerEnds = trim($_POST['offer_ends_on'] ?? '');
+            $offerStatus = $_POST['offer_status'] ?? 'draft';
+            $offerImage = trim($_POST['offer_image'] ?? '');
+            $offerCtaText = trim($_POST['offer_cta_text'] ?? '');
+            $offerCtaUrl = trim($_POST['offer_cta_url'] ?? '');
+
+            if (!in_array($offerStatus, ['draft', 'published'], true)) {
+                $offerStatus = 'draft';
+            }
+
+            $updated = false;
+            foreach ($state['home_offers'] as &$offer) {
+                if (($offer['id'] ?? '') === $offerId) {
+                    $offer['title'] = $offerTitle;
+                    $offer['description'] = $offerDescription;
+                    $offer['badge'] = $offerBadge;
+                    $offer['starts_on'] = $offerStarts;
+                    $offer['ends_on'] = $offerEnds;
+                    $offer['status'] = $offerStatus;
+                    $offer['image'] = $offerImage;
+                    $offer['cta_text'] = $offerCtaText;
+                    $offer['cta_url'] = $offerCtaUrl;
+                    $offer['updated_at'] = date('c');
+                    $updated = true;
+                    portal_record_activity($state, "Updated seasonal offer {$offer['title']}.", $actorName);
+                    break;
+                }
+            }
+            unset($offer);
+
+            if (!$updated) {
+                flash('error', 'Offer not found.');
+                redirect_with_flash('content');
+            }
+
+            if (portal_save_state($state)) {
+                flash('success', 'Offer updated successfully.');
+            } else {
+                flash('error', 'Unable to update the offer.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'delete_offer':
+            $offerId = $_POST['offer_id'] ?? '';
+            $initialCount = count($state['home_offers']);
+            $state['home_offers'] = array_values(array_filter(
+                $state['home_offers'],
+                static fn(array $offer): bool => ($offer['id'] ?? '') !== $offerId
+            ));
+
+            if ($initialCount === count($state['home_offers'])) {
+                flash('error', 'Offer already removed or not found.');
+                redirect_with_flash('content');
+            }
+
+            portal_record_activity($state, 'Deleted a seasonal offer.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Offer removed from the home page.');
+            } else {
+                flash('error', 'Unable to delete the offer.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'create_testimonial':
+            $testimonialQuote = trim($_POST['testimonial_quote'] ?? '');
+            $testimonialName = trim($_POST['testimonial_name'] ?? '');
+            $testimonialRole = trim($_POST['testimonial_role'] ?? '');
+            $testimonialLocation = trim($_POST['testimonial_location'] ?? '');
+            $testimonialImage = trim($_POST['testimonial_image'] ?? '');
+            $testimonialStatus = $_POST['testimonial_status'] ?? 'published';
+
+            if ($testimonialQuote === '' || $testimonialName === '') {
+                flash('error', 'Testimonials require a quote and a customer name.');
+                redirect_with_flash('content');
+            }
+
+            if (!in_array($testimonialStatus, ['draft', 'published'], true)) {
+                $testimonialStatus = 'published';
+            }
+
+            $state['testimonials'][] = [
+                'id' => portal_generate_id('tes_'),
+                'quote' => $testimonialQuote,
+                'name' => $testimonialName,
+                'role' => $testimonialRole,
+                'location' => $testimonialLocation,
+                'image' => $testimonialImage,
+                'status' => $testimonialStatus,
+                'updated_at' => date('c'),
+            ];
+
+            portal_record_activity($state, 'Added a new testimonial.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Testimonial published.');
+            } else {
+                flash('error', 'Unable to add the testimonial.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'update_testimonial':
+            $testimonialId = $_POST['testimonial_id'] ?? '';
+            $testimonialQuote = trim($_POST['testimonial_quote'] ?? '');
+            $testimonialName = trim($_POST['testimonial_name'] ?? '');
+            $testimonialRole = trim($_POST['testimonial_role'] ?? '');
+            $testimonialLocation = trim($_POST['testimonial_location'] ?? '');
+            $testimonialImage = trim($_POST['testimonial_image'] ?? '');
+            $testimonialStatus = $_POST['testimonial_status'] ?? 'published';
+
+            if (!in_array($testimonialStatus, ['draft', 'published'], true)) {
+                $testimonialStatus = 'published';
+            }
+
+            $updated = false;
+            foreach ($state['testimonials'] as &$testimonial) {
+                if (($testimonial['id'] ?? '') === $testimonialId) {
+                    if ($testimonialQuote === '' || $testimonialName === '') {
+                        flash('error', 'Testimonials require a quote and a customer name.');
+                        redirect_with_flash('content');
+                    }
+
+                    $testimonial['quote'] = $testimonialQuote;
+                    $testimonial['name'] = $testimonialName;
+                    $testimonial['role'] = $testimonialRole;
+                    $testimonial['location'] = $testimonialLocation;
+                    $testimonial['image'] = $testimonialImage;
+                    $testimonial['status'] = $testimonialStatus;
+                    $testimonial['updated_at'] = date('c');
+                    portal_record_activity($state, "Updated testimonial from {$testimonialName}.", $actorName);
+                    $updated = true;
+                    break;
+                }
+            }
+            unset($testimonial);
+
+            if (!$updated) {
+                flash('error', 'Testimonial not found.');
+                redirect_with_flash('content');
+            }
+
+            if (portal_save_state($state)) {
+                flash('success', 'Testimonial updated successfully.');
+            } else {
+                flash('error', 'Unable to update the testimonial.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'delete_testimonial':
+            $testimonialId = $_POST['testimonial_id'] ?? '';
+            $initialCount = count($state['testimonials']);
+            $state['testimonials'] = array_values(array_filter(
+                $state['testimonials'],
+                static fn(array $testimonial): bool => ($testimonial['id'] ?? '') !== $testimonialId
+            ));
+
+            if ($initialCount === count($state['testimonials'])) {
+                flash('error', 'Testimonial already removed or not found.');
+                redirect_with_flash('content');
+            }
+
+            portal_record_activity($state, 'Removed a testimonial.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Testimonial removed.');
+            } else {
+                flash('error', 'Unable to remove the testimonial.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'create_blog_post':
+            $postTitle = trim($_POST['post_title'] ?? '');
+            $postSlugInput = trim($_POST['post_slug'] ?? '');
+            $postSlug = $postSlugInput !== '' ? sanitize_slug($postSlugInput) : sanitize_slug($postTitle);
+            $postExcerpt = trim($_POST['post_excerpt'] ?? '');
+            $postHeroImage = trim($_POST['post_hero_image'] ?? '');
+            $postTags = parse_tags_input($_POST['post_tags'] ?? '');
+            $postStatus = $_POST['post_status'] ?? 'draft';
+            $postReadTime = (int) ($_POST['post_read_time'] ?? 0);
+            $postAuthorName = trim($_POST['post_author_name'] ?? '');
+            $postAuthorRole = trim($_POST['post_author_role'] ?? '');
+            $postContent = parse_paragraphs($_POST['post_content'] ?? '');
+
+            if ($postTitle === '' || $postSlug === '' || empty($postContent)) {
+                flash('error', 'Blog posts need a title, slug, and body content.');
+                redirect_with_flash('content');
+            }
+
+            foreach ($state['blog_posts'] as $existingPost) {
+                if (strcasecmp($existingPost['slug'] ?? '', $postSlug) === 0) {
+                    flash('error', 'Another blog post already uses this slug.');
+                    redirect_with_flash('content');
+                }
+            }
+
+            if (!in_array($postStatus, ['draft', 'published'], true)) {
+                $postStatus = 'draft';
+            }
+
+            $nowIso = date('c');
+
+            $state['blog_posts'][] = [
+                'id' => portal_generate_id('blog_'),
+                'title' => $postTitle,
+                'slug' => $postSlug,
+                'excerpt' => $postExcerpt,
+                'hero_image' => $postHeroImage,
+                'tags' => $postTags,
+                'status' => $postStatus,
+                'read_time_minutes' => $postReadTime > 0 ? $postReadTime : null,
+                'author' => [
+                    'name' => $postAuthorName,
+                    'role' => $postAuthorRole,
+                ],
+                'content' => $postContent,
+                'published_at' => $postStatus === 'published' ? $nowIso : null,
+                'updated_at' => $nowIso,
+            ];
+
+            portal_record_activity($state, "Drafted blog post {$postTitle}.", $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Blog post saved.');
+            } else {
+                flash('error', 'Unable to save the blog post.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'update_blog_post':
+            $postId = $_POST['post_id'] ?? '';
+            $postTitle = trim($_POST['post_title'] ?? '');
+            $postSlugInput = trim($_POST['post_slug'] ?? '');
+            $postSlug = $postSlugInput !== '' ? sanitize_slug($postSlugInput) : sanitize_slug($postTitle);
+            $postExcerpt = trim($_POST['post_excerpt'] ?? '');
+            $postHeroImage = trim($_POST['post_hero_image'] ?? '');
+            $postTags = parse_tags_input($_POST['post_tags'] ?? '');
+            $postStatus = $_POST['post_status'] ?? 'draft';
+            $postReadTime = (int) ($_POST['post_read_time'] ?? 0);
+            $postAuthorName = trim($_POST['post_author_name'] ?? '');
+            $postAuthorRole = trim($_POST['post_author_role'] ?? '');
+            $postContent = parse_paragraphs($_POST['post_content'] ?? '');
+
+            if ($postTitle === '' || $postSlug === '' || empty($postContent)) {
+                flash('error', 'Blog posts need a title, slug, and body content.');
+                redirect_with_flash('content');
+            }
+
+            if (!in_array($postStatus, ['draft', 'published'], true)) {
+                $postStatus = 'draft';
+            }
+
+            $nowIso = date('c');
+            $updated = false;
+            foreach ($state['blog_posts'] as &$post) {
+                if (($post['id'] ?? '') === $postId) {
+                    foreach ($state['blog_posts'] as $otherPost) {
+                        if ($otherPost['id'] !== $postId && strcasecmp($otherPost['slug'] ?? '', $postSlug) === 0) {
+                            flash('error', 'Another blog post already uses this slug.');
+                            redirect_with_flash('content');
+                        }
+                    }
+
+                    $post['title'] = $postTitle;
+                    $post['slug'] = $postSlug;
+                    $post['excerpt'] = $postExcerpt;
+                    $post['hero_image'] = $postHeroImage;
+                    $post['tags'] = $postTags;
+                    $post['status'] = $postStatus;
+                    $post['read_time_minutes'] = $postReadTime > 0 ? $postReadTime : null;
+                    $post['author'] = [
+                        'name' => $postAuthorName,
+                        'role' => $postAuthorRole,
+                    ];
+                    $post['content'] = $postContent;
+                    if ($postStatus === 'published' && empty($post['published_at'])) {
+                        $post['published_at'] = $nowIso;
+                    }
+                    if ($postStatus === 'draft') {
+                        $post['published_at'] = null;
+                    }
+                    $post['updated_at'] = $nowIso;
+                    portal_record_activity($state, "Updated blog post {$postTitle}.", $actorName);
+                    $updated = true;
+                    break;
+                }
+            }
+            unset($post);
+
+            if (!$updated) {
+                flash('error', 'Blog post not found.');
+                redirect_with_flash('content');
+            }
+
+            if (portal_save_state($state)) {
+                flash('success', 'Blog post updated.');
+            } else {
+                flash('error', 'Unable to update the blog post.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'delete_blog_post':
+            $postId = $_POST['post_id'] ?? '';
+            $initialCount = count($state['blog_posts']);
+            $state['blog_posts'] = array_values(array_filter(
+                $state['blog_posts'],
+                static fn(array $post): bool => ($post['id'] ?? '') !== $postId
+            ));
+
+            if ($initialCount === count($state['blog_posts'])) {
+                flash('error', 'Blog post already removed or not found.');
+                redirect_with_flash('content');
+            }
+
+            portal_record_activity($state, 'Deleted a blog post.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Blog post removed.');
+            } else {
+                flash('error', 'Unable to remove the blog post.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'create_case_study':
+            $caseTitle = trim($_POST['case_title'] ?? '');
+            $caseSegment = strtolower(trim($_POST['case_segment'] ?? 'residential'));
+            $caseLocation = trim($_POST['case_location'] ?? '');
+            $caseSummary = trim($_POST['case_summary'] ?? '');
+            $caseCapacity = (float) ($_POST['case_capacity_kw'] ?? 0);
+            $caseGeneration = (float) ($_POST['case_generation_kwh'] ?? 0);
+            $caseCo2 = (float) ($_POST['case_co2_tonnes'] ?? 0);
+            $casePayback = (float) ($_POST['case_payback_years'] ?? 0);
+            $caseHighlights = parse_newline_list($_POST['case_highlights'] ?? '');
+            $caseImageSrc = trim($_POST['case_image'] ?? '');
+            $caseImageAlt = trim($_POST['case_image_alt'] ?? '');
+            $caseStatus = $_POST['case_status'] ?? 'published';
+
+            $allowedSegments = ['residential', 'commercial', 'industrial', 'agriculture'];
+            if (!in_array($caseSegment, $allowedSegments, true)) {
+                $caseSegment = 'residential';
+            }
+
+            if ($caseTitle === '' || $caseSummary === '') {
+                flash('error', 'Case studies require a title and summary.');
+                redirect_with_flash('content');
+            }
+
+            if (!in_array($caseStatus, ['draft', 'published'], true)) {
+                $caseStatus = 'published';
+            }
+
+            $nowIso = date('c');
+            $state['case_studies'][] = [
+                'id' => portal_generate_id('case_'),
+                'title' => $caseTitle,
+                'segment' => $caseSegment,
+                'location' => $caseLocation,
+                'summary' => $caseSummary,
+                'capacity_kw' => $caseCapacity,
+                'annual_generation_kwh' => $caseGeneration,
+                'co2_offset_tonnes' => $caseCo2,
+                'payback_years' => $casePayback,
+                'highlights' => $caseHighlights,
+                'image' => [
+                    'src' => $caseImageSrc,
+                    'alt' => $caseImageAlt,
+                ],
+                'status' => $caseStatus,
+                'published_at' => $caseStatus === 'published' ? $nowIso : null,
+                'updated_at' => $nowIso,
+            ];
+
+            portal_record_activity($state, "Added case study {$caseTitle}.", $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Case study added.');
+            } else {
+                flash('error', 'Unable to add the case study.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'update_case_study':
+            $caseId = $_POST['case_id'] ?? '';
+            $caseTitle = trim($_POST['case_title'] ?? '');
+            $caseSegment = strtolower(trim($_POST['case_segment'] ?? 'residential'));
+            $caseLocation = trim($_POST['case_location'] ?? '');
+            $caseSummary = trim($_POST['case_summary'] ?? '');
+            $caseCapacity = (float) ($_POST['case_capacity_kw'] ?? 0);
+            $caseGeneration = (float) ($_POST['case_generation_kwh'] ?? 0);
+            $caseCo2 = (float) ($_POST['case_co2_tonnes'] ?? 0);
+            $casePayback = (float) ($_POST['case_payback_years'] ?? 0);
+            $caseHighlights = parse_newline_list($_POST['case_highlights'] ?? '');
+            $caseImageSrc = trim($_POST['case_image'] ?? '');
+            $caseImageAlt = trim($_POST['case_image_alt'] ?? '');
+            $caseStatus = $_POST['case_status'] ?? 'published';
+
+            $allowedSegments = ['residential', 'commercial', 'industrial', 'agriculture'];
+            if (!in_array($caseSegment, $allowedSegments, true)) {
+                $caseSegment = 'residential';
+            }
+
+            if (!in_array($caseStatus, ['draft', 'published'], true)) {
+                $caseStatus = 'published';
+            }
+
+            $nowIso = date('c');
+            $updated = false;
+            foreach ($state['case_studies'] as &$case) {
+                if (($case['id'] ?? '') === $caseId) {
+                    if ($caseTitle === '' || $caseSummary === '') {
+                        flash('error', 'Case studies require a title and summary.');
+                        redirect_with_flash('content');
+                    }
+
+                    $case['title'] = $caseTitle;
+                    $case['segment'] = $caseSegment;
+                    $case['location'] = $caseLocation;
+                    $case['summary'] = $caseSummary;
+                    $case['capacity_kw'] = $caseCapacity;
+                    $case['annual_generation_kwh'] = $caseGeneration;
+                    $case['co2_offset_tonnes'] = $caseCo2;
+                    $case['payback_years'] = $casePayback;
+                    $case['highlights'] = $caseHighlights;
+                    $case['image'] = [
+                        'src' => $caseImageSrc,
+                        'alt' => $caseImageAlt,
+                    ];
+                    if ($caseStatus === 'published' && empty($case['published_at'])) {
+                        $case['published_at'] = $nowIso;
+                    }
+                    if ($caseStatus === 'draft') {
+                        $case['published_at'] = null;
+                    }
+                    $case['status'] = $caseStatus;
+                    $case['updated_at'] = $nowIso;
+                    portal_record_activity($state, "Updated case study {$caseTitle}.", $actorName);
+                    $updated = true;
+                    break;
+                }
+            }
+            unset($case);
+
+            if (!$updated) {
+                flash('error', 'Case study not found.');
+                redirect_with_flash('content');
+            }
+
+            if (portal_save_state($state)) {
+                flash('success', 'Case study updated.');
+            } else {
+                flash('error', 'Unable to update the case study.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'delete_case_study':
+            $caseId = $_POST['case_id'] ?? '';
+            $initialCount = count($state['case_studies']);
+            $state['case_studies'] = array_values(array_filter(
+                $state['case_studies'],
+                static fn(array $case): bool => ($case['id'] ?? '') !== $caseId
+            ));
+
+            if ($initialCount === count($state['case_studies'])) {
+                flash('error', 'Case study already removed or not found.');
+                redirect_with_flash('content');
+            }
+
+            portal_record_activity($state, 'Deleted a case study.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Case study removed.');
+            } else {
+                flash('error', 'Unable to remove the case study.');
+            }
+
+            redirect_with_flash('content');
 
         case 'create_user':
             $name = trim($_POST['name'] ?? '');
@@ -501,7 +1152,31 @@ $users = $state['users'];
 $projects = $state['projects'];
 $tasks = $state['tasks'];
 $siteSettings = $state['site_settings'];
+$siteTheme = $state['site_theme'];
+$homeHero = $state['home_hero'];
+$homeOffers = $state['home_offers'];
+$testimonials = $state['testimonials'];
+$blogPosts = $state['blog_posts'];
+$caseStudies = $state['case_studies'];
 $activityLog = $state['activity_log'];
+
+$heroBulletsValue = implode("\n", $homeHero['bullets'] ?? []);
+
+usort($homeOffers, static function (array $a, array $b): int {
+    return strcmp($b['updated_at'] ?? $b['starts_on'] ?? '', $a['updated_at'] ?? $a['starts_on'] ?? '');
+});
+
+usort($testimonials, static function (array $a, array $b): int {
+    return strcmp($b['updated_at'] ?? '', $a['updated_at'] ?? '');
+});
+
+usort($blogPosts, static function (array $a, array $b): int {
+    return strcmp($b['updated_at'] ?? $b['published_at'] ?? '', $a['updated_at'] ?? $a['published_at'] ?? '');
+});
+
+usort($caseStudies, static function (array $a, array $b): int {
+    return strcmp($b['updated_at'] ?? $b['published_at'] ?? '', $a['updated_at'] ?? $a['published_at'] ?? '');
+});
 
 $roleLabels = [
     'admin' => 'Administrator',
@@ -1757,6 +2432,658 @@ $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
           </aside>
         </div>
       </section>
+    <?php elseif ($currentView === 'content'): ?>
+      <section class="panel">
+        <h2>Seasonal theme &amp; hero</h2>
+        <p class="lead">Control the public site colours, headline messages, and hero banner assets.</p>
+        <div class="workspace-grid">
+          <div>
+            <h3>Theme styling</h3>
+            <form method="post" autocomplete="off">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="update_site_theme" />
+              <input type="hidden" name="redirect_view" value="content" />
+              <div class="form-grid">
+                <div>
+                  <label for="theme-name">Theme name</label>
+                  <input id="theme-name" name="active_theme" type="text" value="<?= htmlspecialchars($siteTheme['active_theme'] ?? 'seasonal'); ?>" placeholder="festive-diwali" />
+                </div>
+                <div>
+                  <label for="theme-accent">Accent colour</label>
+                  <input id="theme-accent" name="accent_color" type="text" value="<?= htmlspecialchars($siteTheme['accent_color'] ?? '#2563eb'); ?>" placeholder="#2563eb" pattern="^#?[0-9a-fA-F]{3,6}$" />
+                  <p class="form-helper">Hex value applied to primary buttons and highlights.</p>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="theme-label">Season label</label>
+                  <input id="theme-label" name="season_label" type="text" value="<?= htmlspecialchars($siteTheme['season_label'] ?? ''); ?>" required />
+                </div>
+                <div>
+                  <label for="theme-background">Background image URL</label>
+                  <input id="theme-background" name="background_image" type="url" value="<?= htmlspecialchars($siteTheme['background_image'] ?? ''); ?>" placeholder="https://.../festival-banner.jpg" />
+                </div>
+              </div>
+              <div>
+                <label for="theme-announcement">Theme announcement</label>
+                <textarea id="theme-announcement" name="theme_announcement" rows="3" placeholder="Optional seasonal headline"><?= htmlspecialchars($siteTheme['announcement'] ?? ''); ?></textarea>
+              </div>
+              <button class="btn-primary" type="submit">Save theme</button>
+            </form>
+          </div>
+          <aside class="workspace-aside">
+            <h3>Homepage hero</h3>
+            <form method="post" autocomplete="off">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="update_home_hero" />
+              <input type="hidden" name="redirect_view" value="content" />
+              <div class="form-grid">
+                <div>
+                  <label for="hero-title">Hero title</label>
+                  <input id="hero-title" name="hero_title" type="text" value="<?= htmlspecialchars($homeHero['title'] ?? ''); ?>" required />
+                </div>
+                <div>
+                  <label for="hero-subtitle">Hero subtitle</label>
+                  <textarea id="hero-subtitle" name="hero_subtitle" rows="3" required><?= htmlspecialchars($homeHero['subtitle'] ?? ''); ?></textarea>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="hero-image">Hero image URL</label>
+                  <input id="hero-image" name="hero_image" type="url" value="<?= htmlspecialchars($homeHero['image'] ?? ''); ?>" placeholder="images/hero/hero.png" />
+                </div>
+                <div>
+                  <label for="hero-caption">Image caption</label>
+                  <input id="hero-caption" name="hero_image_caption" type="text" value="<?= htmlspecialchars($homeHero['image_caption'] ?? ''); ?>" />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="hero-bubble-heading">Highlight heading</label>
+                  <input id="hero-bubble-heading" name="hero_bubble_heading" type="text" value="<?= htmlspecialchars($homeHero['bubble_heading'] ?? ''); ?>" />
+                </div>
+                <div>
+                  <label for="hero-bubble-body">Highlight body</label>
+                  <input id="hero-bubble-body" name="hero_bubble_body" type="text" value="<?= htmlspecialchars($homeHero['bubble_body'] ?? ''); ?>" />
+                </div>
+              </div>
+              <div>
+                <label for="hero-bullets">Hero bullet points (one per line)</label>
+                <textarea id="hero-bullets" name="hero_bullets" rows="4" placeholder="Add savings metric, subsidy highlight, etc."><?= htmlspecialchars($heroBulletsValue); ?></textarea>
+              </div>
+              <button class="btn-primary" type="submit">Save hero content</button>
+            </form>
+          </aside>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Seasonal offers</h2>
+        <p class="lead">Publish festive or monthly offers on the homepage. Draft entries stay hidden.</p>
+        <div class="workspace-grid">
+          <div>
+            <?php if (empty($homeOffers)): ?>
+              <p>No seasonal offers yet. Use the form to create one.</p>
+            <?php else: ?>
+              <?php foreach ($homeOffers as $offer): ?>
+                <?php $offerStatus = $offer['status'] ?? 'draft'; ?>
+                <details class="manage">
+                  <summary>
+                    <span><?= htmlspecialchars($offer['title'] !== '' ? $offer['title'] : 'Untitled offer'); ?></span>
+                    <span class="status-chip" data-status="<?= htmlspecialchars($offerStatus); ?>"><?= htmlspecialchars(ucfirst($offerStatus)); ?></span>
+                  </summary>
+                  <div class="manage-forms">
+                    <form method="post" autocomplete="off">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                      <input type="hidden" name="action" value="update_offer" />
+                      <input type="hidden" name="redirect_view" value="content" />
+                      <input type="hidden" name="offer_id" value="<?= htmlspecialchars($offer['id'] ?? ''); ?>" />
+                      <div class="form-grid">
+                        <div>
+                          <label>Title</label>
+                          <input name="offer_title" type="text" value="<?= htmlspecialchars($offer['title'] ?? ''); ?>" />
+                        </div>
+                        <div>
+                          <label>Badge label</label>
+                          <input name="offer_badge" type="text" value="<?= htmlspecialchars($offer['badge'] ?? ''); ?>" placeholder="Diwali" />
+                        </div>
+                      </div>
+                      <div>
+                        <label>Description</label>
+                        <textarea name="offer_description" rows="3" placeholder="Describe the offer details"><?= htmlspecialchars($offer['description'] ?? ''); ?></textarea>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>Starts on</label>
+                          <input name="offer_starts_on" type="date" value="<?= htmlspecialchars($offer['starts_on'] ?? ''); ?>" />
+                        </div>
+                        <div>
+                          <label>Ends on</label>
+                          <input name="offer_ends_on" type="date" value="<?= htmlspecialchars($offer['ends_on'] ?? ''); ?>" />
+                        </div>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>Status</label>
+                          <select name="offer_status">
+                            <option value="draft" <?= $offerStatus === 'draft' ? 'selected' : ''; ?>>Draft</option>
+                            <option value="published" <?= $offerStatus === 'published' ? 'selected' : ''; ?>>Published</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label>CTA label</label>
+                          <input name="offer_cta_text" type="text" value="<?= htmlspecialchars($offer['cta_text'] ?? ''); ?>" placeholder="Book now" />
+                        </div>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>CTA link</label>
+                          <input name="offer_cta_url" type="url" value="<?= htmlspecialchars($offer['cta_url'] ?? ''); ?>" placeholder="https://wa.me/..." />
+                        </div>
+                        <div>
+                          <label>Image</label>
+                          <input name="offer_image" type="url" value="<?= htmlspecialchars($offer['image'] ?? ''); ?>" placeholder="images/offers/diwali.png" />
+                        </div>
+                      </div>
+                      <button class="btn-primary" type="submit">Update offer</button>
+                    </form>
+                    <form method="post" onsubmit="return confirm('Delete this offer?');">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                      <input type="hidden" name="action" value="delete_offer" />
+                      <input type="hidden" name="redirect_view" value="content" />
+                      <input type="hidden" name="offer_id" value="<?= htmlspecialchars($offer['id'] ?? ''); ?>" />
+                      <button class="btn-destructive" type="submit">Delete offer</button>
+                    </form>
+                  </div>
+                </details>
+              <?php endforeach; ?>
+            <?php endif; ?>
+          </div>
+          <aside class="workspace-aside">
+            <h3>Add seasonal offer</h3>
+            <form method="post" autocomplete="off">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="create_offer" />
+              <input type="hidden" name="redirect_view" value="content" />
+              <div class="form-grid">
+                <div>
+                  <label for="new-offer-title">Title</label>
+                  <input id="new-offer-title" name="offer_title" type="text" placeholder="Festive rooftop cashback" />
+                </div>
+                <div>
+                  <label for="new-offer-badge">Badge</label>
+                  <input id="new-offer-badge" name="offer_badge" type="text" placeholder="Holi" />
+                </div>
+              </div>
+              <div>
+                <label for="new-offer-description">Description</label>
+                <textarea id="new-offer-description" name="offer_description" rows="3" placeholder="Explain the promotion"></textarea>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-offer-start">Starts on</label>
+                  <input id="new-offer-start" name="offer_starts_on" type="date" />
+                </div>
+                <div>
+                  <label for="new-offer-end">Ends on</label>
+                  <input id="new-offer-end" name="offer_ends_on" type="date" />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-offer-status">Status</label>
+                  <select id="new-offer-status" name="offer_status">
+                    <option value="draft" selected>Draft</option>
+                    <option value="published">Published</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="new-offer-cta-text">CTA label</label>
+                  <input id="new-offer-cta-text" name="offer_cta_text" type="text" placeholder="Call now" />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-offer-cta-url">CTA link</label>
+                  <input id="new-offer-cta-url" name="offer_cta_url" type="url" placeholder="https://wa.me/917070278178" />
+                </div>
+                <div>
+                  <label for="new-offer-image">Image URL</label>
+                  <input id="new-offer-image" name="offer_image" type="url" placeholder="images/offers/offer.png" />
+                </div>
+              </div>
+              <button class="btn-primary" type="submit">Create offer</button>
+            </form>
+          </aside>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Customer testimonials</h2>
+        <p class="lead">Publish social proof for homeowners, MSMEs, and industrial clients.</p>
+        <div class="workspace-grid">
+          <div>
+            <?php if (empty($testimonials)): ?>
+              <p>No testimonials saved yet.</p>
+            <?php else: ?>
+              <?php foreach ($testimonials as $testimonial): ?>
+                <?php $testimonialStatus = $testimonial['status'] ?? 'published'; ?>
+                <details class="manage">
+                  <summary>
+                    <span><?= htmlspecialchars($testimonial['name'] ?? 'Unnamed customer'); ?></span>
+                    <span class="status-chip" data-status="<?= htmlspecialchars($testimonialStatus); ?>"><?= htmlspecialchars(ucfirst($testimonialStatus)); ?></span>
+                  </summary>
+                  <div class="manage-forms">
+                    <form method="post" autocomplete="off">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                      <input type="hidden" name="action" value="update_testimonial" />
+                      <input type="hidden" name="redirect_view" value="content" />
+                      <input type="hidden" name="testimonial_id" value="<?= htmlspecialchars($testimonial['id'] ?? ''); ?>" />
+                      <div>
+                        <label>Quote</label>
+                        <textarea name="testimonial_quote" rows="3" required><?= htmlspecialchars($testimonial['quote'] ?? ''); ?></textarea>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>Name</label>
+                          <input name="testimonial_name" type="text" value="<?= htmlspecialchars($testimonial['name'] ?? ''); ?>" required />
+                        </div>
+                        <div>
+                          <label>Location</label>
+                          <input name="testimonial_location" type="text" value="<?= htmlspecialchars($testimonial['location'] ?? ''); ?>" placeholder="Ranchi" />
+                        </div>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>Role or system</label>
+                          <input name="testimonial_role" type="text" value="<?= htmlspecialchars($testimonial['role'] ?? ''); ?>" placeholder="8 kW residential" />
+                        </div>
+                        <div>
+                          <label>Status</label>
+                          <select name="testimonial_status">
+                            <option value="draft" <?= $testimonialStatus === 'draft' ? 'selected' : ''; ?>>Draft</option>
+                            <option value="published" <?= $testimonialStatus === 'published' ? 'selected' : ''; ?>>Published</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label>Image URL</label>
+                        <input name="testimonial_image" type="url" value="<?= htmlspecialchars($testimonial['image'] ?? ''); ?>" placeholder="images/testimonials/customer.jpg" />
+                      </div>
+                      <button class="btn-primary" type="submit">Update testimonial</button>
+                    </form>
+                    <form method="post" onsubmit="return confirm('Delete this testimonial?');">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                      <input type="hidden" name="action" value="delete_testimonial" />
+                      <input type="hidden" name="redirect_view" value="content" />
+                      <input type="hidden" name="testimonial_id" value="<?= htmlspecialchars($testimonial['id'] ?? ''); ?>" />
+                      <button class="btn-destructive" type="submit">Delete testimonial</button>
+                    </form>
+                  </div>
+                </details>
+              <?php endforeach; ?>
+            <?php endif; ?>
+          </div>
+          <aside class="workspace-aside">
+            <h3>Add testimonial</h3>
+            <form method="post" autocomplete="off">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="create_testimonial" />
+              <input type="hidden" name="redirect_view" value="content" />
+              <div>
+                <label for="new-testimonial-quote">Quote</label>
+                <textarea id="new-testimonial-quote" name="testimonial_quote" rows="3" required></textarea>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-testimonial-name">Name</label>
+                  <input id="new-testimonial-name" name="testimonial_name" type="text" required />
+                </div>
+                <div>
+                  <label for="new-testimonial-location">Location</label>
+                  <input id="new-testimonial-location" name="testimonial_location" type="text" />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-testimonial-role">Role or system</label>
+                  <input id="new-testimonial-role" name="testimonial_role" type="text" />
+                </div>
+                <div>
+                  <label for="new-testimonial-status">Status</label>
+                  <select id="new-testimonial-status" name="testimonial_status">
+                    <option value="draft">Draft</option>
+                    <option value="published" selected>Published</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label for="new-testimonial-image">Image URL</label>
+                <input id="new-testimonial-image" name="testimonial_image" type="url" placeholder="images/testimonials/customer.jpg" />
+              </div>
+              <button class="btn-primary" type="submit">Create testimonial</button>
+            </form>
+          </aside>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Blog posts</h2>
+        <p class="lead">Draft insights for the Knowledge Hub and publish when ready.</p>
+        <div class="workspace-grid">
+          <div>
+            <?php if (empty($blogPosts)): ?>
+              <p>No blog posts created yet.</p>
+            <?php else: ?>
+              <?php foreach ($blogPosts as $post): ?>
+                <?php $postStatus = $post['status'] ?? 'draft'; ?>
+                <details class="manage">
+                  <summary>
+                    <span><?= htmlspecialchars($post['title'] ?? 'Untitled post'); ?></span>
+                    <span class="status-chip" data-status="<?= htmlspecialchars($postStatus); ?>"><?= htmlspecialchars(ucfirst($postStatus)); ?></span>
+                  </summary>
+                  <div class="manage-forms">
+                    <form method="post" autocomplete="off">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                      <input type="hidden" name="action" value="update_blog_post" />
+                      <input type="hidden" name="redirect_view" value="content" />
+                      <input type="hidden" name="post_id" value="<?= htmlspecialchars($post['id'] ?? ''); ?>" />
+                      <div class="form-grid">
+                        <div>
+                          <label>Title</label>
+                          <input name="post_title" type="text" value="<?= htmlspecialchars($post['title'] ?? ''); ?>" required />
+                        </div>
+                        <div>
+                          <label>Slug</label>
+                          <input name="post_slug" type="text" value="<?= htmlspecialchars($post['slug'] ?? ''); ?>" required />
+                          <p class="form-helper">Used in the article URL.</p>
+                        </div>
+                      </div>
+                      <div>
+                        <label>Excerpt</label>
+                        <textarea name="post_excerpt" rows="2" placeholder="Optional teaser paragraph"><?= htmlspecialchars($post['excerpt'] ?? ''); ?></textarea>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>Hero image URL</label>
+                          <input name="post_hero_image" type="url" value="<?= htmlspecialchars($post['hero_image'] ?? ''); ?>" placeholder="images/blog/hero.jpg" />
+                        </div>
+                        <div>
+                          <label>Read time (minutes)</label>
+                          <input name="post_read_time" type="number" min="0" value="<?= htmlspecialchars((string) ($post['read_time_minutes'] ?? '')); ?>" />
+                        </div>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>Author name</label>
+                          <input name="post_author_name" type="text" value="<?= htmlspecialchars($post['author']['name'] ?? ''); ?>" />
+                        </div>
+                        <div>
+                          <label>Author role</label>
+                          <input name="post_author_role" type="text" value="<?= htmlspecialchars($post['author']['role'] ?? ''); ?>" />
+                        </div>
+                      </div>
+                      <div>
+                        <label>Tags (comma separated)</label>
+                        <input name="post_tags" type="text" value="<?= htmlspecialchars(implode(', ', $post['tags'] ?? [])); ?>" placeholder="Subsidy, Rooftop" />
+                      </div>
+                      <div>
+                        <label>Content (separate paragraphs with blank lines)</label>
+                        <textarea name="post_content" rows="8" required><?= htmlspecialchars(implode("\n\n", $post['content'] ?? [])); ?></textarea>
+                      </div>
+                      <div>
+                        <label>Status</label>
+                        <select name="post_status">
+                          <option value="draft" <?= $postStatus === 'draft' ? 'selected' : ''; ?>>Draft</option>
+                          <option value="published" <?= $postStatus === 'published' ? 'selected' : ''; ?>>Published</option>
+                        </select>
+                      </div>
+                      <button class="btn-primary" type="submit">Update post</button>
+                    </form>
+                    <form method="post" onsubmit="return confirm('Delete this blog post?');">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                      <input type="hidden" name="action" value="delete_blog_post" />
+                      <input type="hidden" name="redirect_view" value="content" />
+                      <input type="hidden" name="post_id" value="<?= htmlspecialchars($post['id'] ?? ''); ?>" />
+                      <button class="btn-destructive" type="submit">Delete post</button>
+                    </form>
+                  </div>
+                </details>
+              <?php endforeach; ?>
+            <?php endif; ?>
+          </div>
+          <aside class="workspace-aside">
+            <h3>Create blog post</h3>
+            <form method="post" autocomplete="off">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="create_blog_post" />
+              <input type="hidden" name="redirect_view" value="content" />
+              <div>
+                <label for="new-post-title">Title</label>
+                <input id="new-post-title" name="post_title" type="text" required />
+              </div>
+              <div>
+                <label for="new-post-slug">Slug</label>
+                <input id="new-post-slug" name="post_slug" type="text" placeholder="pm-surya-ghar-guide" />
+              </div>
+              <div>
+                <label for="new-post-excerpt">Excerpt</label>
+                <textarea id="new-post-excerpt" name="post_excerpt" rows="2"></textarea>
+              </div>
+              <div>
+                <label for="new-post-hero">Hero image URL</label>
+                <input id="new-post-hero" name="post_hero_image" type="url" />
+              </div>
+              <div>
+                <label for="new-post-tags">Tags</label>
+                <input id="new-post-tags" name="post_tags" type="text" placeholder="Finance, Rooftop" />
+              </div>
+              <div>
+                <label for="new-post-read-time">Read time (minutes)</label>
+                <input id="new-post-read-time" name="post_read_time" type="number" min="0" />
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-post-author">Author name</label>
+                  <input id="new-post-author" name="post_author_name" type="text" placeholder="Vishesh Vardhan" />
+                </div>
+                <div>
+                  <label for="new-post-author-role">Author role</label>
+                  <input id="new-post-author-role" name="post_author_role" type="text" placeholder="Growth head" />
+                </div>
+              </div>
+              <div>
+                <label for="new-post-content">Content</label>
+                <textarea id="new-post-content" name="post_content" rows="8" required></textarea>
+              </div>
+              <div>
+                <label for="new-post-status">Status</label>
+                <select id="new-post-status" name="post_status">
+                  <option value="draft" selected>Draft</option>
+                  <option value="published">Published</option>
+                </select>
+              </div>
+              <button class="btn-primary" type="submit">Create post</button>
+            </form>
+          </aside>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Case studies</h2>
+        <p class="lead">Showcase project outcomes with metrics, highlights, and media.</p>
+        <div class="workspace-grid">
+          <div>
+            <?php if (empty($caseStudies)): ?>
+              <p>No case studies have been documented yet.</p>
+            <?php else: ?>
+              <?php foreach ($caseStudies as $caseStudy): ?>
+                <?php $caseStatus = $caseStudy['status'] ?? 'published'; ?>
+                <details class="manage">
+                  <summary>
+                    <span><?= htmlspecialchars($caseStudy['title'] ?? 'Untitled case study'); ?></span>
+                    <span class="status-chip" data-status="<?= htmlspecialchars($caseStatus); ?>"><?= htmlspecialchars(ucfirst($caseStatus)); ?></span>
+                  </summary>
+                  <div class="manage-forms">
+                    <form method="post" autocomplete="off">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                      <input type="hidden" name="action" value="update_case_study" />
+                      <input type="hidden" name="redirect_view" value="content" />
+                      <input type="hidden" name="case_id" value="<?= htmlspecialchars($caseStudy['id'] ?? ''); ?>" />
+                      <div class="form-grid">
+                        <div>
+                          <label>Title</label>
+                          <input name="case_title" type="text" value="<?= htmlspecialchars($caseStudy['title'] ?? ''); ?>" required />
+                        </div>
+                        <div>
+                          <label>Segment</label>
+                          <select name="case_segment">
+                            <?php $segments = ['residential' => 'Residential', 'commercial' => 'Commercial', 'industrial' => 'Industrial', 'agriculture' => 'Agriculture']; ?>
+                            <?php foreach ($segments as $segmentValue => $segmentLabel): ?>
+                              <option value="<?= htmlspecialchars($segmentValue); ?>" <?= ($caseStudy['segment'] ?? '') === $segmentValue ? 'selected' : ''; ?>><?= htmlspecialchars($segmentLabel); ?></option>
+                            <?php endforeach; ?>
+                          </select>
+                        </div>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>Location</label>
+                          <input name="case_location" type="text" value="<?= htmlspecialchars($caseStudy['location'] ?? ''); ?>" />
+                        </div>
+                        <div>
+                          <label>Status</label>
+                          <select name="case_status">
+                            <option value="draft" <?= $caseStatus === 'draft' ? 'selected' : ''; ?>>Draft</option>
+                            <option value="published" <?= $caseStatus === 'published' ? 'selected' : ''; ?>>Published</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label>Summary</label>
+                        <textarea name="case_summary" rows="3" required><?= htmlspecialchars($caseStudy['summary'] ?? ''); ?></textarea>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>Capacity (kW)</label>
+                          <input name="case_capacity_kw" type="number" step="0.1" value="<?= htmlspecialchars((string) ($caseStudy['capacity_kw'] ?? '')); ?>" />
+                        </div>
+                        <div>
+                          <label>Annual generation (kWh)</label>
+                          <input name="case_generation_kwh" type="number" step="0.1" value="<?= htmlspecialchars((string) ($caseStudy['annual_generation_kwh'] ?? '')); ?>" />
+                        </div>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>CO₂ offset (tonnes)</label>
+                          <input name="case_co2_tonnes" type="number" step="0.1" value="<?= htmlspecialchars((string) ($caseStudy['co2_offset_tonnes'] ?? '')); ?>" />
+                        </div>
+                        <div>
+                          <label>Payback (years)</label>
+                          <input name="case_payback_years" type="number" step="0.1" value="<?= htmlspecialchars((string) ($caseStudy['payback_years'] ?? '')); ?>" />
+                        </div>
+                      </div>
+                      <div>
+                        <label>Highlights (one per line)</label>
+                        <textarea name="case_highlights" rows="3" placeholder="Subsidy filed in 18 days&#10;O&M with SCADA"><?= htmlspecialchars(implode("\n", $caseStudy['highlights'] ?? [])); ?></textarea>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>Image URL</label>
+                          <input name="case_image" type="url" value="<?= htmlspecialchars($caseStudy['image']['src'] ?? ''); ?>" placeholder="images/projects/case.jpg" />
+                        </div>
+                        <div>
+                          <label>Image alt text</label>
+                          <input name="case_image_alt" type="text" value="<?= htmlspecialchars($caseStudy['image']['alt'] ?? ''); ?>" />
+                        </div>
+                      </div>
+                      <button class="btn-primary" type="submit">Update case study</button>
+                    </form>
+                    <form method="post" onsubmit="return confirm('Delete this case study?');">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                      <input type="hidden" name="action" value="delete_case_study" />
+                      <input type="hidden" name="redirect_view" value="content" />
+                      <input type="hidden" name="case_id" value="<?= htmlspecialchars($caseStudy['id'] ?? ''); ?>" />
+                      <button class="btn-destructive" type="submit">Delete case study</button>
+                    </form>
+                  </div>
+                </details>
+              <?php endforeach; ?>
+            <?php endif; ?>
+          </div>
+          <aside class="workspace-aside">
+            <h3>Add case study</h3>
+            <form method="post" autocomplete="off">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="create_case_study" />
+              <input type="hidden" name="redirect_view" value="content" />
+              <div>
+                <label for="new-case-title">Title</label>
+                <input id="new-case-title" name="case_title" type="text" required />
+              </div>
+              <div>
+                <label for="new-case-segment">Segment</label>
+                <select id="new-case-segment" name="case_segment">
+                  <option value="residential" selected>Residential</option>
+                  <option value="commercial">Commercial</option>
+                  <option value="industrial">Industrial</option>
+                  <option value="agriculture">Agriculture</option>
+                </select>
+              </div>
+              <div>
+                <label for="new-case-location">Location</label>
+                <input id="new-case-location" name="case_location" type="text" />
+              </div>
+              <div>
+                <label for="new-case-summary">Summary</label>
+                <textarea id="new-case-summary" name="case_summary" rows="3" required></textarea>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-case-capacity">Capacity (kW)</label>
+                  <input id="new-case-capacity" name="case_capacity_kw" type="number" step="0.1" />
+                </div>
+                <div>
+                  <label for="new-case-generation">Annual generation (kWh)</label>
+                  <input id="new-case-generation" name="case_generation_kwh" type="number" step="0.1" />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-case-co2">CO₂ offset (tonnes)</label>
+                  <input id="new-case-co2" name="case_co2_tonnes" type="number" step="0.1" />
+                </div>
+                <div>
+                  <label for="new-case-payback">Payback (years)</label>
+                  <input id="new-case-payback" name="case_payback_years" type="number" step="0.1" />
+                </div>
+              </div>
+              <div>
+                <label for="new-case-highlights">Highlights</label>
+                <textarea id="new-case-highlights" name="case_highlights" rows="3" placeholder="Use one bullet per line"></textarea>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-case-image">Image URL</label>
+                  <input id="new-case-image" name="case_image" type="url" />
+                </div>
+                <div>
+                  <label for="new-case-image-alt">Image alt text</label>
+                  <input id="new-case-image-alt" name="case_image_alt" type="text" />
+                </div>
+              </div>
+              <div>
+                <label for="new-case-status">Status</label>
+                <select id="new-case-status" name="case_status">
+                  <option value="draft">Draft</option>
+                  <option value="published" selected>Published</option>
+                </select>
+              </div>
+              <button class="btn-primary" type="submit">Create case study</button>
+            </form>
+          </aside>
+        </div>
+      </section>
+
     <?php elseif ($currentView === 'settings'): ?>
       <section class="panel">
         <h2>Public site configuration</h2>
