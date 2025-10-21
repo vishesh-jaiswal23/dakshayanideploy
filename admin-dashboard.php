@@ -2576,6 +2576,7 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       padding: 0.6rem 0.75rem;
       font-size: 0.95rem;
       font-family: inherit;
+      width: 100%;
       background: var(--theme-surface-background);
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
@@ -2765,6 +2766,22 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       .view-link {
         font-size: 0.85rem;
         padding: 0.45rem 0.85rem;
+      }
+
+      .metric-grid,
+      .summary-grid,
+      .form-grid,
+      .two-column,
+      .palette-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .metric-card,
+      .summary-card,
+      .workspace-aside,
+      .palette-card,
+      .table-wrapper {
+        width: 100%;
       }
     }
   </style>
