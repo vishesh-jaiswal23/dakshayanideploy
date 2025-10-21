@@ -71,6 +71,150 @@ function sanitize_slug(string $value): string
     return trim($slug, '-');
 }
 
+function admin_prepare_palette(array $input, array $defaults): array
+{
+    $palette = [];
+
+    foreach ($defaults as $key => $defaultEntry) {
+        $incoming = $input[$key]['background'] ?? ($input[$key] ?? null);
+        $background = portal_sanitize_hex_color(is_string($incoming) ? $incoming : '', $defaultEntry['background']);
+        $palette[$key] = portal_build_palette_entry($background);
+    }
+
+    return $palette;
+}
+
+function admin_mix_color(string $color, string $target, float $ratio): string
+{
+    return portal_mix_hex_colors($color, $target, $ratio);
+}
+
+function admin_parse_csv_file(string $path): array
+{
+    $rows = [];
+    $handle = fopen($path, 'rb');
+
+    if ($handle === false) {
+        return $rows;
+    }
+
+    while (($data = fgetcsv($handle)) !== false) {
+        if ($data === [null] || (count($data) === 1 && trim((string) $data[0]) === '')) {
+            continue;
+        }
+        $rows[] = array_map(static fn($value) => trim((string) $value), $data);
+        if (count($rows) >= 1000) {
+            break;
+        }
+    }
+
+    fclose($handle);
+
+    return $rows;
+}
+
+function admin_excel_column_index(string $cellReference): int
+{
+    $letters = strtoupper(preg_replace('/[^A-Z]/', '', $cellReference) ?? '');
+    $length = strlen($letters);
+    $index = 0;
+
+    for ($i = 0; $i < $length; $i++) {
+        $index = $index * 26 + (ord($letters[$i]) - 64);
+    }
+
+    return max(0, $index - 1);
+}
+
+function admin_parse_xlsx_file(string $path): array
+{
+    $rows = [];
+
+    if (!class_exists('ZipArchive')) {
+        return $rows;
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path) !== true) {
+        return $rows;
+    }
+
+    $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+    if ($sheetXml === false) {
+        $zip->close();
+        return $rows;
+    }
+
+    $xml = @simplexml_load_string($sheetXml);
+    if ($xml === false) {
+        $zip->close();
+        return $rows;
+    }
+
+    $sharedStrings = [];
+    $sharedStringsXml = $zip->getFromName('xl/sharedStrings.xml');
+    if ($sharedStringsXml !== false) {
+        $shared = @simplexml_load_string($sharedStringsXml);
+        if ($shared !== false) {
+            foreach ($shared->si as $si) {
+                $text = '';
+                if (isset($si->t)) {
+                    $text = (string) $si->t;
+                } elseif (isset($si->r)) {
+                    foreach ($si->r as $run) {
+                        $text .= (string) ($run->t ?? '');
+                    }
+                }
+                $sharedStrings[] = trim((string) $text);
+            }
+        }
+    }
+
+    foreach ($xml->sheetData->row as $row) {
+        $cells = [];
+        foreach ($row->c as $cell) {
+            $ref = (string) $cell['r'];
+            $index = admin_excel_column_index($ref);
+            $type = (string) $cell['t'];
+            $value = '';
+
+            if ($type === 's') {
+                $lookup = isset($cell->v) ? (int) $cell->v : null;
+                $value = $lookup !== null ? ($sharedStrings[$lookup] ?? '') : '';
+            } elseif ($type === 'inlineStr' && isset($cell->is->t)) {
+                $value = (string) $cell->is->t;
+            } else {
+                $value = isset($cell->v) ? (string) $cell->v : '';
+            }
+
+            $cells[$index] = trim($value);
+        }
+
+        if ($cells === []) {
+            continue;
+        }
+
+        $maxIndex = max(array_keys($cells));
+        $rowValues = [];
+        for ($i = 0; $i <= $maxIndex; $i++) {
+            $rowValues[] = $cells[$i] ?? '';
+        }
+
+        if (count(array_filter($rowValues, static fn($value) => $value !== '')) === 0) {
+            continue;
+        }
+
+        $rows[] = $rowValues;
+        if (count($rows) >= 1000) {
+            break;
+        }
+    }
+
+    $zip->close();
+
+    return $rows;
+}
+
 if (empty($_SESSION['csrf_token'])) {
     try {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -84,6 +228,7 @@ $state = portal_load_state();
 $viewLabels = [
     'overview' => 'Overview',
     'accounts' => 'Accounts',
+    'customers' => 'Customers',
     'projects' => 'Projects',
     'tasks' => 'Tasks',
     'content' => 'Content manager',
@@ -155,19 +300,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $seasonLabel = trim($_POST['season_label'] ?? '');
-            $accentColor = trim($_POST['accent_color'] ?? '#2563eb');
+            $accentColorInput = trim($_POST['accent_color'] ?? '#2563eb');
+            $accentColor = portal_sanitize_hex_color($accentColorInput, $state['site_theme']['palette']['accent']['background'] ?? '#2563EB');
             $backgroundImage = trim($_POST['background_image'] ?? '');
             $themeAnnouncement = trim($_POST['theme_announcement'] ?? '');
+            $palettePost = $_POST['palette'] ?? [];
+            if (!is_array($palettePost)) {
+                $palettePost = [];
+            }
 
             if ($seasonLabel === '') {
                 flash('error', 'Provide a headline for the active theme.');
                 redirect_with_flash('content');
             }
 
-            if ($accentColor === '' || !preg_match('/^#([0-9a-f]{3}|[0-9a-f]{6})$/i', $accentColor)) {
-                flash('error', 'Use a valid hexadecimal colour value (for example #2563eb).');
-                redirect_with_flash('content');
-            }
+            $paletteDefaults = $state['site_theme']['palette'] ?? portal_default_state()['site_theme']['palette'];
+            $palette = admin_prepare_palette($palettePost, $paletteDefaults);
+            $palette['accent'] = portal_build_palette_entry($accentColor);
 
             $state['site_theme'] = [
                 'active_theme' => $themeName,
@@ -175,6 +324,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'accent_color' => $accentColor,
                 'background_image' => $backgroundImage,
                 'announcement' => $themeAnnouncement,
+                'palette' => $palette,
             ];
 
             portal_record_activity($state, 'Updated seasonal theme and styling.', $actorName);
@@ -221,6 +371,175 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('success', 'Home hero content updated.');
             } else {
                 flash('error', 'Unable to update the hero content.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'create_home_section':
+            $sectionEyebrow = trim($_POST['section_eyebrow'] ?? '');
+            $sectionTitle = trim($_POST['section_title'] ?? '');
+            $sectionSubtitle = trim($_POST['section_subtitle'] ?? '');
+            $sectionBody = parse_paragraphs($_POST['section_body'] ?? '');
+            $sectionBullets = parse_newline_list($_POST['section_bullets'] ?? '');
+            $sectionStatus = $_POST['section_status'] ?? 'draft';
+            $sectionCtaText = trim($_POST['section_cta_text'] ?? '');
+            $sectionCtaUrl = trim($_POST['section_cta_url'] ?? '');
+            $sectionMediaType = strtolower(trim($_POST['section_media_type'] ?? 'none'));
+            $sectionMediaSrc = trim($_POST['section_media_src'] ?? '');
+            $sectionMediaAlt = trim($_POST['section_media_alt'] ?? '');
+            $backgroundStyle = strtolower(trim($_POST['section_background_style'] ?? 'section'));
+            $displayOrder = (int) ($_POST['section_display_order'] ?? 0);
+
+            if ($sectionTitle === '' && empty($sectionBody) && empty($sectionBullets)) {
+                flash('error', 'Provide at least a title or some body content for the section.');
+                redirect_with_flash('content');
+            }
+
+            if (!in_array($sectionStatus, ['draft', 'published'], true)) {
+                $sectionStatus = 'draft';
+            }
+
+            $allowedBackgrounds = array_keys($state['site_theme']['palette'] ?? []);
+            if (!in_array($backgroundStyle, $allowedBackgrounds, true)) {
+                $backgroundStyle = 'section';
+            }
+
+            if (!in_array($sectionMediaType, ['image', 'video', 'none'], true)) {
+                $sectionMediaType = 'none';
+            }
+
+            if ($sectionMediaType === 'none') {
+                $sectionMediaSrc = '';
+                $sectionMediaAlt = '';
+            }
+
+            $state['home_sections'][] = [
+                'id' => portal_generate_id('sec_'),
+                'eyebrow' => $sectionEyebrow,
+                'title' => $sectionTitle,
+                'subtitle' => $sectionSubtitle,
+                'body' => $sectionBody,
+                'bullets' => $sectionBullets,
+                'cta' => [
+                    'text' => $sectionCtaText,
+                    'url' => $sectionCtaUrl,
+                ],
+                'media' => [
+                    'type' => $sectionMediaType,
+                    'src' => $sectionMediaSrc,
+                    'alt' => $sectionMediaType === 'image' ? $sectionMediaAlt : '',
+                ],
+                'background_style' => $backgroundStyle,
+                'display_order' => $displayOrder,
+                'status' => $sectionStatus,
+                'updated_at' => date('c'),
+            ];
+
+            portal_record_activity($state, "Created homepage section {$sectionTitle}.", $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Homepage section added.');
+            } else {
+                flash('error', 'Unable to add the new section.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'update_home_section':
+            $sectionId = $_POST['section_id'] ?? '';
+            $sectionEyebrow = trim($_POST['section_eyebrow'] ?? '');
+            $sectionTitle = trim($_POST['section_title'] ?? '');
+            $sectionSubtitle = trim($_POST['section_subtitle'] ?? '');
+            $sectionBody = parse_paragraphs($_POST['section_body'] ?? '');
+            $sectionBullets = parse_newline_list($_POST['section_bullets'] ?? '');
+            $sectionStatus = $_POST['section_status'] ?? 'draft';
+            $sectionCtaText = trim($_POST['section_cta_text'] ?? '');
+            $sectionCtaUrl = trim($_POST['section_cta_url'] ?? '');
+            $sectionMediaType = strtolower(trim($_POST['section_media_type'] ?? 'none'));
+            $sectionMediaSrc = trim($_POST['section_media_src'] ?? '');
+            $sectionMediaAlt = trim($_POST['section_media_alt'] ?? '');
+            $backgroundStyle = strtolower(trim($_POST['section_background_style'] ?? 'section'));
+            $displayOrder = (int) ($_POST['section_display_order'] ?? 0);
+
+            if (!in_array($sectionStatus, ['draft', 'published'], true)) {
+                $sectionStatus = 'draft';
+            }
+
+            $allowedBackgrounds = array_keys($state['site_theme']['palette'] ?? []);
+            if (!in_array($backgroundStyle, $allowedBackgrounds, true)) {
+                $backgroundStyle = 'section';
+            }
+
+            if (!in_array($sectionMediaType, ['image', 'video', 'none'], true)) {
+                $sectionMediaType = 'none';
+            }
+
+            if ($sectionMediaType === 'none') {
+                $sectionMediaSrc = '';
+                $sectionMediaAlt = '';
+            }
+
+            $updated = false;
+            foreach ($state['home_sections'] as &$section) {
+                if (($section['id'] ?? '') === $sectionId) {
+                    $section['eyebrow'] = $sectionEyebrow;
+                    $section['title'] = $sectionTitle;
+                    $section['subtitle'] = $sectionSubtitle;
+                    $section['body'] = $sectionBody;
+                    $section['bullets'] = $sectionBullets;
+                    $section['cta'] = [
+                        'text' => $sectionCtaText,
+                        'url' => $sectionCtaUrl,
+                    ];
+                    $section['media'] = [
+                        'type' => $sectionMediaType,
+                        'src' => $sectionMediaSrc,
+                        'alt' => $sectionMediaType === 'image' ? $sectionMediaAlt : '',
+                    ];
+                    $section['background_style'] = $backgroundStyle;
+                    $section['display_order'] = $displayOrder;
+                    $section['status'] = $sectionStatus;
+                    $section['updated_at'] = date('c');
+                    $updated = true;
+                    $sectionLabel = $sectionTitle !== '' ? $sectionTitle : $sectionId;
+                    portal_record_activity($state, "Updated homepage section {$sectionLabel}.", $actorName);
+                    break;
+                }
+            }
+            unset($section);
+
+            if (!$updated) {
+                flash('error', 'Section not found.');
+                redirect_with_flash('content');
+            }
+
+            if (portal_save_state($state)) {
+                flash('success', 'Homepage section updated.');
+            } else {
+                flash('error', 'Unable to update the section.');
+            }
+
+            redirect_with_flash('content');
+
+        case 'delete_home_section':
+            $sectionId = $_POST['section_id'] ?? '';
+            $initialCount = count($state['home_sections']);
+            $state['home_sections'] = array_values(array_filter(
+                $state['home_sections'],
+                static fn(array $section): bool => ($section['id'] ?? '') !== $sectionId
+            ));
+
+            if ($initialCount === count($state['home_sections'])) {
+                flash('error', 'Section already removed or not found.');
+                redirect_with_flash('content');
+            }
+
+            portal_record_activity($state, 'Deleted a homepage section.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Homepage section deleted.');
+            } else {
+                flash('error', 'Unable to delete the section.');
             }
 
             redirect_with_flash('content');
@@ -1139,6 +1458,460 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             redirect_with_flash('tasks');
 
+        case 'add_customer_column':
+            $segmentSlug = $_POST['segment'] ?? '';
+            $columnLabel = trim($_POST['column_label'] ?? '');
+            $columnType = $_POST['column_type'] ?? 'text';
+
+            if (!isset($state['customer_registry']['segments'][$segmentSlug])) {
+                flash('error', 'Unknown customer segment.');
+                redirect_with_flash('customers');
+            }
+
+            if ($columnLabel === '') {
+                flash('error', 'Provide a column label.');
+                redirect_with_flash('customers');
+            }
+
+            $columnType = in_array($columnType, ['text', 'date', 'phone', 'number', 'email'], true) ? $columnType : 'text';
+
+            $segment = &$state['customer_registry']['segments'][$segmentSlug];
+            $existingColumns = $segment['columns'] ?? [];
+            $columnKeys = [];
+            foreach ($existingColumns as $column) {
+                if (isset($column['key'])) {
+                    $columnKeys[$column['key']] = true;
+                }
+            }
+
+            $baseKey = portal_slugify($columnLabel);
+            if ($baseKey === '') {
+                $baseKey = 'column';
+            }
+            $newKey = $baseKey;
+            $suffix = 2;
+            while (isset($columnKeys[$newKey])) {
+                $newKey = $baseKey . '-' . $suffix;
+                $suffix++;
+            }
+
+            $segment['columns'][] = [
+                'key' => $newKey,
+                'label' => $columnLabel,
+                'type' => $columnType,
+            ];
+
+            $columnKeys[$newKey] = true;
+
+            if (!isset($segment['entries']) || !is_array($segment['entries'])) {
+                $segment['entries'] = [];
+            }
+
+            foreach ($segment['entries'] as &$entry) {
+                if (!isset($entry['fields']) || !is_array($entry['fields'])) {
+                    $entry['fields'] = [];
+                }
+                $entry['fields'][$newKey] = $entry['fields'][$newKey] ?? '';
+                $entry['updated_at'] = $entry['updated_at'] ?? date('c');
+            }
+            unset($entry);
+
+            portal_record_activity($state, "Added column {$columnLabel} to {$segment['label']} records.", $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Column added to the customer table.');
+            } else {
+                flash('error', 'Unable to add the new column.');
+            }
+
+            redirect_with_flash('customers');
+
+        case 'create_customer_entry':
+            $segmentSlug = $_POST['segment'] ?? '';
+            if (!isset($state['customer_registry']['segments'][$segmentSlug])) {
+                flash('error', 'Unknown customer segment.');
+                redirect_with_flash('customers');
+            }
+
+            $segment = &$state['customer_registry']['segments'][$segmentSlug];
+            $columns = $segment['columns'] ?? [];
+            $fieldsInput = $_POST['fields'] ?? [];
+            if (!is_array($fieldsInput)) {
+                $fieldsInput = [];
+            }
+
+            $normalized = [];
+            $hasValue = false;
+            foreach ($columns as $column) {
+                $key = $column['key'];
+                $value = isset($fieldsInput[$key]) ? trim((string) $fieldsInput[$key]) : '';
+                $normalized[$key] = $value;
+                if ($value !== '') {
+                    $hasValue = true;
+                }
+            }
+
+            $notes = trim($_POST['notes'] ?? '');
+            $reminderOn = trim($_POST['reminder_on'] ?? '');
+
+            if (!$hasValue && $notes === '') {
+                flash('error', 'Enter at least one field before saving the record.');
+                redirect_with_flash('customers');
+            }
+
+            $segment['entries'][] = [
+                'id' => portal_generate_id('cust_'),
+                'fields' => $normalized,
+                'notes' => $notes,
+                'reminder_on' => $reminderOn,
+                'created_at' => date('c'),
+                'updated_at' => date('c'),
+            ];
+
+            portal_record_activity($state, "Added a {$segment['label']} record.", $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Customer record added.');
+            } else {
+                flash('error', 'Unable to add the customer record.');
+            }
+
+            redirect_with_flash('customers');
+
+        case 'update_customer_entry':
+            $segmentSlug = $_POST['segment'] ?? '';
+            $entryId = $_POST['entry_id'] ?? '';
+            if (!isset($state['customer_registry']['segments'][$segmentSlug])) {
+                flash('error', 'Unknown customer segment.');
+                redirect_with_flash('customers');
+            }
+
+            $segment = &$state['customer_registry']['segments'][$segmentSlug];
+            $columns = $segment['columns'] ?? [];
+            $fieldsInput = $_POST['fields'] ?? [];
+            if (!is_array($fieldsInput)) {
+                $fieldsInput = [];
+            }
+
+            $updated = false;
+            foreach ($segment['entries'] as &$entry) {
+                if (($entry['id'] ?? '') === $entryId) {
+                    $normalized = [];
+                    foreach ($columns as $column) {
+                        $key = $column['key'];
+                        $normalized[$key] = isset($fieldsInput[$key]) ? trim((string) $fieldsInput[$key]) : '';
+                    }
+                    $entry['fields'] = $normalized;
+                    $entry['notes'] = trim($_POST['notes'] ?? '');
+                    $entry['reminder_on'] = trim($_POST['reminder_on'] ?? '');
+                    $entry['updated_at'] = date('c');
+                    $updated = true;
+                    portal_record_activity($state, 'Updated a customer record.', $actorName);
+                    break;
+                }
+            }
+            unset($entry);
+
+            if (!$updated) {
+                flash('error', 'Customer record not found.');
+                redirect_with_flash('customers');
+            }
+
+            if (portal_save_state($state)) {
+                flash('success', 'Customer record updated.');
+            } else {
+                flash('error', 'Unable to update the record.');
+            }
+
+            redirect_with_flash('customers');
+
+        case 'delete_customer_entry':
+            $segmentSlug = $_POST['segment'] ?? '';
+            $entryId = $_POST['entry_id'] ?? '';
+            if (!isset($state['customer_registry']['segments'][$segmentSlug])) {
+                flash('error', 'Unknown customer segment.');
+                redirect_with_flash('customers');
+            }
+
+            $segment = &$state['customer_registry']['segments'][$segmentSlug];
+            $initialCount = count($segment['entries'] ?? []);
+            $segment['entries'] = array_values(array_filter(
+                $segment['entries'] ?? [],
+                static fn(array $entry): bool => ($entry['id'] ?? '') !== $entryId
+            ));
+
+            if ($initialCount === count($segment['entries'])) {
+                flash('error', 'Customer record already removed or not found.');
+                redirect_with_flash('customers');
+            }
+
+            portal_record_activity($state, 'Deleted a customer record.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Customer record deleted.');
+            } else {
+                flash('error', 'Unable to delete the record.');
+            }
+
+            redirect_with_flash('customers');
+
+        case 'import_customer_segment':
+            $segmentSlug = $_POST['segment'] ?? '';
+            if (!isset($state['customer_registry']['segments'][$segmentSlug])) {
+                flash('error', 'Unknown customer segment.');
+                redirect_with_flash('customers');
+            }
+
+            if (!isset($_FILES['import_file'])) {
+                flash('error', 'Upload a CSV or Excel file to import.');
+                redirect_with_flash('customers');
+            }
+
+            $file = $_FILES['import_file'];
+            if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                flash('error', 'Unable to read the uploaded file.');
+                redirect_with_flash('customers');
+            }
+
+            if (!is_uploaded_file($file['tmp_name'] ?? '')) {
+                flash('error', 'Upload did not complete correctly. Try again.');
+                redirect_with_flash('customers');
+            }
+
+            if (($file['size'] ?? 0) > 5 * 1024 * 1024) {
+                flash('error', 'Import files must be smaller than 5 MB.');
+                redirect_with_flash('customers');
+            }
+
+            $extension = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+            if ($extension === 'csv') {
+                $rows = admin_parse_csv_file($file['tmp_name']);
+            } elseif (in_array($extension, ['xlsx', 'xlsm'], true)) {
+                $rows = admin_parse_xlsx_file($file['tmp_name']);
+            } else {
+                flash('error', 'Only CSV or XLSX files are supported for import.');
+                redirect_with_flash('customers');
+            }
+
+            if (count($rows) === 0) {
+                flash('error', 'The uploaded file was empty.');
+                redirect_with_flash('customers');
+            }
+
+            $headers = array_map(static fn($value) => trim((string) $value), array_shift($rows));
+            $headers = array_values(array_filter($headers, static fn($header) => $header !== ''));
+
+            if (empty($headers)) {
+                flash('error', 'The first row must contain column headers.');
+                redirect_with_flash('customers');
+            }
+
+            $segment = &$state['customer_registry']['segments'][$segmentSlug];
+            $columns = $segment['columns'] ?? [];
+            $columnIndex = [];
+            foreach ($columns as $column) {
+                $columnIndex[$column['key']] = $column;
+            }
+
+            $headerKeys = [];
+            foreach ($headers as $headerLabel) {
+                $baseKey = portal_slugify($headerLabel);
+                if ($baseKey === '') {
+                    $baseKey = 'column';
+                }
+                $key = $baseKey;
+                $suffix = 2;
+                while (isset($columnIndex[$key]) || in_array($key, array_column($headerKeys, 'key'), true)) {
+                    $key = $baseKey . '-' . $suffix;
+                    $suffix++;
+                }
+                if (!isset($columnIndex[$key])) {
+                    $column = ['key' => $key, 'label' => $headerLabel, 'type' => 'text'];
+                    $columns[] = $column;
+                    $columnIndex[$key] = $column;
+                }
+                $headerKeys[] = ['key' => $key, 'label' => $headerLabel];
+            }
+
+            $segment['columns'] = $columns;
+
+            if (!isset($segment['entries']) || !is_array($segment['entries'])) {
+                $segment['entries'] = [];
+            }
+
+            $columnKeys = array_map(static fn($column) => $column['key'], $columns);
+            foreach ($segment['entries'] as &$entry) {
+                if (!isset($entry['fields']) || !is_array($entry['fields'])) {
+                    $entry['fields'] = [];
+                }
+                foreach ($columnKeys as $columnKey) {
+                    $entry['fields'][$columnKey] = $entry['fields'][$columnKey] ?? '';
+                }
+            }
+            unset($entry);
+
+            $inserted = 0;
+            foreach ($rows as $row) {
+                $rowValues = array_map(static fn($value) => trim((string) $value), $row);
+                if (count(array_filter($rowValues, static fn($value) => $value !== '')) === 0) {
+                    continue;
+                }
+
+                $fields = array_fill_keys($columnKeys, '');
+                foreach ($headerKeys as $index => $headerMeta) {
+                    $fields[$headerMeta['key']] = $rowValues[$index] ?? '';
+                }
+
+                $segment['entries'][] = [
+                    'id' => portal_generate_id('cust_'),
+                    'fields' => $fields,
+                    'notes' => '',
+                    'reminder_on' => '',
+                    'created_at' => date('c'),
+                    'updated_at' => date('c'),
+                ];
+                $inserted++;
+            }
+
+            $state['customer_registry']['last_import'] = date('c');
+            portal_record_activity($state, "Imported {$inserted} records into {$segment['label']}.", $actorName);
+
+            if ($inserted === 0) {
+                flash('error', 'No usable rows were found in the file.');
+                redirect_with_flash('customers');
+            }
+
+            if (portal_save_state($state)) {
+                flash('success', "Imported {$inserted} customer records.");
+            } else {
+                flash('error', 'Unable to save the imported data.');
+            }
+
+            redirect_with_flash('customers');
+
+        case 'create_directory_entry':
+            $directoryType = $_POST['directory_type'] ?? '';
+            $directoryMap = ['installers' => 'Installer', 'referrers' => 'Referrer', 'employees' => 'Employee'];
+            if (!array_key_exists($directoryType, $directoryMap)) {
+                flash('error', 'Unknown directory type.');
+                redirect_with_flash('customers');
+            }
+
+            $name = trim($_POST['name'] ?? '');
+            $email = trim($_POST['email'] ?? '');
+            $phone = trim($_POST['phone'] ?? '');
+            $region = trim($_POST['region'] ?? '');
+            $speciality = trim($_POST['speciality'] ?? '');
+            $notes = trim($_POST['notes'] ?? '');
+
+            if ($name === '') {
+                flash('error', 'Provide a name for the directory entry.');
+                redirect_with_flash('customers');
+            }
+
+            $state['team_directory'][$directoryType][] = [
+                'id' => portal_generate_id('dir_'),
+                'name' => $name,
+                'email' => $email,
+                'phone' => $phone,
+                'region' => $region,
+                'speciality' => $speciality,
+                'notes' => $notes,
+                'updated_at' => date('c'),
+            ];
+
+            portal_record_activity($state, "Added {$directoryMap[$directoryType]} {$name} to the team directory.", $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Directory entry added.');
+            } else {
+                flash('error', 'Unable to add the directory entry.');
+            }
+
+            redirect_with_flash('customers');
+
+        case 'update_directory_entry':
+            $directoryType = $_POST['directory_type'] ?? '';
+            $entryId = $_POST['entry_id'] ?? '';
+            $directoryMap = ['installers' => 'Installer', 'referrers' => 'Referrer', 'employees' => 'Employee'];
+            if (!array_key_exists($directoryType, $directoryMap)) {
+                flash('error', 'Unknown directory type.');
+                redirect_with_flash('customers');
+            }
+
+            $name = trim($_POST['name'] ?? '');
+            $email = trim($_POST['email'] ?? '');
+            $phone = trim($_POST['phone'] ?? '');
+            $region = trim($_POST['region'] ?? '');
+            $speciality = trim($_POST['speciality'] ?? '');
+            $notes = trim($_POST['notes'] ?? '');
+
+            $updated = false;
+            foreach ($state['team_directory'][$directoryType] as &$entry) {
+                if (($entry['id'] ?? '') === $entryId) {
+                    if ($name === '') {
+                        flash('error', 'Provide a name for the directory entry.');
+                        redirect_with_flash('customers');
+                    }
+                    $entry['name'] = $name;
+                    $entry['email'] = $email;
+                    $entry['phone'] = $phone;
+                    $entry['region'] = $region;
+                    $entry['speciality'] = $speciality;
+                    $entry['notes'] = $notes;
+                    $entry['updated_at'] = date('c');
+                    portal_record_activity($state, "Updated {$directoryMap[$directoryType]} {$name}.", $actorName);
+                    $updated = true;
+                    break;
+                }
+            }
+            unset($entry);
+
+            if (!$updated) {
+                flash('error', 'Directory entry not found.');
+                redirect_with_flash('customers');
+            }
+
+            if (portal_save_state($state)) {
+                flash('success', 'Directory entry updated.');
+            } else {
+                flash('error', 'Unable to update the directory entry.');
+            }
+
+            redirect_with_flash('customers');
+
+        case 'delete_directory_entry':
+            $directoryType = $_POST['directory_type'] ?? '';
+            $entryId = $_POST['entry_id'] ?? '';
+            $directoryMap = ['installers' => 'Installer', 'referrers' => 'Referrer', 'employees' => 'Employee'];
+            if (!array_key_exists($directoryType, $directoryMap)) {
+                flash('error', 'Unknown directory type.');
+                redirect_with_flash('customers');
+            }
+
+            $entries = $state['team_directory'][$directoryType] ?? [];
+            $initialCount = count($entries);
+            $entries = array_values(array_filter(
+                $entries,
+                static fn(array $entry): bool => ($entry['id'] ?? '') !== $entryId
+            ));
+
+            if ($initialCount === count($entries)) {
+                flash('error', 'Directory entry already removed or not found.');
+                redirect_with_flash('customers');
+            }
+
+            $state['team_directory'][$directoryType] = $entries;
+            portal_record_activity($state, 'Removed a team directory entry.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Directory entry deleted.');
+            } else {
+                flash('error', 'Unable to delete the directory entry.');
+            }
+
+            redirect_with_flash('customers');
+
         default:
             flash('error', 'Unknown action requested.');
             redirect_with_flash($redirectView);
@@ -1158,6 +1931,9 @@ $homeOffers = $state['home_offers'];
 $testimonials = $state['testimonials'];
 $blogPosts = $state['blog_posts'];
 $caseStudies = $state['case_studies'];
+$homeSections = $state['home_sections'];
+$customerRegistry = $state['customer_registry'];
+$teamDirectory = $state['team_directory'];
 $activityLog = $state['activity_log'];
 
 $heroBulletsValue = implode("\n", $homeHero['bullets'] ?? []);
@@ -1177,6 +1953,48 @@ usort($blogPosts, static function (array $a, array $b): int {
 usort($caseStudies, static function (array $a, array $b): int {
     return strcmp($b['updated_at'] ?? $b['published_at'] ?? '', $a['updated_at'] ?? $a['published_at'] ?? '');
 });
+
+usort($homeSections, static function (array $a, array $b): int {
+    $orderA = $a['display_order'] ?? 0;
+    $orderB = $b['display_order'] ?? 0;
+    if ($orderA === $orderB) {
+        return strcmp($b['updated_at'] ?? '', $a['updated_at'] ?? '');
+    }
+
+    return $orderA <=> $orderB;
+});
+
+foreach ($customerRegistry['segments'] as &$segment) {
+    if (!isset($segment['entries']) || !is_array($segment['entries'])) {
+        $segment['entries'] = [];
+        continue;
+    }
+
+    usort($segment['entries'], static function (array $a, array $b): int {
+        return strcmp($b['updated_at'] ?? $b['created_at'] ?? '', $a['updated_at'] ?? $a['created_at'] ?? '');
+    });
+}
+unset($segment);
+
+foreach ($teamDirectory as &$directoryEntries) {
+    if (!is_array($directoryEntries)) {
+        $directoryEntries = [];
+        continue;
+    }
+
+    usort($directoryEntries, static function (array $a, array $b): int {
+        return strcasecmp($a['name'] ?? '', $b['name'] ?? '');
+    });
+}
+unset($directoryEntries);
+
+$customerSegmentStats = [];
+foreach ($customerRegistry['segments'] as $slug => $segment) {
+    $customerSegmentStats[$slug] = [
+        'label' => $segment['label'] ?? ucfirst(str_replace('-', ' ', $slug)),
+        'count' => count($segment['entries'] ?? []),
+    ];
+}
 
 $roleLabels = [
     'admin' => 'Administrator',
@@ -1284,6 +2102,28 @@ $siteFocus = trim($siteSettings['company_focus'] ?? '');
 $siteContact = trim($siteSettings['primary_contact'] ?? '');
 $siteSupportEmail = trim($siteSettings['support_email'] ?? '');
 $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
+
+$themePalette = $siteTheme['palette'] ?? [];
+$accentColor = $siteTheme['accent_color'] ?? '#2563EB';
+$accentStrong = admin_mix_color($accentColor, '#000000', 0.25);
+$accentLight = admin_mix_color($accentColor, '#FFFFFF', 0.4);
+$surfaceBackground = $themePalette['surface']['background'] ?? '#FFFFFF';
+$surfaceText = $themePalette['surface']['text'] ?? '#0F172A';
+$surfaceMuted = $themePalette['surface']['muted'] ?? admin_mix_color($surfaceText, $surfaceBackground, 0.65);
+$pageBackground = $themePalette['page']['background'] ?? '#0B1120';
+$pageText = $themePalette['page']['text'] ?? '#F8FAFC';
+$pageMuted = $themePalette['page']['muted'] ?? admin_mix_color($pageText, $pageBackground, 0.65);
+$sectionBackground = $themePalette['section']['background'] ?? '#F1F5F9';
+$sectionText = $themePalette['section']['text'] ?? '#0F172A';
+$sectionMuted = $themePalette['section']['muted'] ?? admin_mix_color($sectionText, $sectionBackground, 0.65);
+$heroBackground = $themePalette['hero']['background'] ?? $pageBackground;
+$heroText = $themePalette['hero']['text'] ?? $pageText;
+$calloutBackground = $themePalette['callout']['background'] ?? $accentColor;
+$calloutText = $themePalette['callout']['text'] ?? '#FFFFFF';
+$footerBackground = $themePalette['footer']['background'] ?? '#111827';
+$footerText = $themePalette['footer']['text'] ?? '#E2E8F0';
+$borderColor = admin_mix_color($surfaceText, $surfaceBackground, 0.85);
+$accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1299,15 +2139,30 @@ $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
   <style>
     :root {
       color-scheme: light;
-      --bg: #0b1120;
-      --surface: #ffffff;
-      --muted: rgba(15, 23, 42, 0.6);
-      --border: rgba(15, 23, 42, 0.08);
-      --primary: #2563eb;
-      --primary-strong: #1d4ed8;
+      --bg: <?= htmlspecialchars($heroBackground); ?>;
+      --surface: <?= htmlspecialchars($surfaceBackground); ?>;
+      --muted: <?= htmlspecialchars($surfaceMuted); ?>;
+      --border: <?= htmlspecialchars($borderColor); ?>;
+      --primary: <?= htmlspecialchars($accentColor); ?>;
+      --primary-strong: <?= htmlspecialchars($accentStrong); ?>;
       --success: #16a34a;
       --danger: #dc2626;
       --warning: #f97316;
+      --primary-light: <?= htmlspecialchars($accentLight); ?>;
+      --theme-page-background: <?= htmlspecialchars($pageBackground); ?>;
+      --theme-page-text: <?= htmlspecialchars($pageText); ?>;
+      --theme-page-muted: <?= htmlspecialchars($pageMuted); ?>;
+      --theme-section-background: <?= htmlspecialchars($sectionBackground); ?>;
+      --theme-section-text: <?= htmlspecialchars($sectionText); ?>;
+      --theme-section-muted: <?= htmlspecialchars($sectionMuted); ?>;
+      --theme-surface-background: <?= htmlspecialchars($surfaceBackground); ?>;
+      --theme-surface-text: <?= htmlspecialchars($surfaceText); ?>;
+      --theme-callout-background: <?= htmlspecialchars($calloutBackground); ?>;
+      --theme-callout-text: <?= htmlspecialchars($calloutText); ?>;
+      --theme-footer-background: <?= htmlspecialchars($footerBackground); ?>;
+      --theme-footer-text: <?= htmlspecialchars($footerText); ?>;
+      --hero-text: <?= htmlspecialchars($heroText); ?>;
+      --accent-text: <?= htmlspecialchars($accentText); ?>;
     }
 
     * {
@@ -1322,7 +2177,7 @@ $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
       display: flex;
       justify-content: center;
       padding: clamp(2rem, 4vw, 3rem) 1.5rem;
-      color: #0f172a;
+      color: var(--theme-surface-text);
     }
 
     main.dashboard-shell {
@@ -1411,7 +2266,7 @@ $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
     .view-link.is-active {
       background: var(--primary);
       border-color: var(--primary);
-      color: #f8fafc;
+      color: var(--accent-text);
     }
 
     .view-link:not(.is-active):hover,
@@ -1450,7 +2305,8 @@ $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
       border: 1px solid var(--border);
       border-radius: 1.5rem;
       padding: clamp(1.5rem, 3vw, 2rem);
-      background: #f8fafc;
+      background: var(--theme-section-background);
+      color: var(--theme-section-text);
       display: grid;
       gap: 1rem;
     }
@@ -1474,10 +2330,10 @@ $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
     }
 
     .metric-card {
-      background: #ffffff;
+      background: var(--theme-surface-background);
       border-radius: 1.1rem;
       padding: 1rem 1.1rem;
-      border: 1px solid rgba(37, 99, 235, 0.16);
+      border: 1px solid var(--border);
       display: grid;
       gap: 0.4rem;
     }
@@ -1486,7 +2342,7 @@ $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
       font-size: 0.8rem;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: rgba(15, 23, 42, 0.6);
+      color: var(--muted);
       margin: 0;
     }
 
@@ -1708,7 +2564,7 @@ $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: rgba(15, 23, 42, 0.65);
+      color: var(--muted);
       display: block;
     }
 
@@ -1716,12 +2572,54 @@ $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
     select,
     textarea {
       border-radius: 0.85rem;
-      border: 1px solid rgba(148, 163, 184, 0.4);
+      border: 1px solid var(--border);
       padding: 0.6rem 0.75rem;
       font-size: 0.95rem;
       font-family: inherit;
-      background: #ffffff;
+      background: var(--theme-surface-background);
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .palette-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    }
+
+    .palette-card {
+      background: var(--theme-surface-background);
+      border: 1px dashed var(--border);
+      border-radius: 1rem;
+      padding: 0.75rem 1rem;
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .palette-card__preview {
+      border-radius: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-size: 0.85rem;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    .palette-card__preview span {
+      font-weight: 600;
+    }
+
+    .palette-card__text {
+      font-size: 0.8rem;
+      opacity: 0.85;
+    }
+
+    .palette-card input[type="color"] {
+      width: 100%;
+      border: none;
+      background: transparent;
+      height: 2.5rem;
+      padding: 0;
     }
 
     textarea {
@@ -1756,7 +2654,7 @@ $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
 
     .btn-primary {
       background: var(--primary);
-      color: #f8fafc;
+      color: var(--accent-text);
     }
 
     .btn-primary:hover,
@@ -2198,6 +3096,193 @@ $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
           </aside>
         </div>
       </section>
+    <?php elseif ($currentView === 'customers'): ?>
+      <section class="panel">
+        <h2>Customer lifecycle</h2>
+        <p class="lead">Track every prospect from enquiry to post-installation service. Upload Excel or CSV data, add new fields, and assign reminders for follow-ups.</p>
+        <div class="metric-grid">
+          <?php foreach ($customerSegmentStats as $slug => $summary): ?>
+            <div class="metric-card">
+              <p class="metric-label"><?= htmlspecialchars($summary['label']); ?></p>
+              <p class="metric-value"><?= htmlspecialchars((string) $summary['count']); ?></p>
+              <p class="metric-helper">records</p>
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <p>
+          Need a template? Download the
+          <a href="/api/public/customer-template.php?segment=potential" target="_blank" rel="noopener">Excel workbook</a>
+          or <a href="/api/public/customer-template.php?segment=potential&amp;format=csv" target="_blank" rel="noopener">CSV format</a>
+          and replace the sample data with your customer details.
+        </p>
+      </section>
+
+      <?php foreach ($customerRegistry['segments'] as $segmentSlug => $segmentData): ?>
+        <?php
+          $segmentLabel = $segmentData['label'] ?? ucfirst(str_replace('-', ' ', $segmentSlug));
+          $segmentDescription = $segmentData['description'] ?? '';
+          $segmentColumns = $segmentData['columns'] ?? [];
+          $segmentEntries = $segmentData['entries'] ?? [];
+          $segmentTemplateLink = '/api/public/customer-template.php?segment=' . urlencode((string) $segmentSlug);
+          $segmentCsvLink = $segmentTemplateLink . '&amp;format=csv';
+        ?>
+        <section class="panel" id="segment-<?= htmlspecialchars($segmentSlug); ?>">
+          <h2><?= htmlspecialchars($segmentLabel); ?></h2>
+          <p class="lead">
+            <?= htmlspecialchars($segmentDescription); ?>
+            <br />
+            <small>Download template: <a href="<?= $segmentTemplateLink; ?>" target="_blank" rel="noopener">Excel</a> · <a href="<?= $segmentCsvLink; ?>" target="_blank" rel="noopener">CSV</a></small>
+          </p>
+          <div class="workspace-grid">
+            <div>
+              <?php if (empty($segmentEntries)): ?>
+                <p>No records captured yet. Add a record manually or import your existing sheet.</p>
+              <?php else: ?>
+                <div class="table-wrapper">
+                  <table class="customer-table">
+                    <thead>
+                      <tr>
+                        <?php foreach ($segmentColumns as $column): ?>
+                          <th><?= htmlspecialchars($column['label'] ?? ucfirst($column['key'])); ?></th>
+                        <?php endforeach; ?>
+                        <th>Notes</th>
+                        <th>Reminder</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <?php foreach ($segmentEntries as $entry): ?>
+                        <tr>
+                          <?php foreach ($segmentColumns as $column): ?>
+                            <?php $columnKey = $column['key']; ?>
+                            <td><?= htmlspecialchars($entry['fields'][$columnKey] ?? ''); ?></td>
+                          <?php endforeach; ?>
+                          <td><?= htmlspecialchars($entry['notes'] ?? ''); ?></td>
+                          <td><?= htmlspecialchars($entry['reminder_on'] ?? ''); ?></td>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
+
+                <?php foreach ($segmentEntries as $entry): ?>
+                  <?php
+                    $displayName = '';
+                    foreach ($segmentColumns as $column) {
+                        $value = trim((string) ($entry['fields'][$column['key']] ?? ''));
+                        if ($value !== '') {
+                            $displayName = $value;
+                            break;
+                        }
+                    }
+                    if ($displayName === '') {
+                        $displayName = $segmentLabel . ' record';
+                    }
+                  ?>
+                  <details class="manage">
+                    <summary>
+                      <span><?= htmlspecialchars($displayName); ?></span>
+                      <span class="status-chip" data-status="draft">Updated <?= htmlspecialchars(date('j M Y', strtotime($entry['updated_at'] ?? $entry['created_at'] ?? date('c')))); ?></span>
+                    </summary>
+                    <div class="manage-forms">
+                      <form method="post" autocomplete="off">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                        <input type="hidden" name="action" value="update_customer_entry" />
+                        <input type="hidden" name="redirect_view" value="customers" />
+                        <input type="hidden" name="segment" value="<?= htmlspecialchars($segmentSlug); ?>" />
+                        <input type="hidden" name="entry_id" value="<?= htmlspecialchars($entry['id'] ?? ''); ?>" />
+                        <div class="form-grid">
+                          <?php foreach ($segmentColumns as $column): ?>
+                            <?php $columnKey = $column['key']; ?>
+                            <div>
+                              <label><?= htmlspecialchars($column['label'] ?? ucfirst($columnKey)); ?></label>
+                              <input name="fields[<?= htmlspecialchars($columnKey); ?>]" type="text" value="<?= htmlspecialchars($entry['fields'][$columnKey] ?? ''); ?>" />
+                            </div>
+                          <?php endforeach; ?>
+                        </div>
+                        <div class="form-grid">
+                          <div>
+                            <label>Notes</label>
+                            <textarea name="notes" rows="2" placeholder="Follow-up summary"><?= htmlspecialchars($entry['notes'] ?? ''); ?></textarea>
+                          </div>
+                          <div>
+                            <label>Reminder date</label>
+                            <input name="reminder_on" type="date" value="<?= htmlspecialchars($entry['reminder_on'] ?? ''); ?>" />
+                          </div>
+                        </div>
+                        <button class="btn-primary" type="submit">Update record</button>
+                      </form>
+                      <form method="post" onsubmit="return confirm('Remove this record?');">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                        <input type="hidden" name="action" value="delete_customer_entry" />
+                        <input type="hidden" name="redirect_view" value="customers" />
+                        <input type="hidden" name="segment" value="<?= htmlspecialchars($segmentSlug); ?>" />
+                        <input type="hidden" name="entry_id" value="<?= htmlspecialchars($entry['id'] ?? ''); ?>" />
+                        <button class="btn-destructive" type="submit">Delete record</button>
+                      </form>
+                    </div>
+                  </details>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </div>
+            <aside class="workspace-aside">
+              <h3>Manage <?= htmlspecialchars($segmentLabel); ?></h3>
+              <form method="post" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                <input type="hidden" name="action" value="import_customer_segment" />
+                <input type="hidden" name="redirect_view" value="customers" />
+                <input type="hidden" name="segment" value="<?= htmlspecialchars($segmentSlug); ?>" />
+                <label for="import-<?= htmlspecialchars($segmentSlug); ?>">Import CSV or Excel</label>
+                <input id="import-<?= htmlspecialchars($segmentSlug); ?>" name="import_file" type="file" accept=".csv,.xlsx" required />
+                <p class="form-helper">Headers are matched automatically. New columns are added for you.</p>
+                <button class="btn-primary" type="submit">Upload file</button>
+              </form>
+              <form method="post" autocomplete="off">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                <input type="hidden" name="action" value="add_customer_column" />
+                <input type="hidden" name="redirect_view" value="customers" />
+                <input type="hidden" name="segment" value="<?= htmlspecialchars($segmentSlug); ?>" />
+                <label for="new-column-<?= htmlspecialchars($segmentSlug); ?>">Add column label</label>
+                <input id="new-column-<?= htmlspecialchars($segmentSlug); ?>" name="column_label" type="text" placeholder="Installer notes" required />
+                <label for="new-column-type-<?= htmlspecialchars($segmentSlug); ?>">Data type</label>
+                <select id="new-column-type-<?= htmlspecialchars($segmentSlug); ?>" name="column_type">
+                  <option value="text" selected>Text</option>
+                  <option value="date">Date</option>
+                  <option value="phone">Phone</option>
+                  <option value="number">Number</option>
+                  <option value="email">Email</option>
+                </select>
+                <button class="btn-secondary" type="submit">Add column</button>
+              </form>
+              <form method="post" autocomplete="off">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                <input type="hidden" name="action" value="create_customer_entry" />
+                <input type="hidden" name="redirect_view" value="customers" />
+                <input type="hidden" name="segment" value="<?= htmlspecialchars($segmentSlug); ?>" />
+                <div class="form-grid">
+                  <?php foreach ($segmentColumns as $column): ?>
+                    <div>
+                      <label><?= htmlspecialchars($column['label'] ?? ucfirst($column['key'])); ?></label>
+                      <input name="fields[<?= htmlspecialchars($column['key']); ?>]" type="text" />
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+                <div class="form-grid">
+                  <div>
+                    <label>Notes</label>
+                    <textarea name="notes" rows="2" placeholder="Add reminder notes"></textarea>
+                  </div>
+                  <div>
+                    <label>Reminder date</label>
+                    <input name="reminder_on" type="date" />
+                  </div>
+                </div>
+                <button class="btn-primary" type="submit">Add record</button>
+              </form>
+            </aside>
+          </div>
+        </section>
+      <?php endforeach; ?>
+
     <?php elseif ($currentView === 'projects'): ?>
       <section class="panel">
         <h2>Project tracker</h2>
@@ -2450,9 +3535,33 @@ $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
                 </div>
                 <div>
                   <label for="theme-accent">Accent colour</label>
-                  <input id="theme-accent" name="accent_color" type="text" value="<?= htmlspecialchars($siteTheme['accent_color'] ?? '#2563eb'); ?>" placeholder="#2563eb" pattern="^#?[0-9a-fA-F]{3,6}$" />
-                  <p class="form-helper">Hex value applied to primary buttons and highlights.</p>
+                  <input id="theme-accent" name="accent_color" type="color" value="<?= htmlspecialchars($accentColor); ?>" />
+                  <p class="form-helper">Primary buttons and highlights use this colour. Text auto-adjusts to <?= htmlspecialchars($accentText); ?>.</p>
                 </div>
+              </div>
+              <div class="palette-grid">
+                <?php
+                $paletteOptions = [
+                    'page' => ['label' => 'Site backdrop', 'helper' => 'Overall dashboard background behind the shell.'],
+                    'surface' => ['label' => 'Cards & forms', 'helper' => 'Panels, tables, and form controls.'],
+                    'section' => ['label' => 'Workspace panels', 'helper' => 'Container backgrounds for each panel.'],
+                    'hero' => ['label' => 'Login hero', 'helper' => 'Used for the outer gradient and hero blocks.'],
+                    'callout' => ['label' => 'Callouts', 'helper' => 'Announcements and alert strips.'],
+                    'footer' => ['label' => 'Footer & dark areas', 'helper' => 'Applies to sticky notes and footer rows.'],
+                ];
+                foreach ($paletteOptions as $slug => $meta):
+                    $entry = $siteTheme['palette'][$slug] ?? ['background' => '#ffffff', 'text' => '#0f172a', 'muted' => '#64748b'];
+                ?>
+                  <div class="palette-card">
+                    <label for="palette-<?= htmlspecialchars($slug); ?>"><?= htmlspecialchars($meta['label']); ?></label>
+                    <div class="palette-card__preview" style="background: <?= htmlspecialchars($entry['background']); ?>; color: <?= htmlspecialchars($entry['text']); ?>;">
+                      <span><?= htmlspecialchars($entry['background']); ?></span>
+                      <span class="palette-card__text">Text: <?= htmlspecialchars($entry['text']); ?></span>
+                    </div>
+                    <input id="palette-<?= htmlspecialchars($slug); ?>" name="palette[<?= htmlspecialchars($slug); ?>][background]" type="color" value="<?= htmlspecialchars($entry['background']); ?>" />
+                    <p class="form-helper"><?= htmlspecialchars($meta['helper']); ?></p>
+                  </div>
+                <?php endforeach; ?>
               </div>
               <div class="form-grid">
                 <div>
@@ -2512,6 +3621,196 @@ $siteSupportPhone = trim($siteSettings['support_phone'] ?? '');
                 <textarea id="hero-bullets" name="hero_bullets" rows="4" placeholder="Add savings metric, subsidy highlight, etc."><?= htmlspecialchars($heroBulletsValue); ?></textarea>
               </div>
               <button class="btn-primary" type="submit">Save hero content</button>
+            </form>
+          </aside>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Homepage sections</h2>
+        <p class="lead">Create new homepage blocks or update existing ones without editing code. Draft sections stay hidden.</p>
+        <div class="workspace-grid">
+          <div>
+            <?php if (empty($homeSections)): ?>
+              <p>No dynamic sections yet. Use the form to publish the first one.</p>
+            <?php else: ?>
+              <?php foreach ($homeSections as $section): ?>
+                <?php $sectionStatus = $section['status'] ?? 'draft'; ?>
+                <details class="manage">
+                  <summary>
+                    <span><?= htmlspecialchars($section['title'] !== '' ? $section['title'] : 'Untitled section'); ?></span>
+                    <span class="status-chip" data-status="<?= htmlspecialchars($sectionStatus); ?>"><?= htmlspecialchars(ucfirst($sectionStatus)); ?></span>
+                  </summary>
+                  <div class="manage-forms">
+                    <form method="post" autocomplete="off">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                      <input type="hidden" name="action" value="update_home_section" />
+                      <input type="hidden" name="redirect_view" value="content" />
+                      <input type="hidden" name="section_id" value="<?= htmlspecialchars($section['id'] ?? ''); ?>" />
+                      <div class="form-grid">
+                        <div>
+                          <label>Eyebrow label</label>
+                          <input name="section_eyebrow" type="text" value="<?= htmlspecialchars($section['eyebrow'] ?? ''); ?>" />
+                        </div>
+                        <div>
+                          <label>Display order</label>
+                          <input name="section_display_order" type="number" value="<?= htmlspecialchars((string) ($section['display_order'] ?? 0)); ?>" />
+                        </div>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>Title</label>
+                          <input name="section_title" type="text" value="<?= htmlspecialchars($section['title'] ?? ''); ?>" />
+                        </div>
+                        <div>
+                          <label>Subtitle</label>
+                          <input name="section_subtitle" type="text" value="<?= htmlspecialchars($section['subtitle'] ?? ''); ?>" />
+                        </div>
+                      </div>
+                      <div>
+                        <label>Body content (paragraphs)</label>
+                        <textarea name="section_body" rows="4" placeholder="Add paragraph content here. Separate paragraphs with a blank line."><?= htmlspecialchars(implode("\n\n", $section['body'] ?? [])); ?></textarea>
+                      </div>
+                      <div>
+                        <label>Bullet points (one per line)</label>
+                        <textarea name="section_bullets" rows="3" placeholder="Highlight financing options&#10;Showcase O&M support"><?= htmlspecialchars(implode("\n", $section['bullets'] ?? [])); ?></textarea>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>CTA text</label>
+                          <input name="section_cta_text" type="text" value="<?= htmlspecialchars($section['cta']['text'] ?? ''); ?>" />
+                        </div>
+                        <div>
+                          <label>CTA link</label>
+                          <input name="section_cta_url" type="url" value="<?= htmlspecialchars($section['cta']['url'] ?? ''); ?>" placeholder="https://..." />
+                        </div>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>Media type</label>
+                          <?php $mediaType = strtolower($section['media']['type'] ?? 'none'); ?>
+                          <select name="section_media_type">
+                            <option value="none" <?= $mediaType === 'none' ? 'selected' : ''; ?>>None</option>
+                            <option value="image" <?= $mediaType === 'image' ? 'selected' : ''; ?>>Image</option>
+                            <option value="video" <?= $mediaType === 'video' ? 'selected' : ''; ?>>Video</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label>Media URL</label>
+                          <input name="section_media_src" type="url" value="<?= htmlspecialchars($section['media']['src'] ?? ''); ?>" placeholder="images/sections/spotlight.jpg" />
+                        </div>
+                        <div>
+                          <label>Media alt text</label>
+                          <input name="section_media_alt" type="text" value="<?= htmlspecialchars($section['media']['alt'] ?? ''); ?>" />
+                        </div>
+                      </div>
+                      <div class="form-grid">
+                        <div>
+                          <label>Background style</label>
+                          <select name="section_background_style">
+                            <?php foreach ($siteTheme['palette'] as $paletteKey => $_paletteEntry): ?>
+                              <?php if ($paletteKey === 'accent') { continue; } ?>
+                              <option value="<?= htmlspecialchars($paletteKey); ?>" <?= $paletteKey === ($section['background_style'] ?? 'section') ? 'selected' : ''; ?>><?= htmlspecialchars(ucfirst(str_replace('-', ' ', $paletteKey))); ?></option>
+                            <?php endforeach; ?>
+                          </select>
+                        </div>
+                        <div>
+                          <label>Status</label>
+                          <select name="section_status">
+                            <option value="draft" <?= $sectionStatus === 'draft' ? 'selected' : ''; ?>>Draft</option>
+                            <option value="published" <?= $sectionStatus === 'published' ? 'selected' : ''; ?>>Published</option>
+                          </select>
+                        </div>
+                      </div>
+                      <button class="btn-primary" type="submit">Update section</button>
+                    </form>
+                    <form method="post" onsubmit="return confirm('Delete this section?');">
+                      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                      <input type="hidden" name="action" value="delete_home_section" />
+                      <input type="hidden" name="redirect_view" value="content" />
+                      <input type="hidden" name="section_id" value="<?= htmlspecialchars($section['id'] ?? ''); ?>" />
+                      <button class="btn-destructive" type="submit">Delete section</button>
+                    </form>
+                  </div>
+                </details>
+              <?php endforeach; ?>
+            <?php endif; ?>
+          </div>
+          <aside class="workspace-aside">
+            <h3>Add section</h3>
+            <form method="post" autocomplete="off">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="create_home_section" />
+              <input type="hidden" name="redirect_view" value="content" />
+              <div class="form-grid">
+                <div>
+                  <label for="new-section-title">Title</label>
+                  <input id="new-section-title" name="section_title" type="text" placeholder="Spotlight: Rooftop financing" />
+                </div>
+                <div>
+                  <label for="new-section-order">Display order</label>
+                  <input id="new-section-order" name="section_display_order" type="number" value="0" />
+                </div>
+              </div>
+              <div>
+                <label for="new-section-subtitle">Subtitle</label>
+                <input id="new-section-subtitle" name="section_subtitle" type="text" placeholder="Tailor a new message for leads" />
+              </div>
+              <div>
+                <label for="new-section-body">Body content</label>
+                <textarea id="new-section-body" name="section_body" rows="4" placeholder="Describe the new announcement or service."></textarea>
+              </div>
+              <div>
+                <label for="new-section-bullets">Bullet points</label>
+                <textarea id="new-section-bullets" name="section_bullets" rows="3" placeholder="Financing approved in 48 hours&#10;Dedicated installation crew"></textarea>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-section-cta-text">CTA text</label>
+                  <input id="new-section-cta-text" name="section_cta_text" type="text" placeholder="Schedule a call" />
+                </div>
+                <div>
+                  <label for="new-section-cta-url">CTA link</label>
+                  <input id="new-section-cta-url" name="section_cta_url" type="url" placeholder="https://dakshayani.co.in/contact.html" />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-section-media-type">Media type</label>
+                  <select id="new-section-media-type" name="section_media_type">
+                    <option value="none" selected>None</option>
+                    <option value="image">Image</option>
+                    <option value="video">Video</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="new-section-media-src">Media URL</label>
+                  <input id="new-section-media-src" name="section_media_src" type="url" placeholder="images/sections/custom.jpg" />
+                </div>
+                <div>
+                  <label for="new-section-media-alt">Media alt text</label>
+                  <input id="new-section-media-alt" name="section_media_alt" type="text" />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-section-background">Background style</label>
+                  <select id="new-section-background" name="section_background_style">
+                    <?php foreach ($siteTheme['palette'] as $paletteKey => $_paletteEntry): ?>
+                      <?php if ($paletteKey === 'accent') { continue; } ?>
+                      <option value="<?= htmlspecialchars($paletteKey); ?>" <?= $paletteKey === 'section' ? 'selected' : ''; ?>><?= htmlspecialchars(ucfirst(str_replace('-', ' ', $paletteKey))); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div>
+                  <label for="new-section-status">Status</label>
+                  <select id="new-section-status" name="section_status">
+                    <option value="draft">Draft</option>
+                    <option value="published" selected>Published</option>
+                  </select>
+                </div>
+              </div>
+              <button class="btn-primary" type="submit">Create section</button>
             </form>
           </aside>
         </div>

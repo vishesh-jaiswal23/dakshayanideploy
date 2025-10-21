@@ -2,6 +2,98 @@
 
 declare(strict_types=1);
 
+function portal_sanitize_hex_color(?string $value, string $fallback = '#000000'): string
+{
+    $candidate = trim((string) $value);
+    if ($candidate === '') {
+        return strtoupper($fallback);
+    }
+
+    if ($candidate[0] !== '#') {
+        $candidate = '#' . $candidate;
+    }
+
+    if (!preg_match('/^#([0-9a-f]{3}|[0-9a-f]{6})$/i', $candidate)) {
+        return strtoupper($fallback);
+    }
+
+    if (strlen($candidate) === 4) {
+        $candidate = sprintf(
+            '#%s%s%s%s%s%s',
+            $candidate[1],
+            $candidate[1],
+            $candidate[2],
+            $candidate[2],
+            $candidate[3],
+            $candidate[3]
+        );
+    }
+
+    return strtoupper($candidate);
+}
+
+function portal_hex_to_rgb(string $hex): array
+{
+    $hex = ltrim(portal_sanitize_hex_color($hex), '#');
+
+    return [
+        hexdec(substr($hex, 0, 2)),
+        hexdec(substr($hex, 2, 2)),
+        hexdec(substr($hex, 4, 2)),
+    ];
+}
+
+function portal_calculate_contrast_text(string $background): string
+{
+    [$r, $g, $b] = portal_hex_to_rgb($background);
+
+    $r /= 255;
+    $g /= 255;
+    $b /= 255;
+
+    $r = $r <= 0.03928 ? $r / 12.92 : (($r + 0.055) / 1.055) ** 2.4;
+    $g = $g <= 0.03928 ? $g / 12.92 : (($g + 0.055) / 1.055) ** 2.4;
+    $b = $b <= 0.03928 ? $b / 12.92 : (($b + 0.055) / 1.055) ** 2.4;
+
+    $luminance = 0.2126 * $r + 0.7152 * $g + 0.0722 * $b;
+
+    return $luminance > 0.5 ? '#111827' : '#FFFFFF';
+}
+
+function portal_mix_hex_colors(string $foreground, string $background, float $ratio): string
+{
+    $ratio = max(0.0, min(1.0, $ratio));
+    [$fr, $fg, $fb] = portal_hex_to_rgb($foreground);
+    [$br, $bg, $bb] = portal_hex_to_rgb($background);
+
+    $rr = (int) round($fr * (1 - $ratio) + $br * $ratio);
+    $rg = (int) round($fg * (1 - $ratio) + $bg * $ratio);
+    $rb = (int) round($fb * (1 - $ratio) + $bb * $ratio);
+
+    return sprintf('#%02X%02X%02X', $rr, $rg, $rb);
+}
+
+function portal_build_palette_entry(string $background, ?string $text = null, ?string $muted = null): array
+{
+    $background = portal_sanitize_hex_color($background, '#000000');
+    $text = $text !== null ? portal_sanitize_hex_color($text, '#000000') : portal_calculate_contrast_text($background);
+    $muted = $muted !== null ? portal_sanitize_hex_color($muted, $text) : portal_mix_hex_colors($text, $background, 0.65);
+
+    return [
+        'background' => $background,
+        'text' => $text,
+        'muted' => $muted,
+    ];
+}
+
+function portal_slugify(string $value): string
+{
+    $value = strtolower(trim($value));
+    $value = preg_replace('/[^a-z0-9]+/i', '-', $value) ?? '';
+
+    return trim($value, '-');
+}
+
 const PORTAL_DATA_FILE = __DIR__ . '/data/portal-state.json';
 
 function portal_default_state(): array
@@ -20,7 +112,16 @@ function portal_default_state(): array
             'season_label' => 'Evergreen Solar Savings',
             'accent_color' => '#2563eb',
             'background_image' => '',
-            'announcement' => 'Energy independence for every household and MSME in Jharkhand.'
+            'announcement' => 'Energy independence for every household and MSME in Jharkhand.',
+            'palette' => [
+                'page' => portal_build_palette_entry('#0B1120', '#F8FAFC'),
+                'hero' => portal_build_palette_entry('#0B1120', '#F8FAFC'),
+                'surface' => portal_build_palette_entry('#FFFFFF', '#0F172A'),
+                'section' => portal_build_palette_entry('#F1F5F9', '#0F172A'),
+                'callout' => portal_build_palette_entry('#2563EB', '#FFFFFF'),
+                'footer' => portal_build_palette_entry('#111827', '#E2E8F0'),
+                'accent' => portal_build_palette_entry('#2563EB', '#FFFFFF'),
+            ],
         ],
         'home_hero' => [
             'title' => 'Cut Your Electricity Bills. Power Your Future.',
@@ -35,10 +136,128 @@ function portal_default_state(): array
                 'Hybrid-ready systems with 24×7 monitoring and annual health audits'
             ]
         ],
+        'home_sections' => [
+            [
+                'id' => 'sec_story_highlight',
+                'eyebrow' => 'Dynamic section',
+                'title' => 'Share your latest success on the homepage',
+                'subtitle' => 'Use this fully editable block to promote a new milestone, partnership, or subsidy announcement without touching code.',
+                'body' => [
+                    'Edit this content from the admin console to publish campaigns in minutes. Add product explainers, subsidy updates, or success stories tailored to Jharkhand households and MSMEs.',
+                    'You can also pair this section with an optional image and call-to-action button. Duplicate the block for seasonal promotions or upcoming events.',
+                ],
+                'bullets' => [
+                    'Highlight offers, installation drives, or financing tie-ups instantly.',
+                    'Assign background themes that follow your selected colour palette.',
+                ],
+                'cta' => [
+                    'text' => 'Talk to our experts',
+                    'url' => 'contact.html',
+                ],
+                'media' => [
+                    'type' => 'image',
+                    'src' => 'images/hero/hero.png',
+                    'alt' => 'Dakshayani rooftop installation team',
+                ],
+                'background_style' => 'section',
+                'display_order' => 100,
+                'status' => 'draft',
+                'updated_at' => date('c'),
+            ],
+        ],
         'home_offers' => [],
         'testimonials' => [],
         'blog_posts' => [],
         'case_studies' => [],
+        'customer_registry' => [
+            'segments' => [
+                'potential' => [
+                    'label' => 'Potential customers',
+                    'description' => 'Pre-installation leads, enquiries, and follow-up reminders.',
+                    'columns' => [
+                        ['key' => 'prospect_name', 'label' => 'Prospect name', 'type' => 'text'],
+                        ['key' => 'contact_number', 'label' => 'Contact number', 'type' => 'phone'],
+                        ['key' => 'city', 'label' => 'City / Town', 'type' => 'text'],
+                        ['key' => 'requirements', 'label' => 'Requirements', 'type' => 'text'],
+                        ['key' => 'next_follow_up', 'label' => 'Next follow-up', 'type' => 'date'],
+                        ['key' => 'last_contacted_on', 'label' => 'Last contacted on', 'type' => 'date'],
+                        ['key' => 'assigned_owner', 'label' => 'Owner (Installer / Referrer)', 'type' => 'text'],
+                        ['key' => 'reminder_notes', 'label' => 'Reminder notes', 'type' => 'text'],
+                    ],
+                    'entries' => [],
+                ],
+                'active' => [
+                    'label' => 'In-progress installations',
+                    'description' => 'Customers currently in design, approvals, or commissioning.',
+                    'columns' => [
+                        ['key' => 'consumer_number', 'label' => 'Consumer number', 'type' => 'text'],
+                        ['key' => 'project_stage', 'label' => 'Stage', 'type' => 'text'],
+                        ['key' => 'actual_bill_date', 'label' => 'Actual bill date', 'type' => 'date'],
+                        ['key' => 'gst_bill_date', 'label' => 'GST bill date', 'type' => 'date'],
+                        ['key' => 'mobile_number', 'label' => 'Mobile number', 'type' => 'phone'],
+                        ['key' => 'consumer_login_id', 'label' => 'Consumer login ID', 'type' => 'text'],
+                        ['key' => 'installer_lead', 'label' => 'Installer in charge', 'type' => 'text'],
+                        ['key' => 'referrer', 'label' => 'Referrer', 'type' => 'text'],
+                        ['key' => 'account_manager', 'label' => 'Account manager', 'type' => 'text'],
+                    ],
+                    'entries' => [],
+                ],
+                'support' => [
+                    'label' => 'Post-installation & complaints',
+                    'description' => 'Service tickets, AMC requests, and complaint resolution tracking.',
+                    'columns' => [
+                        ['key' => 'ticket_number', 'label' => 'Ticket number', 'type' => 'text'],
+                        ['key' => 'consumer_number', 'label' => 'Consumer number', 'type' => 'text'],
+                        ['key' => 'issue_summary', 'label' => 'Issue summary', 'type' => 'text'],
+                        ['key' => 'opened_on', 'label' => 'Opened on', 'type' => 'date'],
+                        ['key' => 'status', 'label' => 'Status', 'type' => 'text'],
+                        ['key' => 'assigned_employee', 'label' => 'Assigned employee', 'type' => 'text'],
+                        ['key' => 'resolution_target', 'label' => 'Resolution target', 'type' => 'date'],
+                        ['key' => 'last_update', 'label' => 'Last update', 'type' => 'date'],
+                    ],
+                    'entries' => [],
+                ],
+            ],
+            'last_import' => null,
+        ],
+        'team_directory' => [
+            'installers' => [
+                [
+                    'id' => 'dir_installer_sample',
+                    'name' => 'Mukesh Kumar',
+                    'phone' => '+91 88775 00110',
+                    'email' => 'mukesh@dakshayani.co.in',
+                    'region' => 'Ranchi & Khunti',
+                    'speciality' => 'MNRE certified lead installer',
+                    'notes' => 'Handles high-capacity rooftop commissioning and safety audits.',
+                    'updated_at' => date('c'),
+                ],
+            ],
+            'referrers' => [
+                [
+                    'id' => 'dir_referrer_sample',
+                    'name' => 'Anita Sharma',
+                    'phone' => '+91 99050 22112',
+                    'email' => 'anita.partners@dakshayani.co.in',
+                    'region' => 'Jamshedpur industrial belt',
+                    'speciality' => 'MSME partnerships and subsidy awareness',
+                    'notes' => 'Tracks MSME cluster leads and organises awareness drives.',
+                    'updated_at' => date('c'),
+                ],
+            ],
+            'employees' => [
+                [
+                    'id' => 'dir_employee_sample',
+                    'name' => 'Raghav Sinha',
+                    'phone' => '+91 62030 01452',
+                    'email' => 'raghav@dakshayani.co.in',
+                    'region' => 'Operations HQ',
+                    'speciality' => 'Customer success & subsidy cell',
+                    'notes' => 'Coordinates DISCOM submissions, GST invoices, and billing queries.',
+                    'updated_at' => date('c'),
+                ],
+            ],
+        ],
         'users' => [],
         'projects' => [],
         'tasks' => [],
@@ -74,8 +293,45 @@ function portal_load_state(): array
     if (!isset($state['site_theme']) || !is_array($state['site_theme'])) {
         $state['site_theme'] = $default['site_theme'];
     } else {
-        $state['site_theme'] = array_merge($default['site_theme'], array_intersect_key($state['site_theme'], $default['site_theme']));
+        $state['site_theme'] = array_merge($default['site_theme'], $state['site_theme']);
     }
+
+    $state['site_theme']['accent_color'] = portal_sanitize_hex_color(
+        $state['site_theme']['accent_color'] ?? $default['site_theme']['accent_color'],
+        $default['site_theme']['accent_color']
+    );
+    $paletteDefault = $default['site_theme']['palette'];
+    $paletteInput = $state['site_theme']['palette'] ?? [];
+    $normalizedPalette = [];
+    if (!is_array($paletteInput)) {
+        $paletteInput = [];
+    }
+
+    foreach ($paletteDefault as $paletteKey => $paletteEntry) {
+        $raw = $paletteInput[$paletteKey] ?? [];
+        if (!is_array($raw)) {
+            $raw = [];
+        }
+
+        $background = portal_sanitize_hex_color($raw['background'] ?? $paletteEntry['background'], $paletteEntry['background']);
+        $textCandidate = $raw['text'] ?? $paletteEntry['text'];
+        $text = trim((string) $textCandidate) === ''
+            ? portal_calculate_contrast_text($background)
+            : portal_sanitize_hex_color($textCandidate, $paletteEntry['text']);
+        $mutedCandidate = $raw['muted'] ?? $paletteEntry['muted'];
+        $muted = trim((string) $mutedCandidate) === ''
+            ? portal_mix_hex_colors($text, $background, 0.65)
+            : portal_sanitize_hex_color($mutedCandidate, $paletteEntry['muted']);
+
+        $normalizedPalette[$paletteKey] = [
+            'background' => $background,
+            'text' => $text,
+            'muted' => $muted,
+        ];
+    }
+
+    $state['site_theme']['palette'] = $normalizedPalette;
+    $state['site_theme']['accent_color'] = $normalizedPalette['accent']['background'] ?? $state['site_theme']['accent_color'];
 
     if (!isset($state['home_hero']) || !is_array($state['home_hero'])) {
         $state['home_hero'] = $default['home_hero'];
@@ -88,6 +344,100 @@ function portal_load_state(): array
                 return $item !== '';
             }));
         }
+    }
+
+    if (!isset($state['home_sections']) || !is_array($state['home_sections'])) {
+        $state['home_sections'] = $default['home_sections'];
+    }
+
+    $state['home_sections'] = array_values(array_filter(array_map(static function ($section) use ($default) {
+        if (!is_array($section)) {
+            return null;
+        }
+
+        $id = isset($section['id']) && is_string($section['id']) && $section['id'] !== ''
+            ? $section['id']
+            : portal_generate_id('sec_');
+
+        $eyebrow = isset($section['eyebrow']) ? trim((string) $section['eyebrow']) : '';
+        $title = isset($section['title']) ? trim((string) $section['title']) : '';
+        $subtitle = isset($section['subtitle']) ? trim((string) $section['subtitle']) : '';
+
+        $body = [];
+        if (isset($section['body']) && is_array($section['body'])) {
+            $body = array_values(array_filter(array_map(static fn($item) => trim((string) $item), $section['body']), static fn($paragraph) => $paragraph !== ''));
+        } elseif (isset($section['body']) && is_string($section['body'])) {
+            $body = array_values(array_filter(array_map('trim', preg_split("/\n{2,}/", $section['body']) ?: []), static fn($paragraph) => $paragraph !== ''));
+        }
+
+        $bullets = [];
+        if (isset($section['bullets']) && is_array($section['bullets'])) {
+            $bullets = array_values(array_filter(array_map(static fn($bullet) => trim((string) $bullet), $section['bullets']), static fn($bullet) => $bullet !== ''));
+        } elseif (isset($section['bullets']) && is_string($section['bullets'])) {
+            $lines = preg_split("/\r?\n/", $section['bullets']);
+            if ($lines !== false) {
+                $bullets = array_values(array_filter(array_map('trim', $lines), static fn($line) => $line !== ''));
+            }
+        }
+
+        $cta = $section['cta'] ?? [];
+        $ctaText = isset($cta['text']) ? trim((string) $cta['text']) : '';
+        $ctaUrl = isset($cta['url']) ? trim((string) $cta['url']) : '';
+
+        $media = $section['media'] ?? [];
+        if (!is_array($media)) {
+            $media = [];
+        }
+        $mediaType = strtolower(trim((string) ($media['type'] ?? 'none')));
+        if (!in_array($mediaType, ['image', 'video', 'none'], true)) {
+            $mediaType = 'none';
+        }
+        $mediaSrc = trim((string) ($media['src'] ?? ''));
+        $mediaAlt = trim((string) ($media['alt'] ?? ''));
+
+        $backgroundStyle = strtolower(trim((string) ($section['background_style'] ?? 'section')));
+        $allowedBackgrounds = array_keys($default['site_theme']['palette']);
+        if (!in_array($backgroundStyle, $allowedBackgrounds, true)) {
+            $backgroundStyle = 'section';
+        }
+
+        $displayOrder = isset($section['display_order']) ? (int) $section['display_order'] : 0;
+        $status = strtolower(trim((string) ($section['status'] ?? 'draft')));
+        if (!in_array($status, ['draft', 'published'], true)) {
+            $status = 'draft';
+        }
+
+        $updatedAt = isset($section['updated_at']) && is_string($section['updated_at']) ? $section['updated_at'] : date('c');
+
+        if ($title === '' && empty($body) && empty($bullets)) {
+            return null;
+        }
+
+        return [
+            'id' => $id,
+            'eyebrow' => $eyebrow,
+            'title' => $title,
+            'subtitle' => $subtitle,
+            'body' => $body,
+            'bullets' => $bullets,
+            'cta' => [
+                'text' => $ctaText,
+                'url' => $ctaUrl,
+            ],
+            'media' => [
+                'type' => $mediaType,
+                'src' => $mediaSrc,
+                'alt' => $mediaAlt,
+            ],
+            'background_style' => $backgroundStyle,
+            'display_order' => $displayOrder,
+            'status' => $status,
+            'updated_at' => $updatedAt,
+        ];
+    }, $state['home_sections']), static fn($value) => $value !== null));
+
+    if (empty($state['home_sections'])) {
+        $state['home_sections'] = $default['home_sections'];
     }
 
     $state['users'] = array_map(static function (array $user): array {
@@ -244,6 +594,196 @@ function portal_load_state(): array
 
         return $case;
     }, $state['case_studies']), static fn($value) => $value !== null));
+
+    $defaultRegistry = $default['customer_registry'];
+    $registry = $state['customer_registry'] ?? $defaultRegistry;
+    if (!is_array($registry)) {
+        $registry = $defaultRegistry;
+    }
+
+    $segmentsInput = $registry['segments'] ?? [];
+    if (!is_array($segmentsInput)) {
+        $segmentsInput = [];
+    }
+
+    $normalizedSegments = [];
+    foreach ($segmentsInput as $slug => $segmentData) {
+        $normalizedSegments[$slug] = ['slug' => $slug, 'data' => $segmentData];
+    }
+
+    foreach ($defaultRegistry['segments'] as $slug => $segmentDefault) {
+        if (!isset($normalizedSegments[$slug])) {
+            $normalizedSegments[$slug] = ['slug' => $slug, 'data' => $segmentDefault];
+        }
+    }
+
+    $segments = [];
+    foreach ($normalizedSegments as $item) {
+        $slug = is_string($item['slug']) && $item['slug'] !== '' ? $item['slug'] : 'segment_' . portal_generate_id('seg_');
+        $segment = $item['data'];
+        $fallback = $defaultRegistry['segments'][$slug] ?? [
+            'label' => ucfirst(str_replace('-', ' ', $slug)),
+            'description' => '',
+            'columns' => [],
+            'entries' => [],
+        ];
+        if (!is_array($segment)) {
+            $segment = $fallback;
+        } else {
+            $segment = array_merge($fallback, $segment);
+        }
+
+        $label = trim((string) ($segment['label'] ?? $fallback['label']));
+        $description = trim((string) ($segment['description'] ?? $fallback['description']));
+
+        $columnsRaw = $segment['columns'] ?? [];
+        if (!is_array($columnsRaw)) {
+            $columnsRaw = [];
+        }
+        $columnMap = [];
+        foreach ($columnsRaw as $column) {
+            if (!is_array($column)) {
+                continue;
+            }
+            $key = isset($column['key']) ? portal_slugify((string) $column['key']) : '';
+            if ($key === '') {
+                $key = portal_slugify((string) ($column['label'] ?? 'column'));
+            }
+            if ($key === '') {
+                continue;
+            }
+            $columnMap[$key] = [
+                'key' => $key,
+                'label' => trim((string) ($column['label'] ?? ucfirst(str_replace('-', ' ', $key)))),
+                'type' => in_array($column['type'] ?? 'text', ['text', 'date', 'phone', 'number', 'email'], true) ? ($column['type'] ?? 'text') : 'text',
+            ];
+        }
+
+        foreach ($fallback['columns'] as $fallbackColumn) {
+            $fallbackKey = $fallbackColumn['key'];
+            if (!isset($columnMap[$fallbackKey])) {
+                $columnMap[$fallbackKey] = $fallbackColumn;
+            }
+        }
+
+        $columns = array_values($columnMap);
+
+        $entriesRaw = $segment['entries'] ?? [];
+        if (!is_array($entriesRaw)) {
+            $entriesRaw = [];
+        }
+
+        $entries = [];
+        foreach ($entriesRaw as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $id = isset($entry['id']) && is_string($entry['id']) && $entry['id'] !== ''
+                ? $entry['id']
+                : portal_generate_id('cust_');
+
+            $fields = $entry['fields'] ?? [];
+            if (!is_array($fields)) {
+                $fields = [];
+                foreach ($entry as $key => $value) {
+                    if (in_array($key, ['id', 'notes', 'created_at', 'updated_at', 'reminder_on'], true)) {
+                        continue;
+                    }
+                    if (is_string($key)) {
+                        $fields[$key] = $value;
+                    }
+                }
+            }
+
+            $normalizedFields = [];
+            foreach ($columns as $column) {
+                $colKey = $column['key'];
+                $rawValue = $fields[$colKey] ?? '';
+                if (is_array($rawValue)) {
+                    $rawValue = json_encode($rawValue, JSON_UNESCAPED_UNICODE);
+                }
+                $normalizedFields[$colKey] = trim((string) $rawValue);
+            }
+
+            $notes = isset($entry['notes']) ? trim((string) $entry['notes']) : '';
+            $reminderOn = isset($entry['reminder_on']) ? trim((string) $entry['reminder_on']) : '';
+            $createdAt = isset($entry['created_at']) && is_string($entry['created_at']) ? $entry['created_at'] : date('c');
+            $updatedAt = isset($entry['updated_at']) && is_string($entry['updated_at']) ? $entry['updated_at'] : $createdAt;
+
+            $entries[] = [
+                'id' => $id,
+                'fields' => $normalizedFields,
+                'notes' => $notes,
+                'reminder_on' => $reminderOn,
+                'created_at' => $createdAt,
+                'updated_at' => $updatedAt,
+            ];
+        }
+
+        $segments[$slug] = [
+            'label' => $label === '' ? ucfirst(str_replace('-', ' ', $slug)) : $label,
+            'description' => $description,
+            'columns' => $columns,
+            'entries' => $entries,
+        ];
+    }
+
+    $registry['segments'] = $segments;
+    $registry['last_import'] = isset($registry['last_import']) && is_string($registry['last_import']) ? $registry['last_import'] : null;
+    $state['customer_registry'] = $registry;
+
+    $defaultDirectory = $default['team_directory'];
+    $directory = $state['team_directory'] ?? $defaultDirectory;
+    if (!is_array($directory)) {
+        $directory = $defaultDirectory;
+    }
+
+    $directoryCategories = ['installers', 'referrers', 'employees'];
+    foreach ($directoryCategories as $category) {
+        $entries = $directory[$category] ?? [];
+        if (!is_array($entries)) {
+            $entries = $defaultDirectory[$category];
+        }
+
+        $directory[$category] = array_values(array_filter(array_map(static function ($entry) {
+            if (!is_array($entry)) {
+                return null;
+            }
+
+            $id = isset($entry['id']) && is_string($entry['id']) && $entry['id'] !== ''
+                ? $entry['id']
+                : portal_generate_id('dir_');
+
+            $name = isset($entry['name']) ? trim((string) $entry['name']) : '';
+            if ($name === '') {
+                return null;
+            }
+
+            $email = isset($entry['email']) ? trim((string) $entry['email']) : '';
+            $phone = isset($entry['phone']) ? trim((string) $entry['phone']) : '';
+            $region = isset($entry['region']) ? trim((string) $entry['region']) : '';
+            $speciality = isset($entry['speciality']) ? trim((string) $entry['speciality']) : '';
+            $notes = isset($entry['notes']) ? trim((string) $entry['notes']) : '';
+            $updatedAt = isset($entry['updated_at']) && is_string($entry['updated_at']) ? $entry['updated_at'] : date('c');
+
+            return [
+                'id' => $id,
+                'name' => $name,
+                'email' => $email,
+                'phone' => $phone,
+                'region' => $region,
+                'speciality' => $speciality,
+                'notes' => $notes,
+                'updated_at' => $updatedAt,
+            ];
+        }, $entries), static fn($value) => $value !== null));
+
+        if (empty($directory[$category])) {
+            $directory[$category] = $defaultDirectory[$category];
+        }
+    }
+
+    $state['team_directory'] = $directory;
 
     $state['activity_log'] = array_values(array_filter($state['activity_log'], static function ($entry) {
         return is_array($entry) && isset($entry['event'], $entry['timestamp']);
