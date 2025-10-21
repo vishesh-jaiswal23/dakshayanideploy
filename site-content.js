@@ -1,4 +1,6 @@
 (function () {
+  const endpoint = '/api/public/site-content.php';
+  const root = document.documentElement;
   const heroTitle = document.querySelector('[data-hero-title]');
   const heroSubtitle = document.querySelector('[data-hero-subtitle]');
   const heroImage = document.querySelector('[data-hero-main-image]');
@@ -10,6 +12,63 @@
   const heroSection = document.querySelector('#hero');
   const offersList = document.querySelector('[data-offers-list]');
   const testimonialList = document.querySelector('[data-testimonial-list]');
+  const sectionsHost = document.querySelector('[data-home-sections]');
+  const sectionsList = sectionsHost ? sectionsHost.querySelector('[data-home-sections-list]') : null;
+
+  function normaliseHex(input, fallback = '#000000') {
+    if (typeof input !== 'string') return fallback;
+    let value = input.trim();
+    if (!value) return fallback;
+    if (!value.startsWith('#')) value = `#${value}`;
+    const shortMatch = /^#([0-9a-f]{3})$/i.exec(value);
+    if (shortMatch) {
+      const [, short] = shortMatch;
+      return `#${short[0]}${short[0]}${short[1]}${short[1]}${short[2]}${short[2]}`.toUpperCase();
+    }
+    const fullMatch = /^#([0-9a-f]{6})$/i.exec(value);
+    if (fullMatch) {
+      return `#${fullMatch[1].toUpperCase()}`;
+    }
+    return fallback;
+  }
+
+  function hexToRgb(hex) {
+    const normalised = normaliseHex(hex, '#000000');
+    const value = normalised.slice(1);
+    return {
+      r: parseInt(value.slice(0, 2), 16),
+      g: parseInt(value.slice(2, 4), 16),
+      b: parseInt(value.slice(4, 6), 16),
+    };
+  }
+
+  function mixHex(foreground, background, ratio) {
+    const safeRatio = Math.min(Math.max(Number(ratio) || 0, 0), 1);
+    const fg = hexToRgb(foreground);
+    const bg = hexToRgb(background);
+    const r = Math.round(fg.r * (1 - safeRatio) + bg.r * safeRatio);
+    const g = Math.round(fg.g * (1 - safeRatio) + bg.g * safeRatio);
+    const b = Math.round(fg.b * (1 - safeRatio) + bg.b * safeRatio);
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b
+      .toString(16)
+      .padStart(2, '0')}`.toUpperCase();
+  }
+
+  function contrastText(background) {
+    const { r, g, b } = hexToRgb(background);
+    const [rn, gn, bn] = [r, g, b].map((channel) => {
+      const value = channel / 255;
+      return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    const luminance = rn * 0.2126 + gn * 0.7152 + bn * 0.0722;
+    return luminance > 0.5 ? '#111827' : '#FFFFFF';
+  }
+
+  function toRgba(hex, alpha) {
+    const { r, g, b } = hexToRgb(hex);
+    const safeAlpha = Math.min(Math.max(Number(alpha) || 0, 0), 1);
+    return `rgba(${r}, ${g}, ${b}, ${safeAlpha})`;
+  }
 
   function renderEmptyState(container, message, className = 'site-search-empty') {
     if (!container) return;
@@ -20,14 +79,142 @@
     container.appendChild(paragraph);
   }
 
+  function renderSections(sections) {
+    if (!sectionsHost || !sectionsList) return;
+
+    if (!Array.isArray(sections) || sections.length === 0) {
+      sectionsList.innerHTML = '';
+      sectionsHost.hidden = true;
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+
+    sections.forEach((section) => {
+      const block = document.createElement('section');
+      block.className = 'home-dynamic-section';
+      const tone = section.backgroundStyle || 'section';
+      block.setAttribute('data-section-tone', tone);
+      if (section.id) {
+        block.id = `home-section-${section.id}`;
+      }
+
+      const container = document.createElement('div');
+      container.className = 'container home-dynamic-section__inner';
+
+      const grid = document.createElement('div');
+      grid.className = 'home-dynamic-section__grid';
+
+      const content = document.createElement('div');
+      content.className = 'home-dynamic-section__content';
+
+      if (section.eyebrow) {
+        const eyebrow = document.createElement('p');
+        eyebrow.className = 'home-dynamic-section__eyebrow';
+        eyebrow.textContent = section.eyebrow;
+        content.appendChild(eyebrow);
+      }
+
+      if (section.title) {
+        const title = document.createElement('h2');
+        title.className = 'home-dynamic-section__title';
+        title.textContent = section.title;
+        content.appendChild(title);
+      }
+
+      if (section.subtitle) {
+        const subtitle = document.createElement('p');
+        subtitle.className = 'home-dynamic-section__subtitle';
+        subtitle.textContent = section.subtitle;
+        content.appendChild(subtitle);
+      }
+
+      if (Array.isArray(section.body)) {
+        section.body.forEach((paragraph) => {
+          if (typeof paragraph !== 'string' || !paragraph.trim()) return;
+          const bodyParagraph = document.createElement('p');
+          bodyParagraph.className = 'home-dynamic-section__paragraph';
+          bodyParagraph.textContent = paragraph;
+          content.appendChild(bodyParagraph);
+        });
+      }
+
+      if (Array.isArray(section.bullets) && section.bullets.length) {
+        const list = document.createElement('ul');
+        list.className = 'home-dynamic-section__bullets';
+        section.bullets.forEach((bullet) => {
+          if (typeof bullet !== 'string' || !bullet.trim()) return;
+          const item = document.createElement('li');
+          const icon = document.createElement('i');
+          icon.className = 'fa-solid fa-circle-check';
+          icon.setAttribute('aria-hidden', 'true');
+          item.appendChild(icon);
+          item.appendChild(document.createTextNode(bullet));
+          list.appendChild(item);
+        });
+        if (list.children.length) {
+          content.appendChild(list);
+        }
+      }
+
+      if (section.cta && section.cta.text && section.cta.url) {
+        const actions = document.createElement('div');
+        actions.className = 'home-dynamic-section__actions';
+        const link = document.createElement('a');
+        link.className = 'btn btn-secondary';
+        link.href = section.cta.url;
+        link.textContent = section.cta.text;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        actions.appendChild(link);
+        content.appendChild(actions);
+      }
+
+      grid.appendChild(content);
+
+      if (section.media && section.media.type === 'image' && section.media.src) {
+        const figure = document.createElement('figure');
+        figure.className = 'home-dynamic-section__media';
+        const img = document.createElement('img');
+        img.src = section.media.src;
+        img.loading = 'lazy';
+        img.alt = section.media.alt || section.title || 'Dakshayani highlight';
+        figure.appendChild(img);
+        if (section.media.alt) {
+          const caption = document.createElement('figcaption');
+          caption.textContent = section.media.alt;
+          figure.appendChild(caption);
+        }
+        grid.appendChild(figure);
+      } else if (section.media && section.media.type === 'video' && section.media.src) {
+        const mediaWrapper = document.createElement('div');
+        mediaWrapper.className = 'home-dynamic-section__media';
+        const video = document.createElement('video');
+        video.src = section.media.src;
+        video.controls = true;
+        video.playsInline = true;
+        mediaWrapper.appendChild(video);
+        grid.appendChild(mediaWrapper);
+      }
+
+      container.appendChild(grid);
+      block.appendChild(container);
+      fragment.appendChild(block);
+    });
+
+    sectionsList.innerHTML = '';
+    sectionsList.appendChild(fragment);
+    sectionsHost.hidden = false;
+  }
+
   function updateHero(hero) {
     if (!hero) return;
 
-    if (heroTitle) {
-      heroTitle.textContent = hero.title || heroTitle.textContent;
+    if (heroTitle && hero.title) {
+      heroTitle.textContent = hero.title;
     }
-    if (heroSubtitle) {
-      heroSubtitle.textContent = hero.subtitle || heroSubtitle.textContent;
+    if (heroSubtitle && hero.subtitle) {
+      heroSubtitle.textContent = hero.subtitle;
     }
     if (heroImage && hero.image) {
       heroImage.src = hero.image;
@@ -42,18 +229,20 @@
     if (bubbleBody) {
       bubbleBody.textContent = hero.bubbleBody || '';
     }
-    if (heroPoints && Array.isArray(hero.bullets) && hero.bullets.length) {
+    if (heroPoints) {
       heroPoints.innerHTML = '';
-      hero.bullets.forEach((point) => {
-        if (typeof point !== 'string' || point.trim() === '') return;
-        const li = document.createElement('li');
-        const icon = document.createElement('i');
-        icon.className = 'fa-solid fa-circle-check';
-        icon.setAttribute('aria-hidden', 'true');
-        li.appendChild(icon);
-        li.appendChild(document.createTextNode(point));
-        heroPoints.appendChild(li);
-      });
+      if (Array.isArray(hero.bullets) && hero.bullets.length) {
+        hero.bullets.forEach((point) => {
+          if (typeof point !== 'string' || !point.trim()) return;
+          const li = document.createElement('li');
+          const icon = document.createElement('i');
+          icon.className = 'fa-solid fa-circle-check';
+          icon.setAttribute('aria-hidden', 'true');
+          li.appendChild(icon);
+          li.appendChild(document.createTextNode(point));
+          heroPoints.appendChild(li);
+        });
+      }
     }
   }
 
@@ -180,23 +369,90 @@
     testimonialList.appendChild(fragment);
   }
 
+  function applyPalette(palette) {
+    if (!palette || typeof palette !== 'object') return;
+
+    Object.entries(palette).forEach(([slug, entry]) => {
+      if (!entry || typeof entry !== 'object') return;
+      const background = normaliseHex(entry.background || '#FFFFFF', '#FFFFFF');
+      const text = entry.text ? normaliseHex(entry.text, contrastText(background)) : contrastText(background);
+      const muted = entry.muted ? normaliseHex(entry.muted, mixHex(text, background, 0.65)) : mixHex(text, background, 0.65);
+
+      root.style.setProperty(`--theme-${slug}-background`, background);
+      root.style.setProperty(`--theme-${slug}-text`, text);
+      root.style.setProperty(`--theme-${slug}-muted`, muted);
+
+      if (slug === 'surface') {
+        root.style.setProperty('--surface', background);
+        root.style.setProperty('--base-900', text);
+        root.style.setProperty('--base-700', text);
+        root.style.setProperty('--base-600', muted);
+        root.style.setProperty('--base-400', mixHex(text, background, 0.55));
+        root.style.setProperty('--base-300', mixHex(background, '#FFFFFF', 0.2));
+      }
+
+      if (slug === 'section') {
+        root.style.setProperty('--alt-surface', background);
+      }
+
+      if (slug === 'page') {
+        document.body.style.backgroundColor = background;
+        document.body.style.color = text;
+        const metaTheme = document.querySelector('meta[name="theme-color"]');
+        if (metaTheme) {
+          metaTheme.setAttribute('content', background);
+        }
+      }
+
+      if (slug === 'hero') {
+        root.style.setProperty('--hero-surface', background);
+        root.style.setProperty('--hero-foreground', text);
+        root.style.setProperty('--hero-overlay-color', toRgba(background, 0.82));
+        root.style.setProperty('--hero-subdued', mixHex(text, background, 0.35));
+      }
+
+      if (slug === 'callout') {
+        root.style.setProperty('--callout-background', background);
+        root.style.setProperty('--callout-text', text);
+      }
+
+      if (slug === 'footer') {
+        root.style.setProperty('--footer-background', background);
+        root.style.setProperty('--footer-text', text);
+      }
+    });
+  }
+
   function applyTheme(theme) {
-    if (!theme) return;
-    if (theme.accentColor) {
-      document.documentElement.style.setProperty('--primary-main', theme.accentColor);
-      document.documentElement.style.setProperty('--primary-dark', theme.accentColor);
-      document.documentElement.style.setProperty('--accent-blue-main', theme.accentColor);
-      document.documentElement.style.setProperty('--accent-blue-dark', theme.accentColor);
-    }
+    if (!theme || typeof theme !== 'object') return;
+
+    applyPalette(theme.palette || {});
+
+    const accentColor = theme.accentColor ? normaliseHex(theme.accentColor, '#2563EB') : '#2563EB';
+    const accentText = theme.palette && theme.palette.accent && theme.palette.accent.text
+      ? normaliseHex(theme.palette.accent.text, contrastText(accentColor))
+      : contrastText(accentColor);
+
+    root.style.setProperty('--primary-main', accentColor);
+    root.style.setProperty('--primary-dark', mixHex(accentColor, '#000000', 0.25));
+    root.style.setProperty('--primary-light', mixHex(accentColor, '#FFFFFF', 0.35));
+    root.style.setProperty('--accent-blue-main', accentColor);
+    root.style.setProperty('--accent-blue-dark', mixHex(accentColor, '#000000', 0.2));
+    root.style.setProperty('--theme-accent-text', accentText);
+    root.style.setProperty('--accent-soft', mixHex(accentColor, '#FFFFFF', 0.75));
+    root.style.setProperty('--accent-strong', mixHex(accentColor, '#000000', 0.15));
+
     if (heroSection) {
       if (theme.backgroundImage) {
-        heroSection.style.backgroundImage = `linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.65)), url(${theme.backgroundImage})`;
+        const overlayValue = (root.style.getPropertyValue('--hero-overlay-color') || '').trim() || 'rgba(15, 23, 42, 0.82)';
+        heroSection.style.backgroundImage = `linear-gradient(135deg, ${overlayValue}, rgba(15, 23, 42, 0.68)), url(${theme.backgroundImage})`;
         heroSection.style.backgroundSize = 'cover';
         heroSection.style.backgroundPosition = 'center';
       } else {
         heroSection.style.removeProperty('background-image');
       }
     }
+
     if (heroAnnouncement) {
       if (theme.announcement) {
         heroAnnouncement.textContent = theme.announcement;
@@ -208,19 +464,33 @@
     }
   }
 
-  fetch('/api/public/site-content.php')
+  const siteContentPromise = fetch(endpoint, { cache: 'no-store' })
     .then((response) => {
-      if (!response.ok) throw new Error('Failed to load site content');
+      if (!response.ok) {
+        throw new Error(`Failed to load site content (${response.status})`);
+      }
       return response.json();
     })
     .then((data) => {
       applyTheme(data.theme || {});
       updateHero(data.hero || {});
+      renderSections(data.sections || []);
       renderOffers(data.offers || []);
       renderTestimonials(data.testimonials || []);
+      return data;
     })
-    .catch(() => {
+    .catch((error) => {
+      console.error('Unable to load site content', error);
+      renderSections([]);
       renderEmptyState(offersList, 'Unable to load offers at the moment.');
       renderEmptyState(testimonialList, 'Unable to load testimonials at the moment.');
+      if (heroAnnouncement) {
+        heroAnnouncement.hidden = true;
+        heroAnnouncement.textContent = '';
+      }
+      throw error;
     });
+
+  window.DakshayaniSiteContent = siteContentPromise;
+  siteContentPromise.catch(() => {});
 })();

@@ -15,6 +15,22 @@ $theme = $state['site_theme'] ?? [];
 $hero = $state['home_hero'] ?? [];
 $offers = $state['home_offers'] ?? [];
 $testimonials = $state['testimonials'] ?? [];
+$sections = $state['home_sections'] ?? [];
+
+$palette = [];
+if (isset($theme['palette']) && is_array($theme['palette'])) {
+    foreach ($theme['palette'] as $key => $entry) {
+        if (!is_array($entry)) {
+            $entry = [];
+        }
+
+        $palette[$key] = [
+            'background' => $entry['background'] ?? '#FFFFFF',
+            'text' => $entry['text'] ?? '#0F172A',
+            'muted' => $entry['muted'] ?? '#475569',
+        ];
+    }
+}
 
 $publishedOffers = array_values(array_map(static function (array $offer): array {
     return [
@@ -43,7 +59,46 @@ $publishedTestimonials = array_values(array_map(static function (array $testimon
     ];
 }, array_filter($testimonials, static function (array $testimonial): bool {
     return ($testimonial['status'] ?? 'published') === 'published';
-})));
+}))); 
+
+$publishedSections = array_values(array_filter($sections, static function (array $section): bool {
+    return ($section['status'] ?? 'draft') === 'published';
+}));
+
+usort($publishedSections, static function (array $a, array $b): int {
+    $orderA = (int) ($a['display_order'] ?? 0);
+    $orderB = (int) ($b['display_order'] ?? 0);
+
+    if ($orderA === $orderB) {
+        return strcmp($a['updated_at'] ?? '', $b['updated_at'] ?? '');
+    }
+
+    return $orderA <=> $orderB;
+});
+
+$preparedSections = array_values(array_map(static function (array $section): array {
+    $cta = $section['cta'] ?? [];
+    $media = $section['media'] ?? [];
+
+    return [
+        'id' => $section['id'] ?? '',
+        'eyebrow' => $section['eyebrow'] ?? '',
+        'title' => $section['title'] ?? '',
+        'subtitle' => $section['subtitle'] ?? '',
+        'body' => array_values(array_filter($section['body'] ?? [], static fn($paragraph) => is_string($paragraph) && $paragraph !== '')),
+        'bullets' => array_values(array_filter($section['bullets'] ?? [], static fn($bullet) => is_string($bullet) && $bullet !== '')),
+        'cta' => [
+            'text' => $cta['text'] ?? '',
+            'url' => $cta['url'] ?? '',
+        ],
+        'media' => [
+            'type' => $media['type'] ?? 'none',
+            'src' => $media['src'] ?? '',
+            'alt' => $media['alt'] ?? '',
+        ],
+        'backgroundStyle' => $section['background_style'] ?? 'section',
+    ];
+}, $publishedSections));
 
 api_send_json(200, [
     'theme' => [
@@ -52,6 +107,7 @@ api_send_json(200, [
         'accentColor' => $theme['accent_color'] ?? '#2563eb',
         'backgroundImage' => $theme['background_image'] ?? '',
         'announcement' => $theme['announcement'] ?? '',
+        'palette' => $palette,
     ],
     'hero' => [
         'title' => $hero['title'] ?? '',
@@ -62,6 +118,7 @@ api_send_json(200, [
         'bubbleBody' => $hero['bubble_body'] ?? '',
         'bullets' => array_values(array_filter($hero['bullets'] ?? [])),
     ],
+    'sections' => $preparedSections,
     'offers' => $publishedOffers,
     'testimonials' => $publishedTestimonials,
 ]);
