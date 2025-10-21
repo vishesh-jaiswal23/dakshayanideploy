@@ -54,14 +54,98 @@
       .padStart(2, '0')}`.toUpperCase();
   }
 
-  function contrastText(background) {
-    const { r, g, b } = hexToRgb(background);
+  function relativeLuminance(hex) {
+    const { r, g, b } = hexToRgb(hex);
     const [rn, gn, bn] = [r, g, b].map((channel) => {
       const value = channel / 255;
       return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
     });
-    const luminance = rn * 0.2126 + gn * 0.7152 + bn * 0.0722;
+    return rn * 0.2126 + gn * 0.7152 + bn * 0.0722;
+  }
+
+  function contrastRatio(colorA, colorB) {
+    const luminanceA = relativeLuminance(colorA);
+    const luminanceB = relativeLuminance(colorB);
+    const [lighter, darker] = luminanceA > luminanceB ? [luminanceA, luminanceB] : [luminanceB, luminanceA];
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  function contrastText(background) {
+    const luminance = relativeLuminance(background);
     return luminance > 0.5 ? '#111827' : '#FFFFFF';
+  }
+
+  function ensureTextColor(background, preferred, desired = 4.5) {
+    const bg = normaliseHex(background, '#FFFFFF');
+    const fallback = contrastText(bg);
+    const base = preferred ? normaliseHex(preferred, fallback) : fallback;
+
+    let bestColor = base;
+    let bestRatio = contrastRatio(bestColor, bg);
+
+    if (bestRatio >= desired) {
+      return bestColor;
+    }
+
+    const fallbackRatio = contrastRatio(fallback, bg);
+    if (fallbackRatio > bestRatio) {
+      bestColor = fallback;
+      bestRatio = fallbackRatio;
+      if (bestRatio >= desired) {
+        return bestColor;
+      }
+    }
+
+    if (base !== fallback) {
+      for (let step = 1; step <= 10; step += 1) {
+        const candidate = mixHex(base, fallback, step / 10);
+        const ratio = contrastRatio(candidate, bg);
+        if (ratio >= desired) {
+          return candidate;
+        }
+        if (ratio > bestRatio) {
+          bestColor = candidate;
+          bestRatio = ratio;
+        }
+      }
+    }
+
+    return bestColor;
+  }
+
+  function ensureMutedColor(background, textColor, preferred, desired = 3.2) {
+    const bg = normaliseHex(background, '#FFFFFF');
+    const text = normaliseHex(textColor, contrastText(bg));
+    const fallbackBase = mixHex(text, bg, 0.65);
+    const base = preferred ? normaliseHex(preferred, fallbackBase) : fallbackBase;
+
+    let bestColor = base;
+    let bestRatio = contrastRatio(bestColor, bg);
+
+    if (bestRatio >= desired) {
+      return bestColor;
+    }
+
+    const mixSteps = [0.6, 0.55, 0.5, 0.45, 0.4, 0.35, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05, 0];
+    for (const amount of mixSteps) {
+      const candidate = mixHex(text, bg, amount);
+      const ratio = contrastRatio(candidate, bg);
+      if (ratio >= desired) {
+        return candidate;
+      }
+      if (ratio > bestRatio) {
+        bestColor = candidate;
+        bestRatio = ratio;
+      }
+    }
+
+    const textFallback = ensureTextColor(bg, text, desired);
+    const fallbackRatio = contrastRatio(textFallback, bg);
+    if (fallbackRatio > bestRatio) {
+      return textFallback;
+    }
+
+    return bestColor;
   }
 
   function toRgba(hex, alpha) {
@@ -375,8 +459,8 @@
     Object.entries(palette).forEach(([slug, entry]) => {
       if (!entry || typeof entry !== 'object') return;
       const background = normaliseHex(entry.background || '#FFFFFF', '#FFFFFF');
-      const text = entry.text ? normaliseHex(entry.text, contrastText(background)) : contrastText(background);
-      const muted = entry.muted ? normaliseHex(entry.muted, mixHex(text, background, 0.65)) : mixHex(text, background, 0.65);
+      const text = ensureTextColor(background, entry.text);
+      const muted = ensureMutedColor(background, text, entry.muted);
 
       root.style.setProperty(`--theme-${slug}-background`, background);
       root.style.setProperty(`--theme-${slug}-text`, text);
@@ -408,7 +492,7 @@
         root.style.setProperty('--hero-surface', background);
         root.style.setProperty('--hero-foreground', text);
         root.style.setProperty('--hero-overlay-color', toRgba(background, 0.82));
-        root.style.setProperty('--hero-subdued', mixHex(text, background, 0.35));
+        root.style.setProperty('--hero-subdued', ensureMutedColor(background, text, mixHex(text, background, 0.35)));
       }
 
       if (slug === 'callout') {
@@ -433,14 +517,18 @@
       ? normaliseHex(theme.palette.accent.text, contrastText(accentColor))
       : contrastText(accentColor);
 
+    const accentSoft = mixHex(accentColor, '#FFFFFF', 0.55);
+    const accentStrong = mixHex(accentColor, '#000000', 0.25);
+
     root.style.setProperty('--primary-main', accentColor);
     root.style.setProperty('--primary-dark', mixHex(accentColor, '#000000', 0.25));
     root.style.setProperty('--primary-light', mixHex(accentColor, '#FFFFFF', 0.35));
     root.style.setProperty('--accent-blue-main', accentColor);
     root.style.setProperty('--accent-blue-dark', mixHex(accentColor, '#000000', 0.2));
     root.style.setProperty('--theme-accent-text', accentText);
-    root.style.setProperty('--accent-soft', mixHex(accentColor, '#FFFFFF', 0.75));
-    root.style.setProperty('--accent-strong', mixHex(accentColor, '#000000', 0.15));
+    root.style.setProperty('--accent-soft', accentSoft);
+    root.style.setProperty('--accent-strong', accentStrong);
+    root.style.setProperty('--accent-soft-text', contrastText(accentSoft));
 
     if (heroSection) {
       if (theme.backgroundImage) {
