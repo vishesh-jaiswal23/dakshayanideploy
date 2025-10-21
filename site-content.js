@@ -113,7 +113,7 @@
     return bestColor;
   }
 
-  function ensureMutedColor(background, textColor, preferred, desired = 3.2) {
+  function ensureMutedColor(background, textColor, preferred, desired = 4.5) {
     const bg = normaliseHex(background, '#FFFFFF');
     const text = normaliseHex(textColor, contrastText(bg));
     const fallbackBase = mixHex(text, bg, 0.65);
@@ -468,11 +468,18 @@
 
       if (slug === 'surface') {
         root.style.setProperty('--surface', background);
+        const bodyColor = mixHex(text, background, 0.18);
+        const softText = mixHex(text, background, 0.45);
+        const lightTone = mixHex(background, '#FFFFFF', 0.2);
+        const midTone = mixHex(text, muted, 0.5);
+
         root.style.setProperty('--base-900', text);
+        root.style.setProperty('--base-800', bodyColor);
         root.style.setProperty('--base-700', text);
         root.style.setProperty('--base-600', muted);
-        root.style.setProperty('--base-400', mixHex(text, background, 0.55));
-        root.style.setProperty('--base-300', mixHex(background, '#FFFFFF', 0.2));
+        root.style.setProperty('--base-500', midTone);
+        root.style.setProperty('--base-400', softText);
+        root.style.setProperty('--base-300', lightTone);
       }
 
       if (slug === 'section') {
@@ -491,8 +498,25 @@
       if (slug === 'hero') {
         root.style.setProperty('--hero-surface', background);
         root.style.setProperty('--hero-foreground', text);
-        root.style.setProperty('--hero-overlay-color', toRgba(background, 0.82));
+        const heroIsLight = relativeLuminance(background) > 0.55;
+        const overlayBase = heroIsLight ? mixHex(background, text, 0.35) : mixHex(text, background, 0.85);
+        const heroPanelSurface = heroIsLight
+          ? mixHex(background, text, 0.15)
+          : mixHex(text, background, 0.85);
+        const heroPanelText = ensureTextColor(heroPanelSurface, text);
+        const heroPanelMuted = ensureMutedColor(
+          heroPanelSurface,
+          heroPanelText,
+          mixHex(heroPanelText, heroPanelSurface, heroIsLight ? 0.65 : 0.35)
+        );
+        const heroPanelBorder = mixHex(heroPanelText, heroPanelSurface, heroIsLight ? 0.65 : 0.25);
+
+        root.style.setProperty('--hero-overlay-color', toRgba(overlayBase, 0.82));
         root.style.setProperty('--hero-subdued', ensureMutedColor(background, text, mixHex(text, background, 0.35)));
+        root.style.setProperty('--hero-panel-surface', heroPanelSurface);
+        root.style.setProperty('--hero-panel-border', heroPanelBorder);
+        root.style.setProperty('--hero-panel-text', heroPanelText);
+        root.style.setProperty('--hero-panel-muted', heroPanelMuted);
       }
 
       if (slug === 'callout') {
