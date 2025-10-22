@@ -1,0 +1,29 @@
+/* Basic styles for the admin dashboard */
+body {
+    font-family: sans-serif;
+    background-color: #f0f2f5;
+    margin: 0;
+    padding: 0;
+}
+
+.dashboard-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+header {
+    background-color: #fff;
+    padding: 20px;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 20px;
+}
+
+h1 {
+    margin: 0;
+}
+
+main {
+    background-color: #fff;
+    padding: 20px;
+}

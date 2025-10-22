@@ -1,1 +1,9 @@
-[]
+[
+    {
+        "id": "user_admin",
+        "name": "Admin",
+        "email": "admin@example.com",
+        "password": "$2y$10$ATZVDaxMaWLHC3dZXqGW9OMJooxsxYL4sxonDCFt95Bbsr.nIyBBe",
+        "role": "admin"
+    }
+]
