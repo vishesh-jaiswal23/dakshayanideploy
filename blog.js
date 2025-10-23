@@ -140,7 +140,7 @@
   async function loadPosts() {
     if (!listContainer) return;
     try {
-      const response = await fetch(resolve('/api/public/blog-posts.php'));
+      const response = await fetch(resolve('/api/public/blog-posts'));
       if (!response.ok) {
         throw new Error('Failed to load blog posts');
       }
@@ -178,7 +178,7 @@
     }
 
     try {
-      const response = await fetch(resolve(`/api/public/blog-posts.php?slug=${encodeURIComponent(slug)}`));
+      const response = await fetch(resolve(`/api/public/blog-posts?slug=${encodeURIComponent(slug)}`));
       if (!response.ok) {
         throw new Error('Not found');
       }

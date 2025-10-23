@@ -1,30 +1,78 @@
-# DakshayaniEdits
+# Dakshayani Enterprises Portal
 
 ## Overview
 
-This project bundles the Dakshayani Enterprises marketing site with a lightweight Node.js service for handling public forms and integrations. Portal login, signup, and related dashboards have been removed.
+This repository contains the Dakshayani Enterprises marketing site and a
+session-aware PHP backend that powers the internal portal. The API exposes
+the same endpoints as the legacy Node.js service, but now runs entirely on
+PHP so it can be deployed on shared hosting and cPanel plans without any
+additional runtimes.
 
-### Prerequisites
-- [Node.js](https://nodejs.org/) 18 or newer (ships with the built-in modules used by the server)
+### Key features
+- Marketing site with solar calculators, case studies, and blog content.
+- Secure login backed by PHP sessions and password hashing.
+- Unified JSON API under `/api/*` for dashboards, blog management, user
+  administration, and WhatsApp lead relays.
+- Admin workspace for managing site content, theme palettes, users, and
+  knowledge base entries.
 
-### Install & run
-1. Install dependencies (none are required, but this keeps `npm` happy):
+## Prerequisites
+
+- [PHP 8.1+](https://www.php.net/) with the `openssl` and `curl`
+  extensions enabled (both are bundled with the default PHP builds).
+- Optional: a web server such as Apache or Nginx. The project also runs via
+  PHP’s built-in development server for local testing.
+
+## Local development
+
+1. Open a terminal and change into the project directory:
    ```bash
-   npm install
+   cd /path/to/dakshayanideploy
    ```
-2. Start the combined static+API server:
+2. Start PHP’s built-in server from the project root:
    ```bash
-   npm start
+   php -S 127.0.0.1:8000
    ```
-   The service listens on `http://localhost:4000` by default.
+3. Visit `http://127.0.0.1:8000/login.php` and sign in with the admin
+   credentials defined in `login.php`.
+4. Explore the dashboards for each role. All API requests are served by
+   `api/index.php` and use the same session as the web pages.
 
-### WhatsApp quick connect
+> **Tip:** the API responses are human readable. Visit
+> `http://127.0.0.1:8000/api/me` while signed in to inspect the payload that
+> drives the dashboards.
 
-The homepage "Get Your Free Solar Consultation" form now opens WhatsApp directly on submit.
-After a visitor fills out their name, phone, city, and project type, the site launches a
-chat with `+91 70702 78178` and pre-fills those details into the message so your team can
-continue the conversation instantly.
+## Deploying on cPanel
 
-### Deploying on cPanel
+1. Upload the repository contents to `public_html/` (or the folder mapped to
+   your domain/subdomain).
+2. Ensure PHP 8.1 or newer is selected inside **MultiPHP Manager**.
+3. Add the rewrite rules from `server/portal.htaccess` to your root
+   `.htaccess` so that `/api/*` requests are routed to `api/index.php`.
+4. Configure optional environment variables via **Advanced > Cron Jobs >
+   Environment Variables** (or `.htaccess` `SetEnv` directives) if you use
+   Google reCAPTCHA, Google Solar API, or WhatsApp notifications.
+5. Browse to `https://yourdomain/login.php` and log in with the admin
+   credentials.
 
-If you are hosting the portal on shared hosting, follow the step-by-step playbook in [`docs/cpanel-backend-setup.md`](docs/cpanel-backend-setup.md). It covers preparing a ZIP archive, uploading it through File Manager, and provisioning the Node.js application in Application Manager.
+## WhatsApp quick connect
+
+The homepage "Get Your Free Solar Consultation" form continues to open
+WhatsApp directly. When submitted, the `/api/leads/whatsapp` endpoint also
+forwards the lead information to the configured WhatsApp Business inbox so
+your team can follow up instantly.
+
+## API quick reference
+
+- `GET /api/me` – Current session user information.
+- `GET /api/dashboard/{role}` – Metrics for a specific portal role.
+- `GET /api/public/*` – Public site data (blog posts, testimonials, search,
+  site settings, customer templates, etc.).
+- `POST /api/solar/estimate` – Google Solar API proxy with optional
+  reCAPTCHA validation.
+- `POST /api/leads/whatsapp` – Sends a WhatsApp notification for new leads.
+- `GET/POST /api/admin/users` – Manage portal users (admin only).
+- `GET/PUT/DELETE /api/blog/posts` – Blog post management (admin only).
+
+All endpoints honour the PHP session cookie, so authenticated requests do
+not require separate tokens.

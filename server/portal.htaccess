@@ -1,7 +1,5 @@
 RewriteEngine On
 
-# Forward /api requests directly to the PHP scripts under /portal/api/
-RewriteRule ^api/?$ portal/api/index.php [QSA,L]
-RewriteRule ^api/admin/users/?$ portal/api/admin.users.php [QSA,L]
-RewriteRule ^api/admin/users/(.*)$ portal/api/admin.users.php?path=$1 [QSA,L]
-RewriteRule ^api/dashboard/([a-z]+)/?$ portal/api/dashboard.$1.php [QSA,L]
+# Forward /api requests to the consolidated PHP router
+RewriteRule ^api/?$ api/index.php [QSA,L]
+RewriteRule ^api/(.*)$ api/index.php [QSA,L]

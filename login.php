@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Incorrect email or password. Please try again.';
         } else {
             $_SESSION['user_role'] = 'admin';
+            $_SESSION['user_id'] = 'admin-root';
             $_SESSION['display_name'] = 'Dakshayani Admin';
             $_SESSION['user_email'] = ADMIN_EMAIL;
             $_SESSION['last_login'] = date('j F Y, g:i A');
