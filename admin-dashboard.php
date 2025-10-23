@@ -1554,19 +1554,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $existingColumns = $segment['columns'] ?? [];
             $columnKeys = [];
             foreach ($existingColumns as $column) {
-                if (isset($column['key'])) {
-                    $columnKeys[$column['key']] = true;
+                if (!is_array($column)) {
+                    continue;
+                }
+                $normalizedKey = portal_normalize_column_key($column['key'] ?? '', $column['label'] ?? null);
+                if ($normalizedKey !== '') {
+                    $columnKeys[$normalizedKey] = true;
                 }
             }
 
-            $baseKey = portal_slugify($columnLabel);
+            $baseKey = portal_normalize_column_key('', $columnLabel);
             if ($baseKey === '') {
                 $baseKey = 'column';
             }
             $newKey = $baseKey;
             $suffix = 2;
             while (isset($columnKeys[$newKey])) {
-                $newKey = $baseKey . '-' . $suffix;
+                $newKey = $baseKey . '_' . $suffix;
                 $suffix++;
             }
 
@@ -3723,10 +3727,10 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
             </div>
           <?php endforeach; ?>
         </div>
-        <?php $completedCsvTemplate = '/api/public/customer-template?segment=completed&amp;format=csv'; ?>
+        <?php $completedCsvTemplate = '/api/index.php?route=public/customer-template&segment=completed&format=csv'; ?>
         <p>
-          Need a template? Every segment below includes instant Excel and CSV downloads. For completed installations you can
-          <a href="<?= $completedCsvTemplate; ?>" target="_blank" rel="noopener">grab the CSV template</a>
+          Need a template? Every segment below includes instant CSV downloads. For completed installations you can
+          <a href="<?= htmlspecialchars($completedCsvTemplate); ?>" target="_blank" rel="noopener">grab the CSV template</a>
           with Date of application, DISCOM, consumer, subsidy, and billing fields ready for bulk upload.
         </p>
       </section>
@@ -3737,8 +3741,7 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
           $segmentDescription = $segmentData['description'] ?? '';
           $segmentColumns = $segmentData['columns'] ?? [];
           $segmentEntries = $segmentData['entries'] ?? [];
-          $segmentTemplateLink = '/api/public/customer-template?segment=' . urlencode((string) $segmentSlug);
-          $segmentCsvLink = $segmentTemplateLink . '&amp;format=csv';
+          $segmentCsvLink = '/api/index.php?route=public/customer-template&segment=' . urlencode((string) $segmentSlug) . '&format=csv';
           $isCompletedSegment = $segmentSlug === 'completed';
         ?>
         <section class="panel" id="segment-<?= htmlspecialchars($segmentSlug); ?>">
@@ -3746,7 +3749,7 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
           <p class="lead">
             <?= htmlspecialchars($segmentDescription); ?>
             <br />
-            <small>Download template: <a href="<?= $segmentTemplateLink; ?>" target="_blank" rel="noopener">Excel</a> · <a href="<?= $segmentCsvLink; ?>" target="_blank" rel="noopener">CSV</a></small>
+            <small><a href="<?= htmlspecialchars($segmentCsvLink); ?>" target="_blank" rel="noopener">Download CSV template</a></small>
           </p>
           <?php if ($isCompletedSegment): ?>
             <ul class="field-list">

@@ -94,6 +94,29 @@ function portal_slugify(string $value): string
     return trim($value, '-');
 }
 
+function portal_normalize_column_key(?string $value, ?string $label = null): string
+{
+    $candidate = strtolower(trim((string) $value));
+    $candidate = preg_replace('/[^a-z0-9_]+/', '_', $candidate) ?? '';
+    $candidate = trim($candidate, '_');
+
+    if ($candidate !== '') {
+        return $candidate;
+    }
+
+    if ($label !== null) {
+        $labelCandidate = strtolower(trim((string) $label));
+        $labelCandidate = preg_replace('/[^a-z0-9_]+/', '_', $labelCandidate) ?? '';
+        $labelCandidate = trim($labelCandidate, '_');
+
+        if ($labelCandidate !== '') {
+            return $labelCandidate;
+        }
+    }
+
+    return '';
+}
+
 const PORTAL_DATA_FILE = __DIR__ . '/data/portal-state.json';
 
 function portal_default_state(): array
@@ -670,24 +693,33 @@ function portal_load_state(): array
             if (!is_array($column)) {
                 continue;
             }
-            $key = isset($column['key']) ? portal_slugify((string) $column['key']) : '';
-            if ($key === '') {
-                $key = portal_slugify((string) ($column['label'] ?? 'column'));
-            }
+            $labelCandidate = $column['label'] ?? null;
+            $key = portal_normalize_column_key($column['key'] ?? '', is_string($labelCandidate) ? $labelCandidate : null);
             if ($key === '') {
                 continue;
             }
             $columnMap[$key] = [
                 'key' => $key,
-                'label' => trim((string) ($column['label'] ?? ucfirst(str_replace('-', ' ', $key)))),
+                'label' => trim((string) ($labelCandidate ?? ucfirst(str_replace(['-', '_'], ' ', $key)))),
                 'type' => in_array($column['type'] ?? 'text', ['text', 'date', 'phone', 'number', 'email'], true) ? ($column['type'] ?? 'text') : 'text',
             ];
         }
 
         foreach ($fallback['columns'] as $fallbackColumn) {
-            $fallbackKey = $fallbackColumn['key'];
+            if (!is_array($fallbackColumn)) {
+                continue;
+            }
+            $fallbackLabel = $fallbackColumn['label'] ?? null;
+            $fallbackKey = portal_normalize_column_key($fallbackColumn['key'] ?? '', is_string($fallbackLabel) ? $fallbackLabel : null);
+            if ($fallbackKey === '') {
+                continue;
+            }
             if (!isset($columnMap[$fallbackKey])) {
-                $columnMap[$fallbackKey] = $fallbackColumn;
+                $columnMap[$fallbackKey] = [
+                    'key' => $fallbackKey,
+                    'label' => trim((string) ($fallbackLabel ?? ucfirst(str_replace(['-', '_'], ' ', $fallbackKey)))),
+                    'type' => in_array($fallbackColumn['type'] ?? 'text', ['text', 'date', 'phone', 'number', 'email'], true) ? ($fallbackColumn['type'] ?? 'text') : 'text',
+                ];
             }
         }
 
