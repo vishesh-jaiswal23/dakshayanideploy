@@ -100,6 +100,146 @@ switch (true) {
         echo '</Workbook>';
         exit;
 
+    case $path === '/public/customer-lookup' && $method === 'GET':
+        $phoneQuery = api_normalise_phone($_GET['phone'] ?? $_GET['mobile'] ?? '');
+        if ($phoneQuery === '') {
+            api_send_error(400, 'Provide a valid phone number to search for customer records.');
+        }
+
+        $matches = api_lookup_customer_by_phone($phoneQuery);
+        if ($matches === []) {
+            api_send_error(404, 'No customer records found for this phone number.');
+        }
+
+        api_send_json(200, [
+            'found' => true,
+            'customer' => $matches[0],
+            'matches' => $matches,
+        ]);
+        break;
+
+    case $path === '/public/complaints' && $method === 'POST':
+        $body = api_read_json_body();
+        $name = api_trim_string($body['name'] ?? $body['customer_name'] ?? '');
+        $phone = api_normalise_phone($body['phone'] ?? $body['mobile'] ?? '');
+
+        if ($name === '' || $phone === '') {
+            api_send_error(400, 'Customer name and phone number are required.');
+        }
+
+        $email = api_normalise_email($body['email'] ?? $body['customer_email'] ?? '');
+        $installType = strtolower(api_trim_string($body['installType'] ?? $body['install_type'] ?? ''));
+        if (!in_array($installType, ['pmsgby', 'private', 'government'], true)) {
+            $installType = $installType !== '' ? $installType : 'private';
+        }
+
+        $applicationNumber = api_trim_string($body['applicationNumber'] ?? $body['application_number'] ?? '');
+        $siteAddress = api_trim_string($body['siteAddress'] ?? $body['site_address'] ?? '');
+        $systemSize = api_trim_string($body['systemSize'] ?? $body['system_size'] ?? '');
+        $preferredContact = api_trim_string($body['preferredContact'] ?? $body['preferred_contact'] ?? '');
+        $description = api_trim_string($body['description'] ?? $body['issue'] ?? $body['details'] ?? '');
+        $issueLabels = $body['issueLabels'] ?? $body['issue_labels'] ?? [];
+        $issueValues = $body['issues'] ?? $body['issue_types'] ?? [];
+
+        if (!is_array($issueValues)) {
+            $issueValues = [];
+        }
+        if (!is_array($issueLabels)) {
+            $issueLabels = [];
+        }
+
+        $issues = array_values(array_filter(array_map(static fn($value) => api_trim_string((string) $value), $issueValues), static fn($value) => $value !== ''));
+        $issueLabelList = array_values(array_filter(array_map(static fn($value) => api_trim_string((string) $value), $issueLabels), static fn($value) => $value !== ''));
+
+        if ($issues === [] && $description === '') {
+            api_send_error(400, 'Select at least one affected component or describe the issue.');
+        }
+
+        $priority = 'medium';
+        foreach ($issues as $issue) {
+            if (in_array($issue, ['net-metering', 'inverter', 'battery'], true)) {
+                $priority = 'high';
+                break;
+            }
+        }
+        if ($priority !== 'high' && stripos($description, 'not working') !== false) {
+            $priority = 'high';
+        }
+
+        $subjectParts = [];
+        if ($issueLabelList !== []) {
+            $subjectParts[] = implode(', ', array_slice($issueLabelList, 0, 2));
+        }
+        if ($systemSize !== '') {
+            $subjectParts[] = $systemSize;
+        }
+
+        $subject = $subjectParts !== []
+            ? 'Service issue: ' . implode(' • ', $subjectParts)
+            : 'Website service complaint';
+
+        $tickets = api_read_tickets();
+        try {
+            $ticketId = 'tkt-' . bin2hex(random_bytes(6));
+        } catch (Exception $exception) {
+            $ticketId = 'tkt-' . uniqid();
+        }
+
+        $timestamp = date('c');
+        $timelineLines = [];
+        if ($issueLabelList !== []) {
+            $timelineLines[] = 'Issues: ' . implode(', ', $issueLabelList);
+        }
+        if ($description !== '') {
+            $timelineLines[] = $description;
+        }
+
+        $ticket = [
+            'id' => $ticketId,
+            'subject' => $subject,
+            'description' => $description !== ''
+                ? $description
+                : ($issueLabelList !== [] ? 'Reported issues: ' . implode(', ', $issueLabelList) : 'Service complaint logged via website form.'),
+            'priority' => $priority,
+            'status' => 'open',
+            'requesterId' => null,
+            'requesterName' => $name,
+            'requesterRole' => 'customer',
+            'requesterPhone' => $phone,
+            'requesterEmail' => $email,
+            'channel' => api_trim_string($body['channel'] ?? 'web') ?: 'web',
+            'source' => 'website',
+            'tags' => $issues,
+            'issueLabels' => $issueLabelList,
+            'createdAt' => $timestamp,
+            'updatedAt' => $timestamp,
+            'timeline' => [
+                [
+                    'type' => 'created',
+                    'actor' => $name,
+                    'actorId' => null,
+                    'at' => $timestamp,
+                    'message' => $timelineLines !== [] ? implode("\n\n", $timelineLines) : 'Complaint recorded via website.',
+                ],
+            ],
+            'meta' => [
+                'installType' => $installType,
+                'installLabel' => api_trim_string($body['installLabel'] ?? $body['install_label'] ?? ''),
+                'applicationNumber' => $applicationNumber,
+                'siteAddress' => $siteAddress,
+                'systemSize' => $systemSize,
+                'preferredContact' => $preferredContact,
+                'phoneRaw' => (string) ($body['phone'] ?? $body['mobile'] ?? ''),
+                'loggedAt' => $body['loggedAt'] ?? $timestamp,
+            ],
+        ];
+
+        $tickets[] = $ticket;
+        api_write_tickets($tickets);
+
+        api_send_json(201, ['ticket' => $ticket]);
+        break;
+
     case $path === '/public/search' && $method === 'GET':
         $query = strtolower(api_trim_string($_GET['q'] ?? ''));
         $segment = strtolower(api_trim_string($_GET['segment'] ?? ''));

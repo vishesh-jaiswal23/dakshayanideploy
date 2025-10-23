@@ -12,6 +12,7 @@ if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
 }
 
 const OWNER_EMAIL = 'd.entranchi@gmail.com';
+const ADMIN_TICKETS_FILE = __DIR__ . '/server/data/tickets.json';
 
 function flash(string $type, string $message): void
 {
@@ -213,6 +214,65 @@ function admin_parse_xlsx_file(string $path): array
     $zip->close();
 
     return $rows;
+}
+
+function admin_read_tickets(): array
+{
+    if (!file_exists(ADMIN_TICKETS_FILE)) {
+        return [];
+    }
+
+    $json = file_get_contents(ADMIN_TICKETS_FILE);
+    if ($json === false || $json === '') {
+        return [];
+    }
+
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+
+    return array_values(array_filter($decoded, static fn($ticket) => is_array($ticket)));
+}
+
+function admin_prepare_recent_complaints(array $tickets, int $limit = 8): array
+{
+    $prepared = [];
+
+    foreach ($tickets as $ticket) {
+        if (!is_array($ticket)) {
+            continue;
+        }
+
+        $createdAt = $ticket['createdAt'] ?? $ticket['created_at'] ?? '';
+        $createdTimestamp = $createdAt !== '' ? strtotime($createdAt) : false;
+        $statusLabel = ucfirst(strtolower((string) ($ticket['status'] ?? 'open')));
+        $priorityLabel = ucfirst(strtolower((string) ($ticket['priority'] ?? 'medium')));
+        $issueLabels = [];
+        if (isset($ticket['issueLabels']) && is_array($ticket['issueLabels'])) {
+            $issueLabels = array_values(array_filter(array_map(static fn($value) => trim((string) $value), $ticket['issueLabels'])));
+        }
+
+        $prepared[] = [
+            'id' => $ticket['id'] ?? '',
+            'subject' => $ticket['subject'] ?? 'Website complaint',
+            'status' => $statusLabel,
+            'priority' => $priorityLabel,
+            'createdAt' => $createdAt,
+            'createdAtFormatted' => $createdTimestamp ? date('j M Y, g:i A', $createdTimestamp) : '—',
+            'requesterName' => $ticket['requesterName'] ?? 'Customer',
+            'requesterPhone' => $ticket['requesterPhone'] ?? '',
+            'issueLabels' => $issueLabels,
+            'channel' => ucfirst(strtolower((string) ($ticket['channel'] ?? 'web'))),
+            'siteAddress' => $ticket['meta']['siteAddress'] ?? '',
+        ];
+    }
+
+    usort($prepared, static function (array $a, array $b): int {
+        return strcmp($b['createdAt'] ?? '', $a['createdAt'] ?? '');
+    });
+
+    return array_slice($prepared, 0, $limit);
 }
 
 if (empty($_SESSION['csrf_token'])) {
@@ -2095,6 +2155,168 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $activityMessage = sprintf('Approved employee theme update (%s).', $requestId);
                     break;
 
+                case 'content_change':
+                    $scope = strtolower(trim((string) ($payload['scope'] ?? '')));
+
+                    if ($scope === 'hero_update') {
+                        $hero = is_array($payload['hero'] ?? null) ? $payload['hero'] : [];
+                        $heroTitle = trim((string) ($hero['title'] ?? ''));
+                        $heroSubtitle = trim((string) ($hero['subtitle'] ?? ''));
+
+                        if ($heroTitle === '' || $heroSubtitle === '') {
+                            flash('error', 'Hero updates require both a title and subtitle.');
+                            redirect_with_flash('approvals');
+                        }
+
+                        $heroImage = trim((string) ($hero['image'] ?? ($state['home_hero']['image'] ?? 'images/hero/hero.png')));
+                        $heroImageCaption = trim((string) ($hero['image_caption'] ?? ''));
+                        $heroBubbleHeading = trim((string) ($hero['bubble_heading'] ?? ''));
+                        $heroBubbleBody = trim((string) ($hero['bubble_body'] ?? ''));
+                        $heroBulletsRaw = $hero['bullets'] ?? [];
+
+                        if (is_string($heroBulletsRaw)) {
+                            $heroBullets = array_values(array_filter(array_map('trim', preg_split("/\r?\n/", $heroBulletsRaw) ?: [])));
+                        } elseif (is_array($heroBulletsRaw)) {
+                            $heroBullets = array_values(array_filter(array_map(static fn($bullet) => trim((string) $bullet), $heroBulletsRaw)));
+                        } else {
+                            $heroBullets = [];
+                        }
+
+                        $state['home_hero'] = [
+                            'title' => $heroTitle,
+                            'subtitle' => $heroSubtitle,
+                            'image' => $heroImage,
+                            'image_caption' => $heroImageCaption,
+                            'bubble_heading' => $heroBubbleHeading,
+                            'bubble_body' => $heroBubbleBody,
+                            'bullets' => $heroBullets,
+                        ];
+
+                        $activityMessage = sprintf('Approved employee hero update (%s).', $requestId);
+                        break;
+                    }
+
+                    if ($scope === 'section') {
+                        $sectionInput = is_array($payload['section'] ?? null) ? $payload['section'] : [];
+                        $mode = strtolower((string) ($payload['mode'] ?? 'create'));
+                        if (!in_array($mode, ['create', 'update'], true)) {
+                            $mode = 'create';
+                        }
+
+                        $targetId = trim((string) ($payload['targetId'] ?? $payload['target_id'] ?? ''));
+                        if ($mode === 'update' && $targetId === '') {
+                            flash('error', 'Requested homepage section no longer exists.');
+                            redirect_with_flash('approvals');
+                        }
+
+                        $sectionEyebrow = trim((string) ($sectionInput['eyebrow'] ?? ''));
+                        $sectionTitle = trim((string) ($sectionInput['title'] ?? ''));
+                        $sectionSubtitle = trim((string) ($sectionInput['subtitle'] ?? ''));
+
+                        $bodyRaw = $sectionInput['body'] ?? [];
+                        if (is_string($bodyRaw)) {
+                            $sectionBody = array_values(array_filter(array_map('trim', preg_split("/\n{2,}/", $bodyRaw) ?: [])));
+                        } elseif (is_array($bodyRaw)) {
+                            $sectionBody = array_values(array_filter(array_map(static fn($paragraph) => trim((string) $paragraph), $bodyRaw)));
+                        } else {
+                            $sectionBody = [];
+                        }
+
+                        $bulletsRaw = $sectionInput['bullets'] ?? [];
+                        if (is_string($bulletsRaw)) {
+                            $sectionBullets = array_values(array_filter(array_map('trim', preg_split("/\r?\n/", $bulletsRaw) ?: [])));
+                        } elseif (is_array($bulletsRaw)) {
+                            $sectionBullets = array_values(array_filter(array_map(static fn($bullet) => trim((string) $bullet), $bulletsRaw)));
+                        } else {
+                            $sectionBullets = [];
+                        }
+
+                        $ctaInput = is_array($sectionInput['cta'] ?? null) ? $sectionInput['cta'] : [];
+                        $ctaText = trim((string) ($ctaInput['text'] ?? ''));
+                        $ctaUrl = trim((string) ($ctaInput['url'] ?? ''));
+
+                        $mediaInput = is_array($sectionInput['media'] ?? null) ? $sectionInput['media'] : [];
+                        $mediaType = strtolower(trim((string) ($mediaInput['type'] ?? 'none')));
+                        if (!in_array($mediaType, ['image', 'video', 'none'], true)) {
+                            $mediaType = 'none';
+                        }
+                        $mediaSrc = trim((string) ($mediaInput['src'] ?? ''));
+                        $mediaAlt = $mediaType === 'image' ? trim((string) ($mediaInput['alt'] ?? '')) : '';
+                        if ($mediaType === 'none') {
+                            $mediaSrc = '';
+                            $mediaAlt = '';
+                        }
+
+                        $sectionStatus = strtolower(trim((string) ($sectionInput['status'] ?? 'draft')));
+                        if (!in_array($sectionStatus, ['draft', 'published'], true)) {
+                            $sectionStatus = 'draft';
+                        }
+
+                        $backgroundStyle = strtolower(trim((string) ($sectionInput['background_style'] ?? 'section')));
+                        $paletteKeys = array_keys($state['site_theme']['palette'] ?? []);
+                        if (!in_array($backgroundStyle, $paletteKeys, true) || $backgroundStyle === 'accent') {
+                            $backgroundStyle = 'section';
+                        }
+
+                        $displayOrder = (int) ($sectionInput['display_order'] ?? 0);
+
+                        if ($mode === 'create' && $sectionTitle === '' && empty($sectionBody) && empty($sectionBullets)) {
+                            flash('error', 'Section proposals must include a title or body content.');
+                            redirect_with_flash('approvals');
+                        }
+
+                        $sectionPayload = [
+                            'id' => $mode === 'update' ? $targetId : portal_generate_id('sec_'),
+                            'eyebrow' => $sectionEyebrow,
+                            'title' => $sectionTitle,
+                            'subtitle' => $sectionSubtitle,
+                            'body' => $sectionBody,
+                            'bullets' => $sectionBullets,
+                            'cta' => [
+                                'text' => $ctaText,
+                                'url' => $ctaUrl,
+                            ],
+                            'media' => [
+                                'type' => $mediaType,
+                                'src' => $mediaSrc,
+                                'alt' => $mediaAlt,
+                            ],
+                            'background_style' => $backgroundStyle,
+                            'display_order' => $displayOrder,
+                            'status' => $sectionStatus,
+                            'updated_at' => date('c'),
+                        ];
+
+                        if ($mode === 'update') {
+                            $updated = false;
+                            foreach ($state['home_sections'] as &$existingSection) {
+                                if (($existingSection['id'] ?? '') === $targetId) {
+                                    $sectionPayload['created_at'] = $existingSection['created_at'] ?? date('c');
+                                    $existingSection = array_merge($existingSection, $sectionPayload);
+                                    $updated = true;
+                                    break;
+                                }
+                            }
+                            unset($existingSection);
+
+                            if (!$updated) {
+                                flash('error', 'Requested homepage section not found.');
+                                redirect_with_flash('approvals');
+                            }
+
+                            $activityMessage = sprintf('Approved homepage section update (%s).', $requestId);
+                        } else {
+                            $sectionPayload['created_at'] = date('c');
+                            $state['home_sections'][] = $sectionPayload;
+                            $activityMessage = sprintf('Approved new homepage section (%s).', $requestId);
+                        }
+
+                        break;
+                    }
+
+                    $activityMessage = sprintf('Marked employee content request %s as approved.', $requestId);
+                    break;
+
                 default:
                     // General requests are logged without system changes.
                     $activityMessage = sprintf('Marked employee request %s as approved.', $requestId);
@@ -2326,6 +2548,20 @@ usort($openTasksList, static function (array $a, array $b): int {
 
 $nextTask = $openTasksList[0] ?? null;
 $openTasksCount = count($openTasksList);
+
+$tickets = admin_read_tickets();
+$recentComplaints = admin_prepare_recent_complaints($tickets, 8);
+$openComplaintsCount = 0;
+foreach ($tickets as $ticket) {
+    if (!is_array($ticket)) {
+        continue;
+    }
+
+    $status = strtolower((string) ($ticket['status'] ?? ''));
+    if ($status === '' || in_array($status, ['open', 'pending', 'new', 'in-progress'], true)) {
+        $openComplaintsCount++;
+    }
+}
 
 $projectsByTarget = $projects;
 usort($projectsByTarget, static function (array $a, array $b): int {
@@ -3148,6 +3384,11 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
             <p class="metric-helper">Pending follow-ups for the leadership team</p>
           </article>
           <article class="metric-card">
+            <p class="metric-label">Open service complaints</p>
+            <p class="metric-value"><?= htmlspecialchars((string) $openComplaintsCount); ?></p>
+            <p class="metric-helper">Logged via the website &amp; portal</p>
+          </article>
+          <article class="metric-card">
             <p class="metric-label">Last data refresh</p>
             <p class="metric-value" style="font-size:1.05rem;">
               <?= $lastUpdatedLabel !== '' ? htmlspecialchars($lastUpdatedLabel) : 'Just now'; ?>
@@ -3224,6 +3465,59 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
             <a class="link-button" href="admin-dashboard.php?view=settings">Edit public details</a>
           </article>
         </div>
+      </section>
+
+      <section class="panel">
+        <h2>Latest service complaints</h2>
+        <p class="lead">Complaints submitted through the website are captured here for admin and employee follow-up.</p>
+        <?php if (empty($recentComplaints)): ?>
+          <p>No service complaints have been logged yet.</p>
+        <?php else: ?>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ticket</th>
+                  <th>Customer</th>
+                  <th>Issues</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Logged</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($recentComplaints as $complaint): ?>
+                  <?php $issuesText = !empty($complaint['issueLabels']) ? implode(', ', $complaint['issueLabels']) : ''; ?>
+                  <tr>
+                    <td><strong><?= htmlspecialchars($complaint['id'] ?: '—'); ?></strong></td>
+                    <td>
+                      <strong><?= htmlspecialchars($complaint['requesterName']); ?></strong>
+                      <?php if (($complaint['requesterPhone'] ?? '') !== ''): ?>
+                        <div class="form-helper">+91 <?= htmlspecialchars($complaint['requesterPhone']); ?></div>
+                      <?php endif; ?>
+                      <?php if (($complaint['siteAddress'] ?? '') !== ''): ?>
+                        <div class="form-helper"><?= htmlspecialchars($complaint['siteAddress']); ?></div>
+                      <?php endif; ?>
+                    </td>
+                    <td>
+                      <?php if ($issuesText !== ''): ?>
+                        <?= htmlspecialchars($issuesText); ?>
+                      <?php else: ?>
+                        <span class="form-helper">—</span>
+                      <?php endif; ?>
+                    </td>
+                    <td><span class="status-chip" data-status="<?= htmlspecialchars(strtolower($complaint['priority'])); ?>"><?= htmlspecialchars($complaint['priority']); ?></span></td>
+                    <td><span class="status-chip" data-status="<?= htmlspecialchars(strtolower($complaint['status'])); ?>"><?= htmlspecialchars($complaint['status']); ?></span></td>
+                    <td>
+                      <?= htmlspecialchars($complaint['channel']); ?><br />
+                      <span class="form-helper"><?= htmlspecialchars($complaint['createdAtFormatted']); ?></span>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
       </section>
 
       <section class="panel">
@@ -3429,7 +3723,7 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
             </div>
           <?php endforeach; ?>
         </div>
-        <?php $completedCsvTemplate = '/api/public/customer-template.php?segment=completed&amp;format=csv'; ?>
+        <?php $completedCsvTemplate = '/api/public/customer-template?segment=completed&amp;format=csv'; ?>
         <p>
           Need a template? Every segment below includes instant Excel and CSV downloads. For completed installations you can
           <a href="<?= $completedCsvTemplate; ?>" target="_blank" rel="noopener">grab the CSV template</a>
@@ -3443,7 +3737,7 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
           $segmentDescription = $segmentData['description'] ?? '';
           $segmentColumns = $segmentData['columns'] ?? [];
           $segmentEntries = $segmentData['entries'] ?? [];
-          $segmentTemplateLink = '/api/public/customer-template.php?segment=' . urlencode((string) $segmentSlug);
+          $segmentTemplateLink = '/api/public/customer-template?segment=' . urlencode((string) $segmentSlug);
           $segmentCsvLink = $segmentTemplateLink . '&amp;format=csv';
           $isCompletedSegment = $segmentSlug === 'completed';
         ?>

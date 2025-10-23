@@ -4,6 +4,7 @@ declare(strict_types=1);
 session_start();
 
 const EMPLOYEE_DEFAULT_VIEW = 'overview';
+const EMPLOYEE_TICKETS_FILE = __DIR__ . '/server/data/tickets.json';
 
 if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'employee') {
   header('Location: login.php');
@@ -61,6 +62,7 @@ $employeeViews = [
   'overview' => 'Overview',
   'customers' => 'Customer records',
   'approvals' => 'Approvals & requests',
+  'content' => 'Content manager',
   'design' => 'Website design updates',
   'profile' => 'Profile & preferences',
 ];
@@ -134,6 +136,85 @@ function employee_sanitize_columns(array $columns, array $input): array
   }
 
   return [$normalized, $hasValue];
+}
+
+function employee_parse_paragraphs(string $value): array
+{
+  $paragraphs = preg_split("/\n{2,}/", $value);
+  if ($paragraphs === false) {
+    return [];
+  }
+
+  return array_values(array_filter(array_map(static fn($paragraph) => trim((string) $paragraph), $paragraphs), static fn($paragraph) => $paragraph !== ''));
+}
+
+function employee_parse_newline_list(string $value): array
+{
+  $lines = preg_split("/\r?\n/", $value);
+  if ($lines === false) {
+    return [];
+  }
+
+  return array_values(array_filter(array_map(static fn($line) => trim((string) $line), $lines), static fn($line) => $line !== ''));
+}
+
+function employee_read_tickets(): array
+{
+  if (!file_exists(EMPLOYEE_TICKETS_FILE)) {
+    return [];
+  }
+
+  $json = file_get_contents(EMPLOYEE_TICKETS_FILE);
+  if ($json === false || $json === '') {
+    return [];
+  }
+
+  $decoded = json_decode($json, true);
+  if (!is_array($decoded)) {
+    return [];
+  }
+
+  return array_values(array_filter($decoded, static fn($ticket) => is_array($ticket)));
+}
+
+function employee_prepare_recent_complaints(array $tickets, int $limit = 6): array
+{
+  $prepared = [];
+
+  foreach ($tickets as $ticket) {
+    if (!is_array($ticket)) {
+      continue;
+    }
+
+    $createdAt = $ticket['createdAt'] ?? $ticket['created_at'] ?? '';
+    $createdAtFormatted = $createdAt !== '' && strtotime($createdAt)
+      ? date('j M Y, g:i A', strtotime($createdAt))
+      : '—';
+
+    $issueLabels = [];
+    if (isset($ticket['issueLabels']) && is_array($ticket['issueLabels'])) {
+      $issueLabels = array_values(array_filter(array_map(static fn($value) => trim((string) $value), $ticket['issueLabels'])));
+    }
+
+    $prepared[] = [
+      'id' => $ticket['id'] ?? '',
+      'subject' => $ticket['subject'] ?? 'Website complaint',
+      'requesterName' => $ticket['requesterName'] ?? 'Customer',
+      'requesterPhone' => $ticket['requesterPhone'] ?? '',
+      'issueLabels' => $issueLabels,
+      'priority' => ucfirst(strtolower((string) ($ticket['priority'] ?? 'medium'))),
+      'status' => ucfirst(strtolower((string) ($ticket['status'] ?? 'open'))),
+      'channel' => ucfirst(strtolower((string) ($ticket['channel'] ?? 'web'))),
+      'createdAt' => $createdAt,
+      'createdAtFormatted' => $createdAtFormatted,
+    ];
+  }
+
+  usort($prepared, static function (array $a, array $b): int {
+    return strcmp($b['createdAt'] ?? '', $a['createdAt'] ?? '');
+  });
+
+  return array_slice($prepared, 0, $limit);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -406,6 +487,201 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       employee_redirect($anchor, $redirectView);
       break;
 
+    case 'propose_hero_update':
+      $heroTitle = trim($_POST['hero_title'] ?? '');
+      $heroSubtitle = trim($_POST['hero_subtitle'] ?? '');
+      $heroImage = trim($_POST['hero_image'] ?? '');
+      $heroImageCaption = trim($_POST['hero_image_caption'] ?? '');
+      $heroBubbleHeading = trim($_POST['hero_bubble_heading'] ?? '');
+      $heroBubbleBody = trim($_POST['hero_bubble_body'] ?? '');
+      $heroBullets = employee_parse_newline_list($_POST['hero_bullets'] ?? '');
+      $heroJustification = trim($_POST['hero_justification'] ?? '');
+      $heroEffectiveDate = trim($_POST['hero_effective_date'] ?? '');
+
+      if ($heroTitle === '' || $heroSubtitle === '') {
+        employee_flash('error', 'Provide both a title and subtitle for the homepage hero.');
+        $anchor = $anchor === '' ? 'content-hero' : $anchor;
+        $redirectView = 'content';
+        employee_redirect($anchor, $redirectView);
+      }
+
+      if ($heroJustification === '') {
+        employee_flash('error', 'Share the reasoning behind the hero update so the admin can review it.');
+        $anchor = $anchor === '' ? 'content-hero' : $anchor;
+        $redirectView = 'content';
+        employee_redirect($anchor, $redirectView);
+      }
+
+      $currentHero = $state['home_hero'] ?? [];
+      if ($heroImage === '') {
+        $heroImage = $currentHero['image'] ?? 'images/hero/hero.png';
+      }
+
+      $requestId = portal_next_employee_request_id($state);
+      $submittedAt = date('c');
+      $request = [
+        'id' => $requestId,
+        'type' => 'content_change',
+        'title' => 'Homepage hero update',
+        'status' => 'Pending admin review',
+        'submitted_at' => $submittedAt,
+        'submitted_by' => $displayName,
+        'owner' => 'Site content admins',
+        'details' => $heroJustification,
+        'effective_date' => $heroEffectiveDate,
+        'last_update' => 'Submitted on ' . date('j M Y, g:i A', strtotime($submittedAt)),
+        'payload' => [
+          'scope' => 'hero_update',
+          'hero' => [
+            'title' => $heroTitle,
+            'subtitle' => $heroSubtitle,
+            'image' => $heroImage,
+            'image_caption' => $heroImageCaption,
+            'bubble_heading' => $heroBubbleHeading,
+            'bubble_body' => $heroBubbleBody,
+            'bullets' => $heroBullets,
+          ],
+          'effective_date' => $heroEffectiveDate,
+          'justification' => $heroJustification,
+        ],
+      ];
+
+      portal_add_employee_request($state, $request);
+
+      if (portal_save_state($state)) {
+        employee_flash('success', 'Hero update proposal shared with the admin team.');
+      } else {
+        employee_flash('error', 'Unable to record the hero update proposal right now.');
+      }
+
+      $anchor = $anchor === '' ? 'content-hero' : $anchor;
+      $redirectView = 'content';
+      employee_redirect($anchor, $redirectView);
+      break;
+
+    case 'propose_section_update':
+      $mode = strtolower(trim($_POST['section_mode'] ?? 'create')) === 'update' ? 'update' : 'create';
+      $targetSection = trim($_POST['target_section'] ?? '');
+      $sectionEyebrow = trim($_POST['section_eyebrow'] ?? '');
+      $sectionTitle = trim($_POST['section_title'] ?? '');
+      $sectionSubtitle = trim($_POST['section_subtitle'] ?? '');
+      $sectionBody = employee_parse_paragraphs($_POST['section_body'] ?? '');
+      $sectionBullets = employee_parse_newline_list($_POST['section_bullets'] ?? '');
+      $sectionStatus = strtolower(trim($_POST['section_status'] ?? 'draft'));
+      $sectionDisplayOrder = (int) ($_POST['section_display_order'] ?? 0);
+      $sectionCtaText = trim($_POST['section_cta_text'] ?? '');
+      $sectionCtaUrl = trim($_POST['section_cta_url'] ?? '');
+      $backgroundStyle = strtolower(trim($_POST['section_background_style'] ?? 'section'));
+      $mediaType = strtolower(trim($_POST['section_media_type'] ?? 'none'));
+      $mediaSrc = trim($_POST['section_media_src'] ?? '');
+      $mediaAlt = trim($_POST['section_media_alt'] ?? '');
+      $sectionJustification = trim($_POST['section_justification'] ?? '');
+      $sectionEffectiveDate = trim($_POST['section_effective_date'] ?? '');
+
+      if ($mode === 'update' && $targetSection === '') {
+        employee_flash('error', 'Select the section you want to update.');
+        $anchor = $anchor === '' ? 'content-sections' : $anchor;
+        $redirectView = 'content';
+        employee_redirect($anchor, $redirectView);
+      }
+
+      if ($sectionJustification === '') {
+        employee_flash('error', 'Share a justification so the admin understands the change.');
+        $anchor = $anchor === '' ? 'content-sections' : $anchor;
+        $redirectView = 'content';
+        employee_redirect($anchor, $redirectView);
+      }
+
+      if (!in_array($sectionStatus, ['draft', 'published'], true)) {
+        $sectionStatus = 'draft';
+      }
+
+      if (!in_array($backgroundStyle, $paletteKeys, true) || $backgroundStyle === 'accent') {
+        $backgroundStyle = 'section';
+      }
+
+      if (!in_array($mediaType, ['image', 'video', 'none'], true)) {
+        $mediaType = 'none';
+      }
+
+      if ($mediaType === 'none') {
+        $mediaSrc = '';
+        $mediaAlt = '';
+      }
+
+      $hasContent = $sectionTitle !== '' || $sectionSubtitle !== '' || !empty($sectionBody) || !empty($sectionBullets) || $sectionCtaText !== '' || $sectionCtaUrl !== '';
+      if ($mode === 'create' && !$hasContent) {
+        employee_flash('error', 'Add the content for the new section before submitting.');
+        $anchor = $anchor === '' ? 'content-sections' : $anchor;
+        $redirectView = 'content';
+        employee_redirect($anchor, $redirectView);
+      }
+
+      if ($mode === 'update' && !$hasContent) {
+        employee_flash('error', 'Share the updated content you want to publish.');
+        $anchor = $anchor === '' ? 'content-sections' : $anchor;
+        $redirectView = 'content';
+        employee_redirect($anchor, $redirectView);
+      }
+
+      $requestId = portal_next_employee_request_id($state);
+      $submittedAt = date('c');
+      $requestTitle = $mode === 'update'
+        ? 'Update section: ' . ($sectionTitle !== '' ? $sectionTitle : $targetSection)
+        : 'New homepage section proposal';
+
+      $request = [
+        'id' => $requestId,
+        'type' => 'content_change',
+        'title' => $requestTitle,
+        'status' => 'Pending admin review',
+        'submitted_at' => $submittedAt,
+        'submitted_by' => $displayName,
+        'owner' => 'Site content admins',
+        'details' => $sectionJustification,
+        'effective_date' => $sectionEffectiveDate,
+        'last_update' => 'Submitted on ' . date('j M Y, g:i A', strtotime($submittedAt)),
+        'payload' => [
+          'scope' => 'section',
+          'mode' => $mode,
+          'targetId' => $mode === 'update' ? $targetSection : null,
+          'section' => [
+            'eyebrow' => $sectionEyebrow,
+            'title' => $sectionTitle,
+            'subtitle' => $sectionSubtitle,
+            'body' => $sectionBody,
+            'bullets' => $sectionBullets,
+            'cta' => [
+              'text' => $sectionCtaText,
+              'url' => $sectionCtaUrl,
+            ],
+            'media' => [
+              'type' => $mediaType,
+              'src' => $mediaSrc,
+              'alt' => $mediaType === 'image' ? $mediaAlt : '',
+            ],
+            'background_style' => $backgroundStyle,
+            'display_order' => $sectionDisplayOrder,
+            'status' => $sectionStatus,
+          ],
+          'effective_date' => $sectionEffectiveDate,
+          'justification' => $sectionJustification,
+        ],
+      ];
+
+      portal_add_employee_request($state, $request);
+
+      if (portal_save_state($state)) {
+        employee_flash('success', 'Homepage section request sent to the admin team.');
+      } else {
+        employee_flash('error', 'Unable to record the homepage section request right now.');
+      }
+
+      $anchor = $anchor === '' ? 'content-sections' : $anchor;
+      $redirectView = 'content';
+      employee_redirect($anchor, $redirectView);
+      break;
+
     case 'request_theme_change':
       $seasonLabel = trim($_POST['season_label'] ?? '');
       $accentColor = portal_sanitize_hex_color($_POST['accent_color'] ?? '#2563EB', '#2563EB');
@@ -477,6 +753,36 @@ foreach ($customerSegments as $slug => $segment) {
 $approvalQueue = $state['employee_approvals'] ?? ['pending' => [], 'history' => []];
 $pendingApprovals = $approvalQueue['pending'] ?? [];
 $approvalHistory = $approvalQueue['history'] ?? [];
+
+$siteTheme = $state['site_theme'] ?? [];
+$homeHero = $state['home_hero'] ?? [];
+$homeSections = $state['home_sections'] ?? [];
+$homeHeroBulletsValue = implode("\n", $homeHero['bullets'] ?? []);
+$paletteKeys = array_keys($siteTheme['palette'] ?? []);
+$sortedHomeSections = $homeSections;
+usort($sortedHomeSections, static function (array $a, array $b): int {
+  $orderA = $a['display_order'] ?? 0;
+  $orderB = $b['display_order'] ?? 0;
+  if ($orderA === $orderB) {
+    return strcmp($b['updated_at'] ?? '', $a['updated_at'] ?? '');
+  }
+
+  return $orderA <=> $orderB;
+});
+
+$tickets = employee_read_tickets();
+$recentComplaints = employee_prepare_recent_complaints($tickets, 6);
+$openComplaintsCount = 0;
+foreach ($tickets as $ticket) {
+  if (!is_array($ticket)) {
+    continue;
+  }
+
+  $status = strtolower((string) ($ticket['status'] ?? ''));
+  if ($status === '' || in_array($status, ['open', 'pending', 'new', 'in-progress'], true)) {
+    $openComplaintsCount++;
+  }
+}
 
 $formatDateTime = static function (?string $value, string $fallback = '—'): string {
   if (!$value) {
@@ -1124,6 +1430,29 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
           <?php endforeach; ?>
         </div>
       </section>
+
+      <section class="panel" id="recent-complaints">
+        <h3>Recent service complaints</h3>
+        <p class="lead">Open complaints awaiting action: <?= htmlspecialchars((string) $openComplaintsCount); ?>.</p>
+        <?php if (empty($recentComplaints)): ?>
+          <p>No complaints have been logged yet.</p>
+        <?php else: ?>
+          <div class="history-list">
+            <?php foreach ($recentComplaints as $complaint): ?>
+              <article class="approval-card">
+                <div class="approval-header">
+                  <p class="approval-title"><?= htmlspecialchars($complaint['subject']); ?></p>
+                  <span class="status-pill"><?= htmlspecialchars($complaint['priority']); ?></span>
+                </div>
+                <p class="approval-meta">Logged by <?= htmlspecialchars($complaint['requesterName']); ?> • <?= htmlspecialchars($complaint['channel']); ?> • <?= htmlspecialchars($complaint['createdAtFormatted']); ?></p>
+                <?php if (!empty($complaint['issueLabels'])): ?>
+                  <p class="approval-details"><?= htmlspecialchars(implode(', ', $complaint['issueLabels'])); ?></p>
+                <?php endif; ?>
+              </article>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+      </section>
     <?php endif; ?>
 
     <?php if ($currentView === 'customers'): ?>
@@ -1423,6 +1752,207 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
             <?php endforeach; ?>
           </div>
         <?php endif; ?>
+      </section>
+    <?php endif; ?>
+
+    <?php if ($currentView === 'content'): ?>
+      <section class="panel" id="content-hero">
+        <h2>Homepage hero update</h2>
+        <p class="lead">Review the current hero copy and propose improvements. All changes remain pending until an admin approves them.</p>
+        <form method="post" class="request-form">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+          <input type="hidden" name="action" value="propose_hero_update" />
+          <input type="hidden" name="redirect_view" value="<?= htmlspecialchars($currentView); ?>" />
+          <input type="hidden" name="redirect_anchor" value="content-hero" />
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="hero-title-field">Hero title</label>
+              <input id="hero-title-field" name="hero_title" type="text" value="<?= htmlspecialchars($homeHero['title'] ?? ''); ?>" required />
+            </div>
+            <div class="form-group">
+              <label for="hero-subtitle-field">Hero subtitle</label>
+              <textarea id="hero-subtitle-field" name="hero_subtitle" rows="3" required><?= htmlspecialchars($homeHero['subtitle'] ?? ''); ?></textarea>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="hero-image-field">Hero image URL</label>
+              <input id="hero-image-field" name="hero_image" type="text" value="<?= htmlspecialchars($homeHero['image'] ?? ''); ?>" />
+              <p class="form-helper">Leave blank to keep the current hero image.</p>
+            </div>
+            <div class="form-group">
+              <label for="hero-caption-field">Image caption</label>
+              <input id="hero-caption-field" name="hero_image_caption" type="text" value="<?= htmlspecialchars($homeHero['image_caption'] ?? ''); ?>" />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="hero-bubble-heading">Highlight badge</label>
+              <input id="hero-bubble-heading" name="hero_bubble_heading" type="text" value="<?= htmlspecialchars($homeHero['bubble_heading'] ?? ''); ?>" />
+            </div>
+            <div class="form-group">
+              <label for="hero-bubble-body">Highlight detail</label>
+              <input id="hero-bubble-body" name="hero_bubble_body" type="text" value="<?= htmlspecialchars($homeHero['bubble_body'] ?? ''); ?>" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="hero-bullets">Bullet points (one per line)</label>
+            <textarea id="hero-bullets" name="hero_bullets" rows="3" placeholder="Hybrid ready systems&#10;Real-time monitoring updates"><?= htmlspecialchars($homeHeroBulletsValue); ?></textarea>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="hero-effective-date">Target go-live date</label>
+              <input id="hero-effective-date" name="hero_effective_date" type="date" />
+            </div>
+            <div class="form-group">
+              <label for="hero-justification">Why this update?</label>
+              <textarea id="hero-justification" name="hero_justification" rows="3" placeholder="Explain the campaign, offer, or seasonal announcement" required></textarea>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="primary-btn" type="submit">Send for admin approval</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel" id="content-sections">
+        <h2>Homepage sections</h2>
+        <p class="lead">Browse the current sections and submit new copy or layouts. Admin approval is required before anything is published.</p>
+        <?php if (empty($sortedHomeSections)): ?>
+          <p>No homepage sections have been published yet. Propose the first one using the form below.</p>
+        <?php else: ?>
+          <div class="history-list">
+            <?php foreach ($sortedHomeSections as $section): ?>
+              <?php
+                $sectionId = $section['id'] ?? '—';
+                $sectionTitle = $section['title'] ?? 'Untitled section';
+                $sectionStatusLabel = strtoupper($section['status'] ?? 'draft');
+                $sectionUpdated = $formatDateTime($section['updated_at'] ?? $section['created_at'] ?? null, 'Recently');
+              ?>
+              <article class="approval-card">
+                <div class="approval-header">
+                  <p class="approval-title"><?= htmlspecialchars($sectionTitle); ?></p>
+                  <span class="status-pill"><?= htmlspecialchars($sectionStatusLabel); ?></span>
+                </div>
+                <p class="approval-meta">ID <?= htmlspecialchars($sectionId); ?> • Updated <?= htmlspecialchars($sectionUpdated); ?></p>
+                <?php if (!empty($section['subtitle'])): ?>
+                  <p class="approval-details"><?= htmlspecialchars($section['subtitle']); ?></p>
+                <?php endif; ?>
+              </article>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+
+        <form method="post" class="request-form">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+          <input type="hidden" name="action" value="propose_section_update" />
+          <input type="hidden" name="redirect_view" value="<?= htmlspecialchars($currentView); ?>" />
+          <input type="hidden" name="redirect_anchor" value="content-sections" />
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="section-mode">Request type</label>
+              <select id="section-mode" name="section_mode">
+                <option value="create">Propose new section</option>
+                <option value="update">Update existing section</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="section-target">Target section (for updates)</label>
+              <select id="section-target" name="target_section">
+                <option value="">Select section to update</option>
+                <?php foreach ($sortedHomeSections as $section): ?>
+                  <option value="<?= htmlspecialchars($section['id'] ?? ''); ?>"><?= htmlspecialchars(($section['title'] ?? 'Untitled') . ' · ' . strtoupper($section['status'] ?? 'draft')); ?></option>
+                <?php endforeach; ?>
+              </select>
+              <p class="form-helper">Leave blank when proposing a brand-new section.</p>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="section-eyebrow">Eyebrow / tag</label>
+              <input id="section-eyebrow" name="section_eyebrow" type="text" placeholder="e.g. Financing spotlight" />
+            </div>
+            <div class="form-group">
+              <label for="section-title">Section title</label>
+              <input id="section-title" name="section_title" type="text" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="section-subtitle">Section subtitle</label>
+            <input id="section-subtitle" name="section_subtitle" type="text" />
+          </div>
+          <div class="form-group">
+            <label for="section-body">Body content (paragraphs)</label>
+            <textarea id="section-body" name="section_body" rows="4" placeholder="Write full paragraphs. Separate each paragraph with a blank line."></textarea>
+          </div>
+          <div class="form-group">
+            <label for="section-bullets">Bullet points (optional)</label>
+            <textarea id="section-bullets" name="section_bullets" rows="3" placeholder="Highlight 1&#10;Highlight 2"></textarea>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="section-cta-text">CTA text</label>
+              <input id="section-cta-text" name="section_cta_text" type="text" placeholder="e.g. Schedule a consult" />
+            </div>
+            <div class="form-group">
+              <label for="section-cta-url">CTA link</label>
+              <input id="section-cta-url" name="section_cta_url" type="url" placeholder="https://..." />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="section-display-order">Display order</label>
+              <input id="section-display-order" name="section_display_order" type="number" value="0" />
+            </div>
+            <div class="form-group">
+              <label for="section-status">Publish status</label>
+              <select id="section-status" name="section_status">
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="section-background-style">Background style</label>
+              <select id="section-background-style" name="section_background_style">
+                <?php foreach ($paletteKeys as $paletteKey): ?>
+                  <?php if ($paletteKey === 'accent') { continue; } ?>
+                  <option value="<?= htmlspecialchars($paletteKey); ?>"><?= htmlspecialchars(ucfirst(str_replace('-', ' ', $paletteKey))); ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="section-media-type">Media type</label>
+              <select id="section-media-type" name="section_media_type">
+                <option value="none">No media</option>
+                <option value="image">Image</option>
+                <option value="video">Video</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="section-media-src">Media source URL</label>
+              <input id="section-media-src" name="section_media_src" type="text" placeholder="images/sections/offer.jpg" />
+            </div>
+            <div class="form-group">
+              <label for="section-media-alt">Media alt text</label>
+              <input id="section-media-alt" name="section_media_alt" type="text" />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="section-effective-date">Target go-live date</label>
+              <input id="section-effective-date" name="section_effective_date" type="date" />
+            </div>
+            <div class="form-group">
+              <label for="section-justification">Context for the admin</label>
+              <textarea id="section-justification" name="section_justification" rows="3" placeholder="Explain the change, launch plan, or supporting campaign" required></textarea>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="primary-btn" type="submit">Submit section proposal</button>
+          </div>
+        </form>
       </section>
     <?php endif; ?>
 

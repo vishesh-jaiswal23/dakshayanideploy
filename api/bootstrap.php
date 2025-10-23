@@ -69,6 +69,20 @@ function api_normalise_email(?string $email): string
     return strtolower(api_trim_string($email));
 }
 
+function api_normalise_phone(?string $phone): string
+{
+    $digits = preg_replace('/\D+/', '', (string) $phone) ?? '';
+    if ($digits === '') {
+        return '';
+    }
+
+    if (strlen($digits) > 10) {
+        $digits = substr($digits, -10);
+    }
+
+    return $digits;
+}
+
 function api_is_valid_password(?string $password): bool
 {
     if (!is_string($password) || strlen($password) < 8) {
@@ -479,6 +493,205 @@ function api_read_tickets(): array
 function api_write_tickets(array $tickets): void
 {
     api_write_json_file(API_TICKETS_FILE, array_values($tickets));
+}
+
+function api_lookup_customer_by_phone(string $phone): array
+{
+    $normalized = api_normalise_phone($phone);
+    if ($normalized === '') {
+        return [];
+    }
+
+    $state = api_load_state();
+    $segments = $state['customer_registry']['segments'] ?? [];
+    if (!is_array($segments)) {
+        return [];
+    }
+
+    $matches = [];
+
+    foreach ($segments as $slug => $segment) {
+        if (!is_array($segment)) {
+            continue;
+        }
+
+        $columns = is_array($segment['columns'] ?? null) ? $segment['columns'] : [];
+        $phoneKeys = [];
+        $emailKeys = [];
+
+        foreach ($columns as $column) {
+            if (!is_array($column)) {
+                continue;
+            }
+
+            $key = isset($column['key']) ? (string) $column['key'] : '';
+            if ($key === '') {
+                continue;
+            }
+
+            $type = strtolower((string) ($column['type'] ?? 'text'));
+            if ($type === 'phone') {
+                $phoneKeys[] = $key;
+            }
+            if ($type === 'email') {
+                $emailKeys[] = $key;
+            }
+        }
+
+        if ($phoneKeys === []) {
+            continue;
+        }
+
+        $entries = $segment['entries'] ?? [];
+        if (!is_array($entries)) {
+            continue;
+        }
+
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $fields = is_array($entry['fields'] ?? null) ? $entry['fields'] : [];
+            $matchedPhoneValue = '';
+
+            foreach ($phoneKeys as $phoneKey) {
+                $candidate = api_normalise_phone($fields[$phoneKey] ?? '');
+                if ($candidate !== '' && $candidate === $normalized) {
+                    $matchedPhoneValue = trim((string) ($fields[$phoneKey] ?? ''));
+                    break;
+                }
+            }
+
+            if ($matchedPhoneValue === '') {
+                continue;
+            }
+
+            $name = '';
+            $nameKeys = ['consumer_name', 'prospect_name', 'customer_name', 'applicant_name', 'account_name', 'name', 'site_owner', 'owner_name', 'contact_person'];
+            foreach ($nameKeys as $nameKey) {
+                if (!isset($fields[$nameKey])) {
+                    continue;
+                }
+
+                $candidateName = trim((string) $fields[$nameKey]);
+                if ($candidateName !== '') {
+                    $name = $candidateName;
+                    break;
+                }
+            }
+
+            $email = '';
+            foreach ($emailKeys as $emailKey) {
+                if (!isset($fields[$emailKey])) {
+                    continue;
+                }
+
+                $candidateEmail = api_normalise_email($fields[$emailKey]);
+                if ($candidateEmail !== '') {
+                    $email = $candidateEmail;
+                    break;
+                }
+            }
+
+            if ($email === '' && isset($fields['email'])) {
+                $email = api_normalise_email($fields['email']);
+            }
+
+            $applicationNumber = trim((string) ($fields['application_number'] ?? ''));
+            $reference = $applicationNumber;
+            if ($reference === '') {
+                $reference = trim((string) ($fields['consumer_number'] ?? ''));
+            }
+            if ($reference === '') {
+                $reference = trim((string) ($fields['ticket_number'] ?? ''));
+            }
+
+            $addressParts = [];
+            foreach (['site_address', 'site_location', 'installation_location', 'address', 'location', 'city', 'district'] as $addressKey) {
+                $value = trim((string) ($fields[$addressKey] ?? ''));
+                if ($value !== '') {
+                    $addressParts[] = $value;
+                }
+            }
+
+            $discom = trim((string) ($fields['discom_name'] ?? ''));
+            if ($discom !== '') {
+                $addressParts[] = $discom;
+            }
+
+            $consumerNumber = trim((string) ($fields['consumer_number'] ?? ''));
+            if ($consumerNumber !== '') {
+                $addressParts[] = 'Consumer #' . $consumerNumber;
+            }
+
+            $siteAddress = implode(', ', array_unique($addressParts));
+
+            $systemSize = '';
+            $capacity = trim((string) ($fields['capacity_kwp_installed'] ?? ''));
+            if ($capacity !== '') {
+                if (is_numeric($capacity)) {
+                    $capacityNumber = (float) $capacity;
+                    $formatted = rtrim(rtrim(sprintf('%.2f', $capacityNumber), '0'), '.');
+                    $systemSize = $formatted . ' kW';
+                } else {
+                    $systemSize = $capacity;
+                }
+            } elseif (isset($fields['system_size'])) {
+                $systemSize = trim((string) $fields['system_size']);
+            } elseif (isset($fields['requirements'])) {
+                $systemSize = trim((string) $fields['requirements']);
+            }
+
+            $preferredContact = trim((string) ($fields['preferred_channel'] ?? $fields['contact_preference'] ?? ''));
+
+            $installTypeField = strtolower(trim((string) ($fields['install_type'] ?? '')));
+            $installType = $installTypeField !== '' ? $installTypeField : 'private';
+            if ($installType === 'private') {
+                $applicationLower = strtolower($applicationNumber);
+                if ($applicationLower !== '' && (strpos($applicationLower, 'pmsg') !== false || strpos($applicationLower, 'pm surya') !== false)) {
+                    $installType = 'pmsgby';
+                }
+
+                $projectStage = strtolower(trim((string) ($fields['project_stage'] ?? '')));
+                if ($projectStage !== '' && strpos($projectStage, 'gov') !== false) {
+                    $installType = 'government';
+                }
+
+                $solarType = strtolower(trim((string) ($fields['solar_system_type'] ?? '')));
+                if ($solarType !== '' && strpos($solarType, 'gov') !== false) {
+                    $installType = 'government';
+                }
+            }
+
+            $segmentLabel = $segment['label'] ?? ucfirst(str_replace('-', ' ', (string) $slug));
+            $updatedAt = $entry['updated_at'] ?? $entry['created_at'] ?? null;
+
+            $matches[] = [
+                'entryId' => $entry['id'] ?? '',
+                'segment' => $slug,
+                'segmentLabel' => $segmentLabel,
+                'name' => $name !== '' ? $name : 'Existing customer',
+                'email' => $email,
+                'phone' => $normalized,
+                'rawPhone' => $matchedPhoneValue,
+                'siteAddress' => $siteAddress,
+                'systemSize' => $systemSize,
+                'applicationNumber' => $applicationNumber,
+                'installType' => $installType,
+                'preferredContact' => $preferredContact,
+                'reference' => $reference,
+                'updatedAt' => $updatedAt,
+                'notes' => isset($entry['notes']) ? trim((string) $entry['notes']) : '',
+            ];
+        }
+    }
+
+    usort($matches, static function (array $a, array $b): int {
+        return strcmp($b['updatedAt'] ?? '', $a['updatedAt'] ?? '');
+    });
+
+    return array_slice($matches, 0, 5);
 }
 
 function api_slugify(string $value): string

@@ -153,6 +153,7 @@
                 <div class="form-group">
                   <label for="complaintPhone">Phone number</label>
                   <input type="tel" id="complaintPhone" name="ComplaintPhone" required />
+                  <p class="form-helper" id="complaintLookupStatus" aria-live="polite"></p>
                 </div>
               </div>
               <div class="form-grid cols-2">
@@ -190,7 +191,7 @@
                   <label class="issue-chip"><input type="checkbox" name="issueType" value="battery" data-label="Battery bank" /> Batteries / storage</label>
                   <label class="issue-chip"><input type="checkbox" name="issueType" value="wiring" data-label="Wiring" /> Wiring</label>
                   <label class="issue-chip"><input type="checkbox" name="issueType" value="earthing" data-label="Earthing" /> Earthing</label>
-                  <label class="issue-chip"><input type="checkbox" name="issueType" value="net-metering" data-label="Net metering" /> Net metering</label>
+                  <label class="issue-chip"><input type="checkbox" name="issueType" value="net-metering" data-label="Net Metering / Export Mode" /> Net Metering / Export Mode</label>
                   <label class="issue-chip"><input type="checkbox" name="issueType" value="monitoring" data-label="Monitoring / portal" /> Monitoring / portal</label>
                 </div>
               </fieldset>
@@ -356,6 +357,31 @@
       const issueInputs = complaintForm.querySelectorAll('input[name="issueType"]');
       const whatsappButton = document.getElementById('complaintSendWhatsApp');
       const emailButton = document.getElementById('complaintSendEmail');
+      const complaintNameInput = complaintForm.querySelector('#complaintName');
+      const complaintPhoneInput = complaintForm.querySelector('#complaintPhone');
+      const complaintEmailInput = complaintForm.querySelector('#complaintEmail');
+      const siteAddressInput = complaintForm.querySelector('#siteAddress');
+      const systemSizeInput = complaintForm.querySelector('#systemSize');
+      const preferredContactInput = complaintForm.querySelector('#preferredContact');
+      const lookupStatus = document.getElementById('complaintLookupStatus');
+
+      let lookupTimer = null;
+      let lastLookupPhone = '';
+      let activeLookupAbort = null;
+
+      const normalisePhone = (value) => (value || '').replace(/\D+/g, '');
+
+      const setLookupStatus = (message, tone) => {
+        if (!lookupStatus) {
+          return;
+        }
+        lookupStatus.textContent = message || '';
+        if (tone) {
+          lookupStatus.dataset.tone = tone;
+        } else {
+          delete lookupStatus.dataset.tone;
+        }
+      };
 
       const toggleApplicationField = () => {
         const isPmsgby = installType && installType.value === 'pmsgby';
@@ -384,13 +410,153 @@
         complaintError.classList.remove('is-hidden');
       };
 
+      const applyCustomerDetails = (customer) => {
+        if (!customer || typeof customer !== 'object') {
+          return;
+        }
+
+        const { name, email, siteAddress, systemSize, installType: install, applicationNumber, preferredContact } = customer;
+
+        if (name && complaintNameInput && complaintNameInput.value.trim() === '') {
+          complaintNameInput.value = name;
+        }
+
+        if (email && complaintEmailInput && complaintEmailInput.value.trim() === '') {
+          complaintEmailInput.value = email;
+        }
+
+        if (siteAddress && siteAddressInput && siteAddressInput.value.trim() === '') {
+          siteAddressInput.value = siteAddress;
+        }
+
+        if (systemSize && systemSizeInput && systemSizeInput.value.trim() === '') {
+          systemSizeInput.value = systemSize;
+        }
+
+        if (install && installType) {
+          installType.value = install;
+          installType.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        if (applicationNumber && applicationInput) {
+          applicationInput.value = applicationNumber;
+        }
+
+        if (preferredContact && preferredContactInput) {
+          preferredContactInput.value = preferredContact;
+        }
+      };
+
+      const performCustomerLookup = () => {
+        if (!complaintPhoneInput) {
+          return;
+        }
+
+        const digits = normalisePhone(complaintPhoneInput.value);
+        if (digits.length < 10) {
+          setLookupStatus('', null);
+          lastLookupPhone = '';
+          return;
+        }
+
+        if (digits === lastLookupPhone) {
+          return;
+        }
+
+        lastLookupPhone = digits;
+
+        if (activeLookupAbort) {
+          activeLookupAbort.abort();
+        }
+
+        const controller = new AbortController();
+        activeLookupAbort = controller;
+        setLookupStatus('Looking up saved customer record…', 'info');
+
+        fetch(`/api/public/customer-lookup?phone=${encodeURIComponent(digits)}`, { signal: controller.signal })
+          .then((response) => {
+            if (response.status === 404) {
+              return null;
+            }
+
+            if (!response.ok) {
+              throw new Error('Lookup failed');
+            }
+
+            return response.json();
+          })
+          .then((data) => {
+            if (controller.signal.aborted) {
+              return;
+            }
+
+            if (data && data.customer) {
+              applyCustomerDetails(data.customer);
+              const segmentLabel = data.customer.segmentLabel || 'customer registry';
+              const reference = data.customer.reference || data.customer.entryId || '';
+              const suffix = reference ? ` (Ref ${reference})` : '';
+              setLookupStatus(`Details loaded from ${segmentLabel}${suffix}.`, 'success');
+            } else {
+              setLookupStatus('No saved customer record found for this number yet.', 'muted');
+            }
+          })
+          .catch((error) => {
+            if (controller.signal.aborted) {
+              return;
+            }
+
+            console.warn('Customer lookup failed', error);
+            setLookupStatus('Could not fetch customer details right now.', 'error');
+          })
+          .finally(() => {
+            if (activeLookupAbort === controller) {
+              activeLookupAbort = null;
+            }
+          });
+      };
+
+      const scheduleCustomerLookup = (force = false) => {
+        if (!complaintPhoneInput) {
+          return;
+        }
+
+        if (lookupTimer) {
+          clearTimeout(lookupTimer);
+          lookupTimer = null;
+        }
+
+        const digits = normalisePhone(complaintPhoneInput.value);
+        if (digits.length < 10) {
+          setLookupStatus('', null);
+          lastLookupPhone = '';
+          if (activeLookupAbort) {
+            activeLookupAbort.abort();
+            activeLookupAbort = null;
+          }
+          return;
+        }
+
+        if (force) {
+          performCustomerLookup();
+        } else {
+          lookupTimer = window.setTimeout(performCustomerLookup, 600);
+        }
+      };
+
+      if (complaintPhoneInput) {
+        complaintPhoneInput.addEventListener('input', () => scheduleCustomerLookup(false));
+        complaintPhoneInput.addEventListener('blur', () => scheduleCustomerLookup(true));
+      }
+
       const buildComplaintSummary = () => {
         const formData = new FormData(complaintForm);
         const name = (formData.get('ComplaintName') || '').trim();
         const phone = (formData.get('ComplaintPhone') || '').trim();
         const email = (formData.get('ComplaintEmail') || '').trim();
         const installValue = formData.get('InstallType') || '';
-        const installLabel = installType && installType.options[installType.selectedIndex] ? installType.options[installType.selectedIndex].textContent.trim() : installValue;
+        const installLabel = installType && installType.options[installType.selectedIndex]
+          ? installType.options[installType.selectedIndex].textContent.trim()
+          : installValue;
         const applicationNumber = (formData.get('ApplicationNumber') || '').trim();
         const siteAddress = (formData.get('SiteAddress') || '').trim();
         const systemSize = (formData.get('SystemSize') || '').trim();
@@ -398,7 +564,10 @@
         const uniqueIssue = (formData.get('UniqueIssue') || '').trim();
         const selectedIssues = Array.from(issueInputs)
           .filter((input) => input.checked)
-          .map((input) => input.dataset.label || input.value);
+          .map((input) => ({
+            value: input.value,
+            label: input.dataset.label || input.value,
+          }));
 
         if (!selectedIssues.length && !uniqueIssue) {
           showError('Select an affected component or describe the issue so we can register your complaint.');
@@ -406,6 +575,9 @@
         }
 
         clearError();
+
+        const issueLabels = selectedIssues.map((issue) => issue.label);
+        const issueValues = selectedIssues.map((issue) => issue.value);
 
         const summaryLines = [
           'Dakshayani service complaint',
@@ -425,8 +597,8 @@
         summaryLines.push(`Site address: ${siteAddress || 'Not provided'}`);
         summaryLines.push(`Solar plant size: ${systemSize || 'Not provided'}`);
 
-        if (selectedIssues.length) {
-          summaryLines.push('', 'Affected components:', `- ${selectedIssues.join('\n- ')}`);
+        if (issueLabels.length) {
+          summaryLines.push('', 'Affected components:', `- ${issueLabels.join('\n- ')}`);
         }
 
         if (uniqueIssue) {
@@ -439,7 +611,45 @@
 
         summaryLines.push('', 'Logged via Dakshayani website');
 
-        return summaryLines.join('\n');
+        const payload = {
+          name,
+          phone,
+          email,
+          installType: installValue,
+          installLabel,
+          applicationNumber,
+          siteAddress,
+          systemSize,
+          preferredContact,
+          description: uniqueIssue,
+          issues: issueValues,
+          issueLabels,
+          source: 'website-contact',
+        };
+
+        return {
+          summaryText: summaryLines.join('\n'),
+          payload,
+        };
+      };
+
+      const logComplaint = (payload) => {
+        if (!payload || !payload.phone) {
+          return Promise.resolve();
+        }
+
+        const body = {
+          ...payload,
+          loggedAt: new Date().toISOString(),
+        };
+
+        return fetch('/api/public/complaints', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }).catch((error) => {
+          console.warn('Unable to log complaint to portal API', error);
+        });
       };
 
       if (installType) {
@@ -456,19 +666,29 @@
 
       if (whatsappButton) {
         whatsappButton.addEventListener('click', function () {
-          const summary = buildComplaintSummary();
-          if (!summary) return;
-          const url = `https://wa.me/918102401427?text=${encodeURIComponent(summary)}`;
-          window.open(url, '_blank');
+          const summaryData = buildComplaintSummary();
+          if (!summaryData) return;
+
+          const { summaryText, payload } = summaryData;
+          logComplaint({ ...payload, channel: 'whatsapp' });
+
+          const encodedSummary = encodeURIComponent(summaryText);
+          window.open(`https://wa.me/918102401427?text=${encodedSummary}`, '_blank');
+          window.open(`https://wa.me/917070278178?text=${encodedSummary}`, '_blank');
         });
       }
 
       if (emailButton) {
         emailButton.addEventListener('click', function () {
-          const summary = buildComplaintSummary();
-          if (!summary) return;
+          const summaryData = buildComplaintSummary();
+          if (!summaryData) return;
+
+          const { summaryText, payload } = summaryData;
+          logComplaint({ ...payload, channel: 'email' });
+
           const subject = encodeURIComponent('Solar service complaint');
-          const mailto = `mailto:dakshayani.pmsgy@gmail.com?cc=connect@dakshayani.co.in&subject=${subject}&body=${encodeURIComponent(summary)}`;
+          const ccRecipients = ['connect@dakshayani.co.in', 'd.entranchi@gmail.com'];
+          const mailto = `mailto:dakshayani.pmsgy@gmail.com?cc=${encodeURIComponent(ccRecipients.join(','))}&subject=${subject}&body=${encodeURIComponent(summaryText)}`;
           window.location.href = mailto;
         });
       }
