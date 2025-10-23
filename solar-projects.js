@@ -122,7 +122,7 @@
     if (segment) {
       params.append('segment', segment);
     }
-    const url = params.toString() ? `/api/public/case-studies.php?${params.toString()}` : '/api/public/case-studies.php';
+    const url = params.toString() ? `/api/public/case-studies?${params.toString()}` : '/api/public/case-studies';
     fetch(url)
       .then((response) => {
         if (!response.ok) throw new Error('Failed to load case studies');
@@ -205,7 +205,7 @@
   function loadTestimonials() {
     if (!testimonialList) return;
     renderEmpty(testimonialList, 'Loading testimonials…', 'site-search-loading');
-    fetch('/api/public/testimonials.php')
+    fetch('/api/public/testimonials')
       .then((response) => {
         if (!response.ok) throw new Error('Failed to load testimonials');
         return response.json();

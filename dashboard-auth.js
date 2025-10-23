@@ -1,6 +1,5 @@
 (function () {
   const API_BASE = window.PORTAL_API_BASE || '';
-  const sessionKey = 'dakshayaniPortalSession';
   const demoData = window.DAKSHAYANI_PORTAL_DEMO || {};
   const dashboards = demoData.dashboards || {};
   const demoUsers = Array.isArray(demoData.users) ? demoData.users : [];
@@ -92,9 +91,6 @@
 
   let session = parseSession();
 
-  disablePortalAccess();
-  return;
-
   function resolveApi(path) {
     if (!API_BASE) {
       return path;
@@ -112,10 +108,6 @@
     const config = { method: 'GET', headers: {}, credentials: 'same-origin', ...options };
     config.method = (config.method || 'GET').toUpperCase();
     config.headers = { ...config.headers };
-
-    if (session?.token) {
-      config.headers['Authorization'] = `Bearer ${session.token}`;
-    }
 
     if (config.body && typeof config.body !== 'string') {
       config.body = JSON.stringify(config.body);
@@ -150,31 +142,15 @@
   }
 
   function parseSession() {
-    try {
-      const raw = localStorage.getItem(sessionKey);
-      return raw ? JSON.parse(raw) : null;
-    } catch (error) {
-      console.warn('Unable to parse stored session', error);
-      return null;
-    }
+    return { user: null, isDemo: false, token: null };
   }
 
   function storeSession(nextSession) {
-    session = nextSession;
-    try {
-      localStorage.setItem(sessionKey, JSON.stringify(session));
-    } catch (error) {
-      console.warn('Unable to persist updated session', error);
-    }
+    session = { user: null, isDemo: false, token: null, ...nextSession };
   }
 
   function removeSession() {
-    try {
-      localStorage.removeItem(sessionKey);
-    } catch (error) {
-      console.warn('Unable to clear session', error);
-    }
-    session = null;
+    session = { user: null, isDemo: true, token: null };
   }
 
   function setFormFeedback(target, tone, message) {
@@ -336,7 +312,7 @@
 
   async function loadBlogPosts() {
     if (!blogAdminPanel) return;
-    if (session?.isDemo || !session?.token) {
+    if (session.isDemo || !session.user) {
       useDemoBlogAdmin('Offline demo mode active. Start the API to manage blog posts.');
       return;
     }
@@ -518,23 +494,22 @@
     delete statusBar.dataset.tone;
   }
 
-  function disablePortalAccess() {
-    removeSession();
-
+  function disablePortalAccess(message = 'API offline detected. Showing cached insights.') {
+    session.isDemo = true;
     logoutButtons.forEach((button) => {
       button.disabled = true;
       button.setAttribute('aria-disabled', 'true');
-      button.textContent = 'Portal access disabled';
+      button.textContent = 'Portal access offline';
     });
 
-    useDemoDashboard('Portal sign-in is disabled. Showing sample dashboard insights.');
+    useDemoDashboard(message);
 
     if (role === 'admin') {
-      useDemoUserAdmin('Portal sign-in is disabled. Account management is unavailable.');
-      useDemoBlogAdmin('Portal sign-in is disabled. Blog management is unavailable.');
+      useDemoUserAdmin(message);
+      useDemoBlogAdmin(message);
       if (siteSettingsForm) {
         toggleSiteSettingsDisabled(true);
-        showSettingsFeedback('Portal sign-in is disabled. Décor controls are unavailable.', 'error');
+        showSettingsFeedback(message, 'error');
       }
     } else if (siteSettingsForm) {
       toggleSiteSettingsDisabled(true);
@@ -542,7 +517,7 @@
   }
 
   function redirectToLogin() {
-    disablePortalAccess();
+    window.location.href = 'login.php';
   }
 
   function bindUserDetails(user) {
@@ -1382,7 +1357,7 @@
       }
     }
 
-    if (session?.isDemo || !session?.token) {
+    if (session.isDemo || !session.user) {
       useDemoBlogAdmin('Offline demo mode active. Start the API to manage blog posts.');
       return;
     }
@@ -1410,7 +1385,7 @@
       }
     }
 
-    if (session?.isDemo || !session?.token) {
+    if (session.isDemo || !session.user) {
       useDemoUserAdmin('Offline demo mode active. Start the API to manage accounts.');
       return;
     }
@@ -1454,45 +1429,28 @@
   function initLogout() {
     logoutButtons.forEach((button) => {
       button.addEventListener('click', () => {
-        removeSession();
-        redirectToLogin();
+        window.location.href = 'logout.php';
       });
     });
   }
 
-  if (!session || !session.user) {
-    redirectToLogin();
-    return;
-  }
-
-  if (session.user.role !== role) {
-    showStatus('You opened the wrong portal for this login. Taking you back to the sign in page.', 'error');
-    setTimeout(() => redirectToLogin(), 650);
-    return;
-  }
-
-  bindUserDetails(session.user);
   initLogout();
-
-  if (session.isDemo || !session.token) {
-    useDemoDashboard('Offline demo mode active. Start the API server to see live data.');
-    if (role === 'admin') {
-      useDemoUserAdmin('Offline demo mode active. Start the API server to manage accounts.');
-      if (siteSettingsForm) {
-        toggleSiteSettingsDisabled(true);
-        showSettingsFeedback('Start the API server to load editable site décor controls.', 'error');
-      }
-      useDemoBlogAdmin('Offline demo mode active. Start the API server to manage blog posts.');
-    }
-    return;
-  }
 
   (async () => {
     try {
       const me = await request('/api/me');
-      if (me?.user) {
-        bindUserDetails(me.user);
-        storeSession({ ...session, user: { ...session.user, ...me.user }, isDemo: false });
+      if (!me?.user) {
+        redirectToLogin();
+        return;
+      }
+
+      storeSession({ user: me.user, isDemo: false, token: null });
+      bindUserDetails(session.user);
+
+      if ((session.user.role || role) !== role) {
+        showStatus('You opened the wrong portal for this login. Taking you back to the sign in page.', 'error');
+        setTimeout(() => redirectToLogin(), 650);
+        return;
       }
 
       const data = await request(`/api/dashboard/${role}`);
@@ -1502,18 +1460,9 @@
       }
     } catch (error) {
       if (error.status === 401) {
-        removeSession();
         redirectToLogin();
       } else if (error.isNetworkError) {
-        useDemoDashboard('API offline detected. Showing cached demo insights.');
-        if (role === 'admin') {
-          useDemoUserAdmin('API offline. Showing demo accounts — changes are disabled.');
-          useDemoBlogAdmin('API offline. Start the server to manage blog posts.');
-          if (siteSettingsForm) {
-            toggleSiteSettingsDisabled(true);
-            showSettingsFeedback('API offline. Start the server to edit décor controls.', 'error');
-          }
-        }
+        disablePortalAccess('API offline detected. Showing cached demo insights.');
       } else {
         showStatus(error.message || 'Unable to load dashboard data.', 'error');
       }

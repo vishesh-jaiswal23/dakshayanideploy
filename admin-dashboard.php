@@ -4495,5 +4495,66 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       </section>
     <?php endif; ?>
   </main>
+  <script>
+    (function () {
+      function hexToRgb(hex) {
+        if (!hex) return [15, 23, 42];
+        const value = hex.replace('#', '');
+        if (value.length === 3) {
+          return [
+            parseInt(value[0] + value[0], 16),
+            parseInt(value[1] + value[1], 16),
+            parseInt(value[2] + value[2], 16)
+          ];
+        }
+        if (value.length === 6) {
+          return [
+            parseInt(value.slice(0, 2), 16),
+            parseInt(value.slice(2, 4), 16),
+            parseInt(value.slice(4, 6), 16)
+          ];
+        }
+        return [15, 23, 42];
+      }
+
+      function pickContrast(hex) {
+        const [r, g, b] = hexToRgb(hex).map((component) => {
+          const channel = component / 255;
+          return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+        });
+        const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        return luminance > 0.5 ? '#0F172A' : '#FFFFFF';
+      }
+
+      document.querySelectorAll('.palette-card').forEach((card) => {
+        const input = card.querySelector('input[type="color"]');
+        const preview = card.querySelector('.palette-card__preview');
+        const valueLabel = preview?.querySelector('span');
+        const textLabel = preview?.querySelector('.palette-card__text');
+        if (!input || !preview) {
+          return;
+        }
+        input.addEventListener('input', () => {
+          const value = input.value;
+          const contrast = pickContrast(value);
+          preview.style.background = value;
+          preview.style.color = contrast;
+          if (valueLabel) valueLabel.textContent = value;
+          if (textLabel) textLabel.textContent = `Text: ${contrast}`;
+        });
+      });
+
+      const accentInput = document.getElementById('theme-accent');
+      if (accentInput) {
+        const helper = accentInput.closest('div')?.querySelector('.form-helper');
+        accentInput.addEventListener('input', () => {
+          const contrast = pickContrast(accentInput.value);
+          if (helper) {
+            helper.textContent = `Primary buttons and highlights use this colour. Text auto-adjusts to ${contrast}.`;
+          }
+        });
+      }
+    })();
+  </script>
 </body>
 </html>

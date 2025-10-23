@@ -1,5 +1,5 @@
 (function () {
-  const endpoint = '/api/public/site-content.php';
+  const endpoint = '/api/public/site-content';
   const root = document.documentElement;
   const heroTitle = document.querySelector('[data-hero-title]');
   const heroSubtitle = document.querySelector('[data-hero-subtitle]');
