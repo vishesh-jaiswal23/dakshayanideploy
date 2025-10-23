@@ -10,6 +10,14 @@ if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'employee') {
 
 require_once __DIR__ . '/portal-state.php';
 
+if (empty($_SESSION['csrf_token'])) {
+  try {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+  } catch (Exception $e) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(16));
+  }
+}
+
 $state = portal_load_state();
 $currentUserId = $_SESSION['user_id'] ?? '';
 $userRecord = null;
@@ -39,6 +47,422 @@ $userCity = $userRecord['city'] ?? '—';
 $accountId = $userRecord['id'] ?? '—';
 $normalizedPhone = $userPhone === '—' ? '' : $userPhone;
 $normalizedCity = $userCity === '—' ? '' : $userCity;
+$userDeskLocation = $userRecord['desk_location'] ?? '';
+$userWorkingHours = $userRecord['working_hours'] ?? '';
+$userEmergencyContact = $userRecord['emergency_contact'] ?? '';
+$userPreferredChannel = $userRecord['preferred_channel'] ?? 'Phone call';
+$userReportingManager = $userRecord['reporting_manager'] ?? '';
+
+portal_ensure_employee_approvals($state);
+
+function employee_flash(string $type, string $message): void
+{
+  if (!isset($_SESSION['employee_flash'])) {
+    $_SESSION['employee_flash'] = ['success' => [], 'error' => []];
+  }
+
+  if (!isset($_SESSION['employee_flash'][$type])) {
+    $_SESSION['employee_flash'][$type] = [];
+  }
+
+  $_SESSION['employee_flash'][$type][] = $message;
+}
+
+function employee_redirect(?string $anchor = null): void
+{
+  $target = 'employee-dashboard.php';
+  if ($anchor !== null && $anchor !== '') {
+    $target .= $anchor[0] === '#' ? $anchor : '#' . $anchor;
+  }
+
+  header('Location: ' . $target);
+  exit;
+}
+
+function employee_collect_flashes(): array
+{
+  $flash = $_SESSION['employee_flash'] ?? ['success' => [], 'error' => []];
+  unset($_SESSION['employee_flash']);
+
+  if (!is_array($flash)) {
+    return ['success' => [], 'error' => []];
+  }
+
+  $flash['success'] = isset($flash['success']) && is_array($flash['success']) ? $flash['success'] : [];
+  $flash['error'] = isset($flash['error']) && is_array($flash['error']) ? $flash['error'] : [];
+
+  return $flash;
+}
+
+function employee_sanitize_columns(array $columns, array $input): array
+{
+  $normalized = [];
+  $hasValue = false;
+
+  foreach ($columns as $column) {
+    if (!is_array($column) || !isset($column['key'])) {
+      continue;
+    }
+
+    $key = $column['key'];
+    $value = isset($input[$key]) ? trim((string) $input[$key]) : '';
+    $normalized[$key] = $value;
+    if ($value !== '') {
+      $hasValue = true;
+    }
+  }
+
+  return [$normalized, $hasValue];
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $token = $_POST['csrf_token'] ?? '';
+  $anchor = $_POST['redirect_anchor'] ?? '';
+  if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
+    employee_flash('error', 'Security token mismatch. Please try again.');
+    employee_redirect($anchor);
+  }
+
+  $action = $_POST['action'] ?? '';
+
+  switch ($action) {
+    case 'update_profile':
+      $profileFields = [
+        'phone' => trim($_POST['phone'] ?? ''),
+        'city' => trim($_POST['city'] ?? ''),
+        'emergency_contact' => trim($_POST['emergency_contact'] ?? ''),
+        'working_hours' => trim($_POST['working_hours'] ?? ''),
+        'preferred_channel' => trim($_POST['preferred_channel'] ?? ''),
+        'desk_location' => trim($_POST['desk_location'] ?? ''),
+        'reporting_manager' => trim($_POST['reporting_manager'] ?? ''),
+      ];
+
+      $updated = false;
+      foreach ($state['users'] as &$user) {
+        if (($user['id'] ?? '') === $currentUserId) {
+          foreach ($profileFields as $key => $value) {
+            if ($value === '' && in_array($key, ['phone', 'city'], true)) {
+              unset($user[$key]);
+              continue;
+            }
+
+            if ($value === '') {
+              $user[$key] = '';
+            } else {
+              $user[$key] = $value;
+            }
+          }
+          $updated = true;
+          break;
+        }
+      }
+      unset($user);
+
+      if ($updated) {
+        portal_record_activity($state, 'Updated personal contact preferences via employee dashboard.', $displayName);
+        if (portal_save_state($state)) {
+          employee_flash('success', 'Profile updated successfully.');
+        } else {
+          employee_flash('error', 'Unable to save updates right now.');
+        }
+      } else {
+        employee_flash('error', 'Unable to locate your profile details.');
+      }
+
+      employee_redirect($anchor);
+      break;
+
+    case 'request_add_customer':
+      $segmentSlug = $_POST['segment'] ?? '';
+      $justification = trim($_POST['justification'] ?? '');
+      $notes = trim($_POST['notes'] ?? '');
+      $reminderOn = trim($_POST['reminder_on'] ?? '');
+      $fieldsInput = $_POST['fields'] ?? [];
+      if (!is_array($fieldsInput)) {
+        $fieldsInput = [];
+      }
+
+      if (!isset($state['customer_registry']['segments'][$segmentSlug])) {
+        employee_flash('error', 'Unknown customer segment selected.');
+        employee_redirect($anchor);
+      }
+
+      $segment = $state['customer_registry']['segments'][$segmentSlug];
+      $columns = $segment['columns'] ?? [];
+      [$normalizedFields, $hasValue] = employee_sanitize_columns($columns, $fieldsInput);
+
+      if (!$hasValue && $notes === '') {
+        employee_flash('error', 'Add at least one field or a note before submitting.');
+        employee_redirect($anchor);
+      }
+
+      $recordName = '';
+      foreach ($columns as $column) {
+        $key = $column['key'] ?? null;
+        if ($key && ($normalizedFields[$key] ?? '') !== '') {
+          $recordName = $normalizedFields[$key];
+          break;
+        }
+      }
+
+      if ($recordName === '') {
+        $recordName = ucfirst($segment['label'] ?? 'customer record');
+      }
+
+      $requestId = portal_next_employee_request_id($state);
+      $submittedAt = date('c');
+      $formattedSubmitted = date('j M Y, g:i A', strtotime($submittedAt));
+
+      $request = [
+        'id' => $requestId,
+        'type' => 'customer_add',
+        'title' => 'Add to ' . ($segment['label'] ?? 'Customer registry') . ': ' . $recordName,
+        'status' => 'Pending admin review',
+        'submitted_at' => $submittedAt,
+        'submitted_by' => $displayName,
+        'owner' => 'Admin review desk',
+        'details' => $justification !== '' ? $justification : 'New customer record proposal awaiting approval.',
+        'effective_date' => $reminderOn,
+        'last_update' => 'Submitted on ' . $formattedSubmitted,
+        'segment' => $segmentSlug,
+        'segment_label' => $segment['label'] ?? ucfirst($segmentSlug),
+        'payload' => [
+          'segment' => $segmentSlug,
+          'fields' => $normalizedFields,
+          'notes' => $notes,
+          'reminder_on' => $reminderOn,
+        ],
+      ];
+
+      portal_add_employee_request($state, $request);
+
+      if (portal_save_state($state)) {
+        employee_flash('success', 'Submitted for admin approval.');
+      } else {
+        employee_flash('error', 'Unable to log the request right now.');
+      }
+
+      employee_redirect($anchor);
+      break;
+
+    case 'request_update_customer':
+      $segmentSlug = $_POST['segment'] ?? '';
+      $entryId = $_POST['entry_id'] ?? '';
+      $targetSegment = $_POST['target_segment'] ?? $segmentSlug;
+      $justification = trim($_POST['justification'] ?? '');
+      $notes = trim($_POST['notes'] ?? '');
+      $reminderOn = trim($_POST['reminder_on'] ?? '');
+      $fieldsInput = $_POST['fields'] ?? [];
+      if (!is_array($fieldsInput)) {
+        $fieldsInput = [];
+      }
+
+      $registrySegments = $state['customer_registry']['segments'] ?? [];
+      if (!isset($registrySegments[$segmentSlug])) {
+        employee_flash('error', 'Original segment not found.');
+        employee_redirect($anchor);
+      }
+
+      if (!isset($registrySegments[$targetSegment])) {
+        employee_flash('error', 'Target segment is invalid.');
+        employee_redirect($anchor);
+      }
+
+      $segment = $registrySegments[$segmentSlug];
+      $columns = $segment['columns'] ?? [];
+      [$normalizedFields, $hasValue] = employee_sanitize_columns($columns, $fieldsInput);
+
+      if (!$hasValue && $notes === '' && $segmentSlug === $targetSegment) {
+        employee_flash('error', 'Provide updated details or notes for the admin team.');
+        employee_redirect($anchor);
+      }
+
+      $recordName = '';
+      foreach ($segment['entries'] ?? [] as $entry) {
+        if (($entry['id'] ?? '') === $entryId) {
+          foreach ($columns as $column) {
+            $key = $column['key'] ?? null;
+            if ($key && isset($entry['fields'][$key]) && trim((string) $entry['fields'][$key]) !== '') {
+              $recordName = trim((string) $entry['fields'][$key]);
+              break 2;
+            }
+          }
+        }
+      }
+
+      if ($recordName === '') {
+        $recordName = ucfirst($segment['label'] ?? 'customer record');
+      }
+
+      $requestId = portal_next_employee_request_id($state);
+      $submittedAt = date('c');
+      $formattedSubmitted = date('j M Y, g:i A', strtotime($submittedAt));
+
+      $request = [
+        'id' => $requestId,
+        'type' => 'customer_update',
+        'title' => 'Update ' . ($segment['label'] ?? 'Customer record') . ': ' . $recordName,
+        'status' => 'Pending admin review',
+        'submitted_at' => $submittedAt,
+        'submitted_by' => $displayName,
+        'owner' => 'Admin review desk',
+        'details' => $justification !== '' ? $justification : 'Requested updates to an existing customer entry.',
+        'effective_date' => $reminderOn,
+        'last_update' => 'Submitted on ' . $formattedSubmitted,
+        'segment' => $segmentSlug,
+        'segment_label' => $segment['label'] ?? ucfirst($segmentSlug),
+        'payload' => [
+          'segment' => $segmentSlug,
+          'entry_id' => $entryId,
+          'target_segment' => $targetSegment,
+          'fields' => $normalizedFields,
+          'notes' => $notes,
+          'reminder_on' => $reminderOn,
+        ],
+      ];
+
+      portal_add_employee_request($state, $request);
+
+      if (portal_save_state($state)) {
+        employee_flash('success', 'Change request recorded for admin action.');
+      } else {
+        employee_flash('error', 'Unable to record your request.');
+      }
+
+      employee_redirect($anchor);
+      break;
+
+    case 'submit_general_request':
+      $changeType = trim($_POST['change_type'] ?? '');
+      $effectiveDate = trim($_POST['effective_date'] ?? '');
+      $justification = trim($_POST['justification'] ?? '');
+
+      if ($changeType === '') {
+        employee_flash('error', 'Select the type of change you are requesting.');
+        employee_redirect($anchor);
+      }
+
+      if ($justification === '') {
+        employee_flash('error', 'Add a short justification so the admin team can review it.');
+        employee_redirect($anchor);
+      }
+
+      $requestId = portal_next_employee_request_id($state);
+      $submittedAt = date('c');
+      $formattedSubmitted = date('j M Y, g:i A', strtotime($submittedAt));
+
+      $request = [
+        'id' => $requestId,
+        'type' => 'general',
+        'title' => $changeType,
+        'status' => 'Pending admin review',
+        'submitted_at' => $submittedAt,
+        'submitted_by' => $displayName,
+        'owner' => $changeType === 'Payroll bank update' ? 'Finance & Admin' : 'Admin desk',
+        'details' => $justification,
+        'effective_date' => $effectiveDate,
+        'last_update' => 'Submitted on ' . $formattedSubmitted,
+        'payload' => [
+          'change_type' => $changeType,
+          'effective_date' => $effectiveDate,
+          'justification' => $justification,
+        ],
+      ];
+
+      portal_add_employee_request($state, $request);
+
+      if (portal_save_state($state)) {
+        employee_flash('success', 'Your request has been shared with the admin team.');
+      } else {
+        employee_flash('error', 'Unable to submit the request right now.');
+      }
+
+      employee_redirect($anchor);
+      break;
+
+    case 'request_theme_change':
+      $seasonLabel = trim($_POST['season_label'] ?? '');
+      $accentColor = portal_sanitize_hex_color($_POST['accent_color'] ?? '#2563EB', '#2563EB');
+      $announcement = trim($_POST['announcement'] ?? '');
+      $backgroundImage = trim($_POST['background_image'] ?? '');
+      $justification = trim($_POST['justification'] ?? '');
+      $effectiveDate = trim($_POST['effective_date'] ?? '');
+
+      if ($seasonLabel === '') {
+        employee_flash('error', 'Add a headline for the proposed theme.');
+        employee_redirect($anchor);
+      }
+
+      if ($justification === '') {
+        employee_flash('error', 'Share the reason behind the design change so the admin can review.');
+        employee_redirect($anchor);
+      }
+
+      $requestId = portal_next_employee_request_id($state);
+      $submittedAt = date('c');
+      $formattedSubmitted = date('j M Y, g:i A', strtotime($submittedAt));
+
+      $request = [
+        'id' => $requestId,
+        'type' => 'design_change',
+        'title' => 'Theme update: ' . $seasonLabel,
+        'status' => 'Pending admin review',
+        'submitted_at' => $submittedAt,
+        'submitted_by' => $displayName,
+        'owner' => 'Site content admins',
+        'details' => $justification,
+        'effective_date' => $effectiveDate,
+        'last_update' => 'Submitted on ' . $formattedSubmitted,
+        'payload' => [
+          'season_label' => $seasonLabel,
+          'accent_color' => $accentColor,
+          'announcement' => $announcement,
+          'background_image' => $backgroundImage,
+          'effective_date' => $effectiveDate,
+        ],
+      ];
+
+      portal_add_employee_request($state, $request);
+
+      if (portal_save_state($state)) {
+        employee_flash('success', 'Design change proposal submitted for admin approval.');
+      } else {
+        employee_flash('error', 'Unable to record the proposal right now.');
+      }
+
+      employee_redirect($anchor);
+      break;
+  }
+}
+
+$flashMessages = employee_collect_flashes();
+$customerRegistry = $state['customer_registry'] ?? ['segments' => []];
+$customerSegments = $customerRegistry['segments'] ?? [];
+$customerSegmentStats = [];
+foreach ($customerSegments as $slug => $segment) {
+  $count = count($segment['entries'] ?? []);
+  $customerSegmentStats[$slug] = [
+    'label' => $segment['label'] ?? ucfirst(str_replace('-', ' ', $slug)),
+    'count' => $count,
+    'description' => $segment['description'] ?? '',
+  ];
+}
+
+$approvalQueue = $state['employee_approvals'] ?? ['pending' => [], 'history' => []];
+$pendingApprovals = $approvalQueue['pending'] ?? [];
+$approvalHistory = $approvalQueue['history'] ?? [];
+
+$formatDateTime = static function (?string $value, string $fallback = '—'): string {
+  if (!$value) {
+    return $fallback;
+  }
+  $timestamp = strtotime($value);
+  if ($timestamp === false) {
+    return $fallback;
+  }
+
+  return date('j M Y, g:i A', $timestamp);
+};
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -155,6 +579,75 @@ $normalizedCity = $userCity === '—' ? '' : $userCity;
       margin: 0;
       font-size: 0.95rem;
       color: var(--muted);
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+    }
+
+    .customer-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 640px;
+    }
+
+    .customer-table th,
+    .customer-table td {
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    .customer-table th {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgba(15, 23, 42, 0.55);
+    }
+
+    .request-block {
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      background: #ffffff;
+      padding: 0.9rem 1rem;
+    }
+
+    .request-block + .request-block {
+      margin-top: 0.75rem;
+    }
+
+    .request-block summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      cursor: pointer;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .request-block summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .request-block[open] summary {
+      margin-bottom: 0.75rem;
+    }
+
+    .request-form {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .form-divider {
+      height: 1px;
+      background: rgba(15, 23, 42, 0.08);
+      margin: 1rem 0;
+    }
+
+    .form-span {
+      grid-column: 1 / -1;
     }
 
     .metric-grid {
@@ -543,111 +1036,358 @@ $normalizedCity = $userCity === '—' ? '' : $userCity;
       </form>
     </header>
 
-    <div class="status-banner" data-dashboard-status hidden></div>
+    <?php foreach ($flashMessages['success'] as $message): ?>
+      <div class="status-banner"><?= htmlspecialchars($message); ?></div>
+    <?php endforeach; ?>
 
-    <section class="panel">
-      <h2>Focus for the week</h2>
-      <p class="lead" data-dashboard-headline>Loading overview…</p>
-    </section>
+    <?php foreach ($flashMessages['error'] as $message): ?>
+      <div class="status-banner" data-tone="error"><?= htmlspecialchars($message); ?></div>
+    <?php endforeach; ?>
 
-    <section class="panel">
-      <h2>Key metrics</h2>
-      <div class="metric-grid" data-metrics></div>
-    </section>
-
-    <section class="panel">
-      <h2>Pipeline breakdown</h2>
-      <p class="lead">Live view of where your active tickets sit across the success workflow.</p>
-      <div class="pipeline-grid" data-pipeline-list></div>
-    </section>
-
-    <section class="panel">
-      <h2>Customer sentiment watchlist</h2>
-      <p class="lead">Accounts that need a personalised follow-up to protect CSAT.</p>
-      <div class="sentiment-list" data-sentiment-list></div>
-    </section>
-
-    <section class="panel">
-      <h2>Upcoming meetings</h2>
-      <div class="timeline-list" data-timeline></div>
-    </section>
-
-    <section class="panel">
-      <h2>Priority tasks</h2>
-      <div class="task-list" data-tasks></div>
-    </section>
-
-    <section class="panel">
-      <h2>Ticket queue health</h2>
-      <div class="board-grid">
-        <article class="board-card" data-tone="warning">
-          <p class="board-title">Due today</p>
-          <p class="board-value">5 tickets</p>
-          <p class="board-helper">Focus on DE-2041, JSR-118, and PKL-552 escalations.</p>
-        </article>
-        <article class="board-card" data-tone="success">
-          <p class="board-title">Resolution time</p>
-          <p class="board-value">3.8 hrs</p>
-          <p class="board-helper">Running average across the last seven closed tickets.</p>
-        </article>
-        <article class="board-card">
-          <p class="board-title">SLA at risk</p>
-          <p class="board-value">2 cases</p>
-          <p class="board-helper">Schedule callbacks for Ranchi net-metering and Bokaro upgrade.</p>
-        </article>
+    <section class="panel" id="pipeline-overview">
+      <h2>Customer pipeline overview</h2>
+      <p class="lead">Monitor every stage of the customer lifecycle. Your updates are routed for admin approval before they publish.</p>
+      <div class="metric-grid">
+        <?php foreach ($customerSegmentStats as $stat): ?>
+          <div class="metric-card">
+            <p class="metric-label"><?= htmlspecialchars($stat['label']); ?></p>
+            <p class="metric-value"><?= htmlspecialchars((string) $stat['count']); ?></p>
+            <p class="metric-helper">records tracked</p>
+          </div>
+        <?php endforeach; ?>
       </div>
     </section>
 
-    <section class="panel">
-      <h2>Team updates &amp; announcements</h2>
-      <div class="update-list">
-        <article class="update-card">
-          <strong>Installer huddle</strong>
-          <p class="update-meta">Crew feedback is due before 18:00 IST so we can adjust the weekend rota.</p>
-        </article>
-        <article class="update-card">
-          <strong>Knowledge base refresh</strong>
-          <p class="update-meta">New article covering the Jharkhand DISCOM subsidy workflow is live now.</p>
-        </article>
-        <article class="update-card">
-          <strong>Leadership note</strong>
-            <p class="update-meta">CSAT crossed 4.7 — share one success story in tomorrow's stand-up.</p>
-        </article>
-      </div>
+    <?php foreach ($customerSegments as $segmentSlug => $segmentData): ?>
+      <?php
+        $segmentLabel = $segmentData['label'] ?? ucfirst(str_replace('-', ' ', $segmentSlug));
+        $segmentDescription = $segmentData['description'] ?? '';
+        $segmentColumns = $segmentData['columns'] ?? [];
+        $segmentEntries = $segmentData['entries'] ?? [];
+        $segmentAnchor = 'segment-' . $segmentSlug;
+      ?>
+      <section class="panel" id="<?= htmlspecialchars($segmentAnchor); ?>">
+        <h2><?= htmlspecialchars($segmentLabel); ?></h2>
+        <p class="lead">
+          <?= htmlspecialchars($segmentDescription); ?>
+          <br />
+          <small>Submit additions or edits for admin approval. Updates go live only after review.</small>
+        </p>
+
+        <?php if (empty($segmentEntries)): ?>
+          <p>No records captured yet. Use the form below to propose the first entry.</p>
+        <?php else: ?>
+          <div class="table-wrapper">
+            <table class="customer-table">
+              <thead>
+                <tr>
+                  <?php foreach ($segmentColumns as $column): ?>
+                    <?php if (!is_array($column) || !isset($column['key'])) { continue; } ?>
+                    <th><?= htmlspecialchars($column['label'] ?? ucfirst(str_replace('_', ' ', (string) $column['key']))); ?></th>
+                  <?php endforeach; ?>
+                  <th>Notes</th>
+                  <th>Reminder</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($segmentEntries as $entry): ?>
+                  <tr>
+                    <?php foreach ($segmentColumns as $column): ?>
+                      <?php
+                        if (!is_array($column) || !isset($column['key'])) {
+                          continue;
+                        }
+                        $columnKey = $column['key'];
+                        $cellValue = trim((string) ($entry['fields'][$columnKey] ?? ''));
+                      ?>
+                      <td><?= htmlspecialchars($cellValue); ?></td>
+                    <?php endforeach; ?>
+                    <td><?= htmlspecialchars($entry['notes'] ?? ''); ?></td>
+                    <td><?= htmlspecialchars($entry['reminder_on'] ?? ''); ?></td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+
+          <?php foreach ($segmentEntries as $entry): ?>
+            <?php
+              $entryFields = $entry['fields'] ?? [];
+              $displayName = '';
+              foreach ($segmentColumns as $column) {
+                $columnKey = $column['key'] ?? null;
+                if ($columnKey && isset($entryFields[$columnKey])) {
+                  $candidate = trim((string) $entryFields[$columnKey]);
+                  if ($candidate !== '') {
+                    $displayName = $candidate;
+                    break;
+                  }
+                }
+              }
+              if ($displayName === '') {
+                $displayName = $segmentLabel . ' record';
+              }
+              $lastUpdated = $formatDateTime($entry['updated_at'] ?? $entry['created_at'] ?? null, 'Recently');
+              $currentReminder = $entry['reminder_on'] ?? '—';
+            ?>
+            <details class="request-block">
+              <summary>
+                <span><?= htmlspecialchars($displayName); ?></span>
+                <span class="status-pill">Prepare update</span>
+              </summary>
+              <p class="form-note">Current reminder: <?= htmlspecialchars($currentReminder === '' ? '—' : $currentReminder); ?> · Last updated <?= htmlspecialchars($lastUpdated); ?></p>
+              <form method="post" class="request-form">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                <input type="hidden" name="action" value="request_update_customer" />
+                <input type="hidden" name="redirect_anchor" value="<?= htmlspecialchars($segmentAnchor); ?>" />
+                <input type="hidden" name="segment" value="<?= htmlspecialchars($segmentSlug); ?>" />
+                <input type="hidden" name="entry_id" value="<?= htmlspecialchars($entry['id'] ?? ''); ?>" />
+                <div class="form-grid">
+                  <?php foreach ($segmentColumns as $column): ?>
+                    <?php
+                      if (!is_array($column) || !isset($column['key'])) {
+                        continue;
+                      }
+                      $columnKey = $column['key'];
+                      $columnLabel = $column['label'] ?? ucfirst(str_replace('_', ' ', (string) $columnKey));
+                      $inputType = match ($column['type'] ?? 'text') {
+                        'date' => 'date',
+                        'phone' => 'tel',
+                        'number' => 'number',
+                        'email' => 'email',
+                        default => 'text',
+                      };
+                      $value = $entryFields[$columnKey] ?? '';
+                    ?>
+                    <div class="form-group">
+                      <label><?= htmlspecialchars($columnLabel); ?></label>
+                      <input name="fields[<?= htmlspecialchars($columnKey); ?>]" type="<?= htmlspecialchars($inputType); ?>" value="<?= htmlspecialchars((string) $value); ?>" />
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Internal notes</label>
+                    <textarea name="notes" rows="2" placeholder="Reminder notes or context"><?= htmlspecialchars($entry['notes'] ?? ''); ?></textarea>
+                  </div>
+                  <div class="form-group">
+                    <label>Reminder date</label>
+                    <input name="reminder_on" type="date" value="<?= htmlspecialchars($entry['reminder_on'] ?? ''); ?>" />
+                  </div>
+                  <div class="form-group">
+                    <label>Move to segment</label>
+                    <select name="target_segment">
+                      <?php foreach ($customerSegmentStats as $optionSlug => $option): ?>
+                        <option value="<?= htmlspecialchars($optionSlug); ?>" <?= $optionSlug === $segmentSlug ? 'selected' : ''; ?>><?= htmlspecialchars($option['label']); ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                    <p class="form-note">Keep <?= htmlspecialchars(strtolower($segmentLabel)); ?> selected to stay in place.</p>
+                  </div>
+                </div>
+                <div class="form-group form-span">
+                  <label>Context for the admin team</label>
+                  <textarea name="justification" rows="3" placeholder="Share what changed or why this record should move" required></textarea>
+                </div>
+                <div class="form-actions">
+                  <button class="primary-btn" type="submit">Submit update request</button>
+                </div>
+              </form>
+            </details>
+          <?php endforeach; ?>
+        <?php endif; ?>
+
+        <div class="form-divider"></div>
+
+        <h3>Propose a new <?= htmlspecialchars($segmentLabel); ?> record</h3>
+        <form method="post" class="request-form">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+          <input type="hidden" name="action" value="request_add_customer" />
+          <input type="hidden" name="redirect_anchor" value="<?= htmlspecialchars($segmentAnchor); ?>" />
+          <input type="hidden" name="segment" value="<?= htmlspecialchars($segmentSlug); ?>" />
+          <div class="form-grid">
+            <?php foreach ($segmentColumns as $column): ?>
+              <?php
+                if (!is_array($column) || !isset($column['key'])) {
+                  continue;
+                }
+                $columnKey = $column['key'];
+                $columnLabel = $column['label'] ?? ucfirst(str_replace('_', ' ', (string) $columnKey));
+                $inputType = match ($column['type'] ?? 'text') {
+                  'date' => 'date',
+                  'phone' => 'tel',
+                  'number' => 'number',
+                  'email' => 'email',
+                  default => 'text',
+                };
+              ?>
+              <div class="form-group">
+                <label><?= htmlspecialchars($columnLabel); ?></label>
+                <input name="fields[<?= htmlspecialchars($columnKey); ?>]" type="<?= htmlspecialchars($inputType); ?>" />
+              </div>
+            <?php endforeach; ?>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Internal notes</label>
+              <textarea name="notes" rows="2" placeholder="Reminder notes or context"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Reminder date</label>
+              <input name="reminder_on" type="date" />
+            </div>
+          </div>
+          <div class="form-group form-span">
+            <label>Context for the admin team</label>
+            <textarea name="justification" rows="3" placeholder="Share the background or next steps" required></textarea>
+          </div>
+          <div class="form-actions">
+            <button class="primary-btn" type="submit">Send for approval</button>
+          </div>
+        </form>
+      </section>
+    <?php endforeach; ?>
+
+    <section class="panel" id="approvals">
+      <h2>Pending admin approvals</h2>
+      <p class="lead">Track requests you have raised with the admin team.</p>
+      <?php if (empty($pendingApprovals)): ?>
+        <p>No approval requests logged yet.</p>
+      <?php else: ?>
+        <div class="approval-list">
+          <?php foreach ($pendingApprovals as $request): ?>
+            <?php
+              $statusLabel = $request['status'] ?? 'Pending admin review';
+              $submittedAt = $formatDateTime($request['submitted_at'] ?? null, '—');
+              $owner = $request['owner'] ?? 'Admin team';
+              $effectiveDate = $request['effective_date'] ?? '';
+            ?>
+            <article class="approval-card">
+              <div class="approval-header">
+                <p class="approval-title"><?= htmlspecialchars($request['title'] ?? 'Request'); ?></p>
+                <span class="status-pill"><?= htmlspecialchars($statusLabel); ?></span>
+              </div>
+              <p class="approval-meta">ID <?= htmlspecialchars($request['id'] ?? '—'); ?> • Submitted <?= htmlspecialchars($submittedAt); ?> • Routed to <?= htmlspecialchars($owner); ?></p>
+              <?php if (!empty($request['details'])): ?>
+                <p class="approval-details"><?= htmlspecialchars($request['details']); ?></p>
+              <?php endif; ?>
+              <?php if ($effectiveDate !== ''): ?>
+                <p class="approval-meta">Target effective date: <?= htmlspecialchars($effectiveDate); ?></p>
+              <?php endif; ?>
+              <?php if (!empty($request['last_update'])): ?>
+                <p class="approval-meta"><?= htmlspecialchars($request['last_update']); ?></p>
+              <?php endif; ?>
+            </article>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+
+      <h3>Submit a general approval request</h3>
+      <form method="post" class="request-form">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+        <input type="hidden" name="action" value="submit_general_request" />
+        <input type="hidden" name="redirect_anchor" value="approvals" />
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="change-type">Change type</label>
+            <select id="change-type" name="change_type" required>
+              <option value="">Choose a request</option>
+              <option value="Payroll bank update">Payroll bank update</option>
+              <option value="Access scope change">Access scope change</option>
+              <option value="Desk relocation">Desk relocation</option>
+              <option value="Long leave / remote work">Long leave / remote work</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="change-effective">Target effective date</label>
+            <input id="change-effective" name="effective_date" type="date" />
+          </div>
+        </div>
+        <div class="form-group form-span">
+          <label for="change-justification">Summary for the admin team</label>
+          <textarea id="change-justification" name="justification" placeholder="Add context, ticket IDs, or the reason for the change" required></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="primary-btn" type="submit">Submit for approval</button>
+        </div>
+      </form>
+
+      <h3>Decision history</h3>
+      <?php if (empty($approvalHistory)): ?>
+        <p>No admin decisions recorded yet.</p>
+      <?php else: ?>
+        <div class="history-list">
+          <?php foreach ($approvalHistory as $record): ?>
+            <?php
+              $status = $record['status'] ?? 'Completed';
+              $resolvedOn = $formatDateTime($record['resolved_at'] ?? $record['resolved'] ?? null, '—');
+              $outcome = $record['outcome'] ?? '';
+              $tone = 'info';
+              $statusLower = strtolower($status);
+              if (strpos($statusLower, 'decline') !== false || strpos($statusLower, 'reject') !== false) {
+                $tone = 'error';
+              } elseif (strpos($statusLower, 'approve') !== false || strpos($statusLower, 'complete') !== false) {
+                $tone = 'success';
+              }
+            ?>
+            <article class="history-item">
+              <div class="approval-header">
+                <p class="approval-title"><?= htmlspecialchars($record['title'] ?? 'Request'); ?> · <?= htmlspecialchars($record['id'] ?? ''); ?></p>
+                <span class="status-pill" data-tone="<?= htmlspecialchars($tone); ?>"><?= htmlspecialchars($status); ?></span>
+              </div>
+              <p class="approval-meta">Resolved <?= htmlspecialchars($resolvedOn); ?></p>
+              <?php if ($outcome !== ''): ?>
+                <p class="approval-meta"><?= htmlspecialchars($outcome); ?></p>
+              <?php endif; ?>
+            </article>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
     </section>
 
-    <section class="panel">
-      <h2>Customer care shortcuts</h2>
-      <div class="resource-grid">
-        <article class="resource-card">
-          <h3>Escalation directory</h3>
-          <p class="update-meta">Contact sheet for on-call engineering, finance, and compliance approvers.</p>
-          <div class="resource-actions">
-            <a href="#">Download PDF</a>
-            <a href="#">View in Drive</a>
+    <section class="panel" id="design-change">
+      <h2>Propose website design update</h2>
+      <p class="lead">Recommend theme tweaks or seasonal announcements. Admin approval is required before changes go live.</p>
+      <form method="post" class="request-form">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+        <input type="hidden" name="action" value="request_theme_change" />
+        <input type="hidden" name="redirect_anchor" value="design-change" />
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="theme-label">Theme headline</label>
+            <input id="theme-label" name="season_label" type="text" placeholder="e.g. Winter savings drive" required />
           </div>
-        </article>
-        <article class="resource-card">
-          <h3>CRM board</h3>
-          <p class="update-meta">Quick link to the "Customer Success · October" Kanban board.</p>
-          <div class="resource-actions">
-            <a href="#">Open board</a>
-            <a href="#">Create task</a>
+          <div class="form-group">
+            <label for="theme-color">Accent colour</label>
+            <input id="theme-color" name="accent_color" type="text" value="#2563EB" />
+            <p class="form-note">Use HEX format, e.g. #2563EB.</p>
           </div>
-        </article>
-        <article class="resource-card">
-          <h3>Voice templates</h3>
-          <p class="update-meta">Scripts for inspection scheduling, payment reminders, and referral upgrades.</p>
-          <div class="resource-actions">
-            <a href="#">Browse scripts</a>
-            <a href="#">Share feedback</a>
+          <div class="form-group">
+            <label for="theme-effective">Planned go-live date</label>
+            <input id="theme-effective" name="effective_date" type="date" />
           </div>
-        </article>
-      </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="theme-background">Hero / background image</label>
+            <input id="theme-background" name="background_image" type="text" placeholder="images/hero/winter-campaign.jpg" />
+          </div>
+          <div class="form-group">
+            <label for="theme-announcement">Announcement banner</label>
+            <input id="theme-announcement" name="announcement" type="text" placeholder="Short announcement for the homepage" />
+          </div>
+        </div>
+        <div class="form-group form-span">
+          <label for="theme-justification">Why this change matters</label>
+          <textarea id="theme-justification" name="justification" rows="3" placeholder="Share campaign goals, timelines, or supporting details" required></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="primary-btn" type="submit">Share with admin</button>
+        </div>
+      </form>
     </section>
 
-    <section class="panel">
-      <h2>Your profile</h2>
+    <section class="panel" id="profile">
+      <h2>Your profile &amp; contact preferences</h2>
       <div class="details-grid">
         <div>
           <strong>User ID</strong>
@@ -658,534 +1398,58 @@ $normalizedCity = $userCity === '—' ? '' : $userCity;
           <span><?= htmlspecialchars($roleLabel); ?></span>
         </div>
         <div>
-          <strong>Phone</strong>
-          <span data-profile-field="phone"><?= htmlspecialchars($normalizedPhone === '' ? '—' : $normalizedPhone); ?></span>
-        </div>
-        <div>
           <strong>Email</strong>
           <span><?= htmlspecialchars($userEmail); ?></span>
         </div>
         <div>
-          <strong>City / service cluster</strong>
-          <span data-profile-field="city"><?= htmlspecialchars($normalizedCity === '' ? '—' : $normalizedCity); ?></span>
-        </div>
-        <div>
-          <strong>Desk location</strong>
-          <span data-profile-field="deskLocation">—</span>
-        </div>
-        <div>
-          <strong>Working hours preference</strong>
-          <span data-profile-field="workingHours">—</span>
-        </div>
-        <div>
-          <strong>Emergency contact</strong>
-          <span data-profile-field="emergencyContact">—</span>
-        </div>
-        <div>
-          <strong>Preferred channel</strong>
-          <span data-profile-field="preferredChannel">—</span>
-        </div>
-        <div>
-          <strong>Reporting manager</strong>
-          <span data-profile-field="reportingManager">—</span>
+          <strong>Last sign-in</strong>
+          <span><?= htmlspecialchars($lastLogin ?? '—'); ?></span>
         </div>
       </div>
-    </section>
-
-    <section class="panel">
-      <h2>Update your contact details</h2>
-      <p class="lead">Keep your day-to-day contact preferences current for faster escalations and callbacks.</p>
-      <form data-profile-form>
+      <form method="post" class="request-form">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+        <input type="hidden" name="action" value="update_profile" />
+        <input type="hidden" name="redirect_anchor" value="profile" />
         <div class="form-grid">
           <div class="form-group">
             <label for="profile-phone">Primary phone number</label>
-            <input id="profile-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" data-profile-input="phone" placeholder="e.g. +91 98765 43210" />
+            <input id="profile-phone" name="phone" type="tel" value="<?= htmlspecialchars($normalizedPhone); ?>" placeholder="+91 98765 43210" />
           </div>
           <div class="form-group">
             <label for="profile-city">City / service cluster</label>
-            <input id="profile-city" name="city" type="text" autocomplete="address-level2" data-profile-input="city" placeholder="e.g. Jamshedpur &amp; Bokaro" />
+            <input id="profile-city" name="city" type="text" value="<?= htmlspecialchars($normalizedCity); ?>" placeholder="Jamshedpur &amp; Bokaro" />
           </div>
           <div class="form-group">
             <label for="profile-emergency">Emergency contact</label>
-            <input id="profile-emergency" name="emergencyContact" type="text" data-profile-input="emergencyContact" placeholder="Name &amp;middot; Phone number" />
+            <input id="profile-emergency" name="emergency_contact" type="text" value="<?= htmlspecialchars($userEmergencyContact); ?>" placeholder="Name · Phone number" />
           </div>
           <div class="form-group">
             <label for="profile-hours">Working hours preference</label>
-            <input id="profile-hours" name="workingHours" type="text" data-profile-input="workingHours" placeholder="e.g. 10:00 &ndash; 18:30 IST" />
+            <input id="profile-hours" name="working_hours" type="text" value="<?= htmlspecialchars($userWorkingHours); ?>" placeholder="10:00 – 18:30 IST" />
           </div>
           <div class="form-group">
             <label for="profile-channel">Preferred communication channel</label>
-            <select id="profile-channel" name="preferredChannel" data-profile-input="preferredChannel">
-              <option value="Phone call">Phone call</option>
-              <option value="WhatsApp">WhatsApp</option>
-              <option value="Email summary">Email summary</option>
+            <select id="profile-channel" name="preferred_channel">
+              <option value="Phone call" <?= $userPreferredChannel === 'Phone call' ? 'selected' : ''; ?>>Phone call</option>
+              <option value="WhatsApp" <?= $userPreferredChannel === 'WhatsApp' ? 'selected' : ''; ?>>WhatsApp</option>
+              <option value="Email summary" <?= $userPreferredChannel === 'Email summary' ? 'selected' : ''; ?>>Email summary</option>
             </select>
           </div>
+          <div class="form-group">
+            <label for="profile-desk">Desk location</label>
+            <input id="profile-desk" name="desk_location" type="text" value="<?= htmlspecialchars($userDeskLocation); ?>" placeholder="Operations HQ" />
+          </div>
+          <div class="form-group">
+            <label for="profile-manager">Reporting manager</label>
+            <input id="profile-manager" name="reporting_manager" type="text" value="<?= htmlspecialchars($userReportingManager); ?>" placeholder="Manager name" />
+          </div>
         </div>
-        <p class="form-note">Changes save instantly for the operations roster. Sensitive updates such as bank details or access scopes should go through the approval workflow below.</p>
         <div class="form-actions">
           <button class="primary-btn" type="submit">Save updates</button>
         </div>
-        <p class="form-feedback" data-profile-feedback></p>
       </form>
-    </section>
-
-    <section class="panel">
-      <h2>Requests requiring admin approval</h2>
-      <p class="lead">Track sensitive changes that route to the admin desk and log new requests when you need support.</p>
-      <div class="approval-list" data-approval-list></div>
-      <p class="form-note" data-approval-summary></p>
-      <h3>Log a new approval request</h3>
-      <form data-approval-form>
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="approval-change-type">Change type</label>
-            <select id="approval-change-type" name="changeType" required>
-              <option value="" disabled selected>Choose a request</option>
-              <option value="Payroll bank update">Payroll bank update</option>
-              <option value="Access scope change">Access scope change</option>
-              <option value="Desk relocation">Desk relocation</option>
-              <option value="Long leave / remote work">Long leave / remote work</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="approval-effective-date">Target effective date</label>
-            <input id="approval-effective-date" name="effectiveDate" type="date" />
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="approval-justification">Summary for the admin team</label>
-          <textarea id="approval-justification" name="justification" placeholder="Add context, ticket IDs, or the reason for the change"></textarea>
-        </div>
-        <div class="form-actions">
-          <button class="primary-btn" type="submit">Submit for approval</button>
-        </div>
-        <p class="form-feedback" data-approval-feedback></p>
-      </form>
-      <h3>Recent admin decisions</h3>
-      <div class="history-list" data-approval-history></div>
     </section>
   </main>
 
-  <script src="portal-demo-data.js"></script>
-  <script src="dashboard-auth.js"></script>
-  <script>
-    (function () {
-      const portalData = window.DAKSHAYANI_PORTAL_DEMO?.employeePortal || {};
-      const pipelineContainer = document.querySelector('[data-pipeline-list]');
-      const sentimentContainer = document.querySelector('[data-sentiment-list]');
-      const approvalsContainer = document.querySelector('[data-approval-list]');
-      const approvalSummary = document.querySelector('[data-approval-summary]');
-      const approvalHistoryContainer = document.querySelector('[data-approval-history]');
-      const profileForm = document.querySelector('[data-profile-form]');
-      const profileFeedback = document.querySelector('[data-profile-feedback]');
-      const approvalForm = document.querySelector('[data-approval-form]');
-      const approvalFeedback = document.querySelector('[data-approval-feedback]');
-      const profileDisplayNodes = document.querySelectorAll('[data-profile-field]');
-      const profileInputs = profileForm ? Array.from(profileForm.querySelectorAll('[data-profile-input]')) : [];
-
-      const phpPhone = <?= json_encode($normalizedPhone); ?>;
-      const phpCity = <?= json_encode($normalizedCity); ?>;
-
-      const profileState = {
-        phone: phpPhone || portalData.profile?.phone || '',
-        city: phpCity || portalData.profile?.serviceRegion || portalData.profile?.city || '',
-        emergencyContact: portalData.profile?.emergencyContact || '',
-        workingHours: portalData.profile?.workingHours || '',
-        preferredChannel: portalData.profile?.preferredChannel || 'Phone call',
-        deskLocation: portalData.profile?.deskLocation || '',
-        reportingManager: portalData.profile?.reportingManager || ''
-      };
-
-      const pipelineData = Array.isArray(portalData.pipeline) ? portalData.pipeline.slice() : [];
-      const sentimentData = Array.isArray(portalData.sentimentWatch) ? portalData.sentimentWatch.slice() : [];
-      const approvalsState = Array.isArray(portalData.approvals) ? portalData.approvals.map((item) => ({ ...item })) : [];
-      const approvalHistoryState = Array.isArray(portalData.approvalHistory) ? portalData.approvalHistory.map((item) => ({ ...item })) : [];
-
-      const profileDisplayMap = {};
-      profileDisplayNodes.forEach((node) => {
-        const field = node.dataset.profileField;
-        if (!field) return;
-        profileDisplayMap[field] = profileDisplayMap[field] || [];
-        profileDisplayMap[field].push(node);
-      });
-
-      const profileInputMap = {};
-      profileInputs.forEach((input) => {
-        const field = input.dataset.profileInput;
-        if (!field) return;
-        profileInputMap[field] = input;
-        const value = profileState[field] || '';
-        if (input.tagName === 'SELECT') {
-          const values = Array.from(input.options).map((option) => option.value);
-          if (values.includes(value)) {
-            input.value = value;
-          }
-        } else {
-          input.value = value;
-        }
-      });
-
-      function formatDisplay(value) {
-        if (value === null || value === undefined) {
-          return '—';
-        }
-        const trimmed = String(value).trim();
-        return trimmed.length ? trimmed : '—';
-      }
-
-      function syncProfileDisplay() {
-        Object.entries(profileDisplayMap).forEach(([field, nodes]) => {
-          let current = profileState[field];
-          if (!current) {
-            if (field === 'city') {
-              current = portalData.profile?.serviceRegion || portalData.profile?.city || '';
-            } else if (field === 'deskLocation') {
-              current = portalData.profile?.deskLocation || '';
-            } else if (field === 'workingHours') {
-              current = portalData.profile?.workingHours || '';
-            } else if (field === 'emergencyContact') {
-              current = portalData.profile?.emergencyContact || '';
-            } else if (field === 'preferredChannel') {
-              current = portalData.profile?.preferredChannel || '';
-            } else if (field === 'reportingManager') {
-              current = portalData.profile?.reportingManager || '';
-            }
-          }
-          nodes.forEach((node) => {
-            node.textContent = formatDisplay(current);
-          });
-        });
-      }
-
-      function setFeedback(node, tone, message) {
-        if (!node) return;
-        node.textContent = message || '';
-        if (!message) {
-          node.hidden = true;
-          delete node.dataset.tone;
-          return;
-        }
-        node.hidden = false;
-        if (tone && tone !== 'info') {
-          node.dataset.tone = tone;
-        } else {
-          delete node.dataset.tone;
-        }
-      }
-
-      function renderPipeline() {
-        if (!pipelineContainer) return;
-        pipelineContainer.innerHTML = '';
-        if (!pipelineData.length) {
-          const empty = document.createElement('p');
-          empty.className = 'empty';
-          empty.textContent = 'No pipeline data yet.';
-          pipelineContainer.appendChild(empty);
-          return;
-        }
-        pipelineData.forEach((item) => {
-          const card = document.createElement('article');
-          card.className = 'pipeline-card';
-          const stage = document.createElement('p');
-          stage.className = 'pipeline-stage';
-          stage.textContent = item.stage || 'Stage';
-          const count = document.createElement('p');
-          count.className = 'pipeline-count';
-          count.textContent = item.count != null ? item.count : '—';
-          card.appendChild(stage);
-          card.appendChild(count);
-          if (item.note) {
-            const note = document.createElement('p');
-            note.className = 'pipeline-note';
-            note.textContent = item.note;
-            card.appendChild(note);
-          }
-          if (item.sla) {
-            const sla = document.createElement('p');
-            sla.className = 'pipeline-note';
-            sla.textContent = item.sla;
-            card.appendChild(sla);
-          }
-          pipelineContainer.appendChild(card);
-        });
-      }
-
-      function resolveTone(label = '') {
-        const value = String(label).toLowerCase();
-        if (value.includes('risk') || value.includes('pending') || value.includes('attention')) return 'warning';
-        if (value.includes('approved') || value.includes('completed') || value.includes('improving') || value.includes('active')) return 'success';
-        if (value.includes('declined') || value.includes('rejected') || value.includes('blocked')) return 'error';
-        return 'info';
-      }
-
-      function createStatusPill(text, tone) {
-        const pill = document.createElement('span');
-        pill.className = 'status-pill';
-        pill.textContent = text;
-        if (tone && tone !== 'info') {
-          pill.dataset.tone = tone;
-        }
-        return pill;
-      }
-
-      function renderSentiments() {
-        if (!sentimentContainer) return;
-        sentimentContainer.innerHTML = '';
-        if (!sentimentData.length) {
-          const empty = document.createElement('p');
-          empty.className = 'empty';
-          empty.textContent = 'No customers flagged for follow-up today.';
-          sentimentContainer.appendChild(empty);
-          return;
-        }
-        sentimentData.forEach((item) => {
-          const card = document.createElement('article');
-          card.className = 'sentiment-card';
-          if (item.customer) {
-            const title = document.createElement('p');
-            title.innerHTML = `<strong>${item.customer}</strong>`;
-            card.appendChild(title);
-          }
-          if (item.nextStep) {
-            const next = document.createElement('p');
-            next.className = 'approval-meta';
-            next.textContent = item.nextStep;
-            card.appendChild(next);
-          }
-          const tags = document.createElement('div');
-          tags.className = 'sentiment-tags';
-          if (item.sentiment) {
-            tags.appendChild(createStatusPill(item.sentiment, resolveTone(item.sentiment)));
-          }
-          if (item.trend) {
-            tags.appendChild(createStatusPill(item.trend, resolveTone(item.trend)));
-          }
-          if (item.owner) {
-            tags.appendChild(createStatusPill(`Owner: ${item.owner}`, 'info'));
-          }
-          if (tags.childNodes.length) {
-            card.appendChild(tags);
-          }
-          if (item.due) {
-            const due = document.createElement('p');
-            due.className = 'approval-meta';
-            due.textContent = `Next check-in: ${item.due}`;
-            card.appendChild(due);
-          }
-          sentimentContainer.appendChild(card);
-        });
-      }
-
-      function renderApprovals() {
-        if (!approvalsContainer) return;
-        approvalsContainer.innerHTML = '';
-        if (!approvalsState.length) {
-          const empty = document.createElement('p');
-          empty.className = 'empty';
-          empty.textContent = 'No active approval requests yet.';
-          approvalsContainer.appendChild(empty);
-        } else {
-          approvalsState.forEach((item) => {
-            const card = document.createElement('article');
-            card.className = 'approval-card';
-            const header = document.createElement('div');
-            header.className = 'approval-header';
-            const title = document.createElement('p');
-            title.className = 'approval-title';
-            title.textContent = item.title || 'Change request';
-            header.appendChild(title);
-            if (item.status) {
-              header.appendChild(createStatusPill(item.status, resolveTone(item.status)));
-            }
-            card.appendChild(header);
-            const metaParts = [];
-            if (item.id) metaParts.push(item.id);
-            if (item.submitted) metaParts.push(`Submitted ${item.submitted}`);
-            if (item.owner) metaParts.push(`Routed to ${item.owner}`);
-            if (metaParts.length) {
-              const meta = document.createElement('p');
-              meta.className = 'approval-meta';
-              meta.textContent = metaParts.join(' • ');
-              card.appendChild(meta);
-            }
-            if (item.details) {
-              const body = document.createElement('p');
-              body.className = 'approval-details';
-              body.textContent = item.details;
-              card.appendChild(body);
-            }
-            if (item.effectiveDate) {
-              const effective = document.createElement('p');
-              effective.className = 'approval-meta';
-              effective.textContent = `Requested effective date: ${item.effectiveDate}`;
-              card.appendChild(effective);
-            }
-            if (item.lastUpdate) {
-              const update = document.createElement('p');
-              update.className = 'approval-meta';
-              update.textContent = item.lastUpdate;
-              card.appendChild(update);
-            }
-            approvalsContainer.appendChild(card);
-          });
-        }
-
-        if (approvalSummary) {
-          if (!approvalsState.length) {
-            approvalSummary.textContent = 'No approvals are awaiting action.';
-          } else {
-            const pending = approvalsState.filter((item) => String(item.status || '').toLowerCase().includes('pending')).length;
-            const approved = approvalsState.filter((item) => String(item.status || '').toLowerCase().includes('approved')).length;
-            approvalSummary.textContent = `Pending: ${pending} · Approved: ${approved} · Total tracked: ${approvalsState.length}.`;
-          }
-        }
-      }
-
-      function renderHistory() {
-        if (!approvalHistoryContainer) return;
-        approvalHistoryContainer.innerHTML = '';
-        if (!approvalHistoryState.length) {
-          const empty = document.createElement('p');
-          empty.className = 'empty';
-          empty.textContent = 'No previous admin decisions logged.';
-          approvalHistoryContainer.appendChild(empty);
-          return;
-        }
-        approvalHistoryState.forEach((item) => {
-          const row = document.createElement('article');
-          row.className = 'history-item';
-          const header = document.createElement('div');
-          header.className = 'approval-header';
-          const title = document.createElement('p');
-          title.className = 'approval-title';
-          title.textContent = `${item.title || 'Request'}${item.id ? ` · ${item.id}` : ''}`;
-          header.appendChild(title);
-          header.appendChild(createStatusPill(item.status || 'Completed', resolveTone(item.status)));
-          row.appendChild(header);
-          if (item.resolved || item.status) {
-            const meta = document.createElement('p');
-            meta.className = 'approval-meta';
-            const statusText = item.status || 'Completed';
-            meta.textContent = item.resolved ? `${statusText} on ${item.resolved}` : statusText;
-            row.appendChild(meta);
-          }
-          if (item.outcome) {
-            const outcome = document.createElement('p');
-            outcome.className = 'approval-meta';
-            outcome.textContent = item.outcome;
-            row.appendChild(outcome);
-          }
-          approvalHistoryContainer.appendChild(row);
-        });
-      }
-
-      function extractApprovalCounter() {
-        const numbers = []
-          .concat(approvalsState, approvalHistoryState)
-          .map((item) => {
-            const match = /APP-(\d+)/.exec(item?.id || '');
-            return match ? parseInt(match[1], 10) : null;
-          })
-          .filter((value) => Number.isFinite(value));
-        return numbers.length ? Math.max(...numbers) : 1100;
-      }
-
-      let approvalCounter = extractApprovalCounter();
-
-      function generateApprovalId() {
-        approvalCounter += 1;
-        return `APP-${approvalCounter}`;
-      }
-
-      function handleProfileSubmit(event) {
-        event.preventDefault();
-        if (!profileForm) return;
-        let updated = false;
-        Object.entries(profileInputMap).forEach(([field, input]) => {
-          if (!input) return;
-          let nextValue = input.value;
-          if (input.tagName === 'INPUT' || input.tagName === 'TEXTAREA') {
-            nextValue = nextValue.trim();
-          }
-          if (profileState[field] !== nextValue) {
-            profileState[field] = nextValue;
-            updated = true;
-          }
-        });
-        syncProfileDisplay();
-        if (updated) {
-          setFeedback(profileFeedback, 'success', 'Contact preferences updated. Operations will reference the latest details.');
-        } else {
-          setFeedback(profileFeedback, 'info', 'No changes detected — everything is already up to date.');
-        }
-      }
-
-      function handleApprovalSubmit(event) {
-        event.preventDefault();
-        if (!approvalForm) return;
-        const formData = new FormData(approvalForm);
-        const changeType = (formData.get('changeType') || '').toString();
-        const effectiveDate = (formData.get('effectiveDate') || '').toString();
-        const justification = (formData.get('justification') || '').toString().trim();
-        if (!changeType) {
-          setFeedback(approvalFeedback, 'error', 'Select the type of change that needs approval.');
-          return;
-        }
-        if (!justification) {
-          setFeedback(approvalFeedback, 'error', 'Add a short justification so the admin team can review quickly.');
-          return;
-        }
-        const now = new Date();
-        const formatter = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
-        let effectiveDisplay = '';
-        if (effectiveDate) {
-          const parsed = new Date(`${effectiveDate}T00:00:00`);
-          if (!Number.isNaN(parsed.getTime())) {
-            effectiveDisplay = formatter.format(parsed);
-          }
-        }
-        const routedTo =
-          changeType === 'Payroll bank update'
-            ? 'Finance & Admin'
-            : changeType === 'Access scope change'
-            ? 'Admin desk'
-            : changeType === 'Desk relocation'
-            ? 'Workplace support'
-            : 'People operations';
-
-        approvalsState.unshift({
-          id: generateApprovalId(),
-          title: changeType,
-          status: 'Pending admin review',
-          submitted: formatter.format(now),
-          owner: routedTo,
-          details: justification,
-          effectiveDate: effectiveDisplay,
-          lastUpdate: 'Waiting for admin triage'
-        });
-
-        renderApprovals();
-        setFeedback(approvalFeedback, 'success', 'Request submitted. You will be notified once an admin reviews it.');
-        approvalForm.reset();
-      }
-
-      if (profileForm) {
-        profileForm.addEventListener('submit', handleProfileSubmit);
-        setFeedback(profileFeedback, null, '');
-      }
-
-      if (approvalForm) {
-        approvalForm.addEventListener('submit', handleApprovalSubmit);
-        setFeedback(approvalFeedback, null, '');
-      }
-
-      syncProfileDisplay();
-      renderPipeline();
-      renderSentiments();
-      renderApprovals();
-      renderHistory();
-    })();
-  </script>
 </body>
 </html>
