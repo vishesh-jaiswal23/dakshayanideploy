@@ -83,6 +83,51 @@ function api_normalise_phone(?string $phone): string
     return $digits;
 }
 
+function api_normalise_system_configuration(?string $value): string
+{
+    $raw = strtolower(trim((string) $value));
+    if ($raw === '') {
+        return '';
+    }
+
+    if (strpos($raw, 'off') !== false) {
+        return 'offgrid';
+    }
+
+    if (strpos($raw, 'hybrid') !== false) {
+        return 'hybrid';
+    }
+
+    if (strpos($raw, 'grid') !== false || strpos($raw, 'net') !== false) {
+        return 'ongrid';
+    }
+
+    if (strpos($raw, 'battery') !== false) {
+        return 'hybrid';
+    }
+
+    return preg_replace('/[^a-z]/', '', $raw) ?? '';
+}
+
+function api_system_configuration_label(string $value): string
+{
+    $map = [
+        'ongrid' => 'On-grid',
+        'hybrid' => 'Hybrid',
+        'offgrid' => 'Off-grid',
+    ];
+
+    if (isset($map[$value])) {
+        return $map[$value];
+    }
+
+    if ($value === '') {
+        return '';
+    }
+
+    return ucwords(str_replace(['-', '_'], ' ', $value));
+}
+
 function api_is_valid_password(?string $password): bool
 {
     if (!is_string($password) || strlen($password) < 8) {
@@ -510,13 +555,31 @@ function api_lookup_customer_by_phone(string $phone): array
 
     $matches = [];
 
+    $knownPhoneFields = [
+        'phone',
+        'phone_number',
+        'mobile',
+        'mobile_number',
+        'mobile_no',
+        'contact',
+        'contact_number',
+        'alternate_number',
+        'alternate_contact',
+        'alt_number',
+        'whatsapp',
+        'whatsapp_number',
+        'customer_phone',
+        'customer_mobile',
+        'primary_contact',
+    ];
+
     foreach ($segments as $slug => $segment) {
         if (!is_array($segment)) {
             continue;
         }
 
         $columns = is_array($segment['columns'] ?? null) ? $segment['columns'] : [];
-        $phoneKeys = [];
+        $phoneKeySet = [];
         $emailKeys = [];
 
         foreach ($columns as $column) {
@@ -531,12 +594,23 @@ function api_lookup_customer_by_phone(string $phone): array
 
             $type = strtolower((string) ($column['type'] ?? 'text'));
             if ($type === 'phone') {
-                $phoneKeys[] = $key;
+                $phoneKeySet[$key] = true;
+            }
+            if (in_array($key, $knownPhoneFields, true)) {
+                $phoneKeySet[$key] = true;
             }
             if ($type === 'email') {
                 $emailKeys[] = $key;
             }
         }
+
+        foreach ($knownPhoneFields as $fallbackPhoneField) {
+            if (!isset($phoneKeySet[$fallbackPhoneField])) {
+                $phoneKeySet[$fallbackPhoneField] = true;
+            }
+        }
+
+        $phoneKeys = array_keys($phoneKeySet);
 
         if ($phoneKeys === []) {
             continue;
@@ -664,8 +738,40 @@ function api_lookup_customer_by_phone(string $phone): array
                 }
             }
 
+            $systemConfiguration = '';
+            $systemConfigurationRaw = '';
+            $systemConfigurationFields = [
+                'system_configuration',
+                'solar_system_type',
+                'system_type',
+                'type_of_system',
+                'connection_type',
+                'project_category',
+                'system',
+                'requirements',
+                'issue_summary',
+            ];
+
+            foreach ($systemConfigurationFields as $systemField) {
+                if (!isset($fields[$systemField])) {
+                    continue;
+                }
+
+                $candidateRaw = trim((string) $fields[$systemField]);
+                $normalizedCandidate = api_normalise_system_configuration($candidateRaw);
+                if ($normalizedCandidate === '') {
+                    continue;
+                }
+
+                $systemConfiguration = $normalizedCandidate;
+                $systemConfigurationRaw = $candidateRaw;
+                break;
+            }
+
             $segmentLabel = $segment['label'] ?? ucfirst(str_replace('-', ' ', (string) $slug));
             $updatedAt = $entry['updated_at'] ?? $entry['created_at'] ?? null;
+
+            $schemeType = $installType === 'pmsgby' ? 'pmsgby' : 'other';
 
             $matches[] = [
                 'entryId' => $entry['id'] ?? '',
@@ -683,6 +789,11 @@ function api_lookup_customer_by_phone(string $phone): array
                 'reference' => $reference,
                 'updatedAt' => $updatedAt,
                 'notes' => isset($entry['notes']) ? trim((string) $entry['notes']) : '',
+                'schemeType' => $schemeType,
+                'schemeLabel' => $schemeType === 'pmsgby' ? 'PM Surya Ghar Muft Bijli Yojana' : 'Other installation',
+                'systemConfiguration' => $systemConfiguration,
+                'systemConfigurationLabel' => api_system_configuration_label($systemConfiguration),
+                'systemConfigurationRaw' => $systemConfigurationRaw,
             ];
         }
     }
