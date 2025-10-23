@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 session_start();
 
+const EMPLOYEE_DEFAULT_VIEW = 'overview';
+
 if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'employee') {
   header('Location: login.php');
   exit;
@@ -55,6 +57,21 @@ $userReportingManager = $userRecord['reporting_manager'] ?? '';
 
 portal_ensure_employee_approvals($state);
 
+$employeeViews = [
+  'overview' => 'Overview',
+  'customers' => 'Customer records',
+  'approvals' => 'Approvals & requests',
+  'design' => 'Website design updates',
+  'profile' => 'Profile & preferences',
+];
+
+$requestedView = $_GET['view'] ?? EMPLOYEE_DEFAULT_VIEW;
+if (!is_string($requestedView)) {
+  $requestedView = EMPLOYEE_DEFAULT_VIEW;
+}
+
+$currentView = array_key_exists($requestedView, $employeeViews) ? $requestedView : EMPLOYEE_DEFAULT_VIEW;
+
 function employee_flash(string $type, string $message): void
 {
   if (!isset($_SESSION['employee_flash'])) {
@@ -68,9 +85,13 @@ function employee_flash(string $type, string $message): void
   $_SESSION['employee_flash'][$type][] = $message;
 }
 
-function employee_redirect(?string $anchor = null): void
+function employee_redirect(?string $anchor = null, ?string $view = null): void
 {
   $target = 'employee-dashboard.php';
+  if ($view !== null && $view !== '' && $view !== EMPLOYEE_DEFAULT_VIEW) {
+    $target .= '?view=' . urlencode($view);
+  }
+
   if ($anchor !== null && $anchor !== '') {
     $target .= $anchor[0] === '#' ? $anchor : '#' . $anchor;
   }
@@ -118,9 +139,14 @@ function employee_sanitize_columns(array $columns, array $input): array
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $token = $_POST['csrf_token'] ?? '';
   $anchor = $_POST['redirect_anchor'] ?? '';
+  $requestedRedirectView = $_POST['redirect_view'] ?? EMPLOYEE_DEFAULT_VIEW;
+  if (!is_string($requestedRedirectView) || !isset($employeeViews[$requestedRedirectView])) {
+    $requestedRedirectView = EMPLOYEE_DEFAULT_VIEW;
+  }
+  $redirectView = $requestedRedirectView;
   if (!hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
     employee_flash('error', 'Security token mismatch. Please try again.');
-    employee_redirect($anchor);
+    employee_redirect($anchor, $redirectView);
   }
 
   $action = $_POST['action'] ?? '';
@@ -169,7 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         employee_flash('error', 'Unable to locate your profile details.');
       }
 
-      employee_redirect($anchor);
+      employee_redirect($anchor, $redirectView);
       break;
 
     case 'request_add_customer':
@@ -184,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       if (!isset($state['customer_registry']['segments'][$segmentSlug])) {
         employee_flash('error', 'Unknown customer segment selected.');
-        employee_redirect($anchor);
+        employee_redirect($anchor, $redirectView);
       }
 
       $segment = $state['customer_registry']['segments'][$segmentSlug];
@@ -193,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       if (!$hasValue && $notes === '') {
         employee_flash('error', 'Add at least one field or a note before submitting.');
-        employee_redirect($anchor);
+        employee_redirect($anchor, $redirectView);
       }
 
       $recordName = '';
@@ -242,7 +268,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         employee_flash('error', 'Unable to log the request right now.');
       }
 
-      employee_redirect($anchor);
+      employee_redirect($anchor, $redirectView);
       break;
 
     case 'request_update_customer':
@@ -260,12 +286,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $registrySegments = $state['customer_registry']['segments'] ?? [];
       if (!isset($registrySegments[$segmentSlug])) {
         employee_flash('error', 'Original segment not found.');
-        employee_redirect($anchor);
+        employee_redirect($anchor, $redirectView);
       }
 
       if (!isset($registrySegments[$targetSegment])) {
         employee_flash('error', 'Target segment is invalid.');
-        employee_redirect($anchor);
+        employee_redirect($anchor, $redirectView);
       }
 
       $segment = $registrySegments[$segmentSlug];
@@ -274,7 +300,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       if (!$hasValue && $notes === '' && $segmentSlug === $targetSegment) {
         employee_flash('error', 'Provide updated details or notes for the admin team.');
-        employee_redirect($anchor);
+        employee_redirect($anchor, $redirectView);
       }
 
       $recordName = '';
@@ -329,7 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         employee_flash('error', 'Unable to record your request.');
       }
 
-      employee_redirect($anchor);
+      employee_redirect($anchor, $redirectView);
       break;
 
     case 'submit_general_request':
@@ -339,12 +365,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       if ($changeType === '') {
         employee_flash('error', 'Select the type of change you are requesting.');
-        employee_redirect($anchor);
+        employee_redirect($anchor, $redirectView);
       }
 
       if ($justification === '') {
         employee_flash('error', 'Add a short justification so the admin team can review it.');
-        employee_redirect($anchor);
+        employee_redirect($anchor, $redirectView);
       }
 
       $requestId = portal_next_employee_request_id($state);
@@ -377,7 +403,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         employee_flash('error', 'Unable to submit the request right now.');
       }
 
-      employee_redirect($anchor);
+      employee_redirect($anchor, $redirectView);
       break;
 
     case 'request_theme_change':
@@ -390,12 +416,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       if ($seasonLabel === '') {
         employee_flash('error', 'Add a headline for the proposed theme.');
-        employee_redirect($anchor);
+        employee_redirect($anchor, $redirectView);
       }
 
       if ($justification === '') {
         employee_flash('error', 'Share the reason behind the design change so the admin can review.');
-        employee_redirect($anchor);
+        employee_redirect($anchor, $redirectView);
       }
 
       $requestId = portal_next_employee_request_id($state);
@@ -430,7 +456,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         employee_flash('error', 'Unable to record the proposal right now.');
       }
 
-      employee_redirect($anchor);
+      employee_redirect($anchor, $redirectView);
       break;
   }
 }
@@ -543,6 +569,39 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
       font-weight: 600;
       cursor: pointer;
       box-shadow: 0 20px 35px -25px rgba(99, 102, 241, 0.7);
+    }
+
+    .view-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+
+    .view-link {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.45rem 0.95rem;
+      border-radius: 999px;
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .view-link.is-active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #f8fafc;
+      box-shadow: 0 14px 32px -24px rgba(99, 102, 241, 0.8);
+    }
+
+    .view-link:not(.is-active):hover,
+    .view-link:not(.is-active):focus {
+      background: rgba(99, 102, 241, 0.12);
+      border-color: rgba(99, 102, 241, 0.3);
+      color: #3730a3;
     }
 
     .status-banner {
@@ -1018,7 +1077,7 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
     }
   </style>
 </head>
-<body data-role="employee">
+<body data-role="employee" data-view="<?= htmlspecialchars($currentView); ?>">
   <main class="dashboard-shell">
     <header>
       <div>
@@ -1036,6 +1095,13 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
       </form>
     </header>
 
+    <nav class="view-nav" aria-label="Employee dashboard sections">
+      <?php foreach ($employeeViews as $viewKey => $label): ?>
+        <?php $href = $viewKey === EMPLOYEE_DEFAULT_VIEW ? 'employee-dashboard.php' : 'employee-dashboard.php?view=' . urlencode($viewKey); ?>
+        <a class="view-link <?= $viewKey === $currentView ? 'is-active' : ''; ?>" href="<?= htmlspecialchars($href); ?>"><?= htmlspecialchars($label); ?></a>
+      <?php endforeach; ?>
+    </nav>
+
     <?php foreach ($flashMessages['success'] as $message): ?>
       <div class="status-banner"><?= htmlspecialchars($message); ?></div>
     <?php endforeach; ?>
@@ -1044,21 +1110,30 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
       <div class="status-banner" data-tone="error"><?= htmlspecialchars($message); ?></div>
     <?php endforeach; ?>
 
-    <section class="panel" id="pipeline-overview">
-      <h2>Customer pipeline overview</h2>
-      <p class="lead">Monitor every stage of the customer lifecycle. Your updates are routed for admin approval before they publish.</p>
-      <div class="metric-grid">
-        <?php foreach ($customerSegmentStats as $stat): ?>
-          <div class="metric-card">
-            <p class="metric-label"><?= htmlspecialchars($stat['label']); ?></p>
-            <p class="metric-value"><?= htmlspecialchars((string) $stat['count']); ?></p>
-            <p class="metric-helper">records tracked</p>
-          </div>
-        <?php endforeach; ?>
-      </div>
-    </section>
+    <?php if ($currentView === 'overview'): ?>
+      <section class="panel" id="pipeline-overview">
+        <h2>Customer pipeline overview</h2>
+        <p class="lead">Monitor every stage of the customer lifecycle. Your updates are routed for admin approval before they publish.</p>
+        <div class="metric-grid">
+          <?php foreach ($customerSegmentStats as $stat): ?>
+            <div class="metric-card">
+              <p class="metric-label"><?= htmlspecialchars($stat['label']); ?></p>
+              <p class="metric-value"><?= htmlspecialchars((string) $stat['count']); ?></p>
+              <p class="metric-helper">records tracked</p>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </section>
+    <?php endif; ?>
 
-    <?php foreach ($customerSegments as $segmentSlug => $segmentData): ?>
+    <?php if ($currentView === 'customers'): ?>
+      <?php if (empty($customerSegments)): ?>
+        <section class="panel">
+          <h2>Customer records</h2>
+          <p class="lead">No customer segments configured yet. Check back soon.</p>
+        </section>
+      <?php else: ?>
+        <?php foreach ($customerSegments as $segmentSlug => $segmentData): ?>
       <?php
         $segmentLabel = $segmentData['label'] ?? ucfirst(str_replace('-', ' ', $segmentSlug));
         $segmentDescription = $segmentData['description'] ?? '';
@@ -1113,26 +1188,26 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
           <?php foreach ($segmentEntries as $entry): ?>
             <?php
               $entryFields = $entry['fields'] ?? [];
-              $displayName = '';
+              $entryDisplayName = '';
               foreach ($segmentColumns as $column) {
                 $columnKey = $column['key'] ?? null;
                 if ($columnKey && isset($entryFields[$columnKey])) {
                   $candidate = trim((string) $entryFields[$columnKey]);
                   if ($candidate !== '') {
-                    $displayName = $candidate;
+                    $entryDisplayName = $candidate;
                     break;
                   }
                 }
               }
-              if ($displayName === '') {
-                $displayName = $segmentLabel . ' record';
+              if ($entryDisplayName === '') {
+                $entryDisplayName = $segmentLabel . ' record';
               }
               $lastUpdated = $formatDateTime($entry['updated_at'] ?? $entry['created_at'] ?? null, 'Recently');
               $currentReminder = $entry['reminder_on'] ?? '—';
             ?>
             <details class="request-block">
               <summary>
-                <span><?= htmlspecialchars($displayName); ?></span>
+                <span><?= htmlspecialchars($entryDisplayName); ?></span>
                 <span class="status-pill">Prepare update</span>
               </summary>
               <p class="form-note">Current reminder: <?= htmlspecialchars($currentReminder === '' ? '—' : $currentReminder); ?> · Last updated <?= htmlspecialchars($lastUpdated); ?></p>
@@ -1140,6 +1215,7 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
                 <input type="hidden" name="action" value="request_update_customer" />
                 <input type="hidden" name="redirect_anchor" value="<?= htmlspecialchars($segmentAnchor); ?>" />
+                <input type="hidden" name="redirect_view" value="<?= htmlspecialchars($currentView); ?>" />
                 <input type="hidden" name="segment" value="<?= htmlspecialchars($segmentSlug); ?>" />
                 <input type="hidden" name="entry_id" value="<?= htmlspecialchars($entry['id'] ?? ''); ?>" />
                 <div class="form-grid">
@@ -1203,6 +1279,7 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
           <input type="hidden" name="action" value="request_add_customer" />
           <input type="hidden" name="redirect_anchor" value="<?= htmlspecialchars($segmentAnchor); ?>" />
+          <input type="hidden" name="redirect_view" value="<?= htmlspecialchars($currentView); ?>" />
           <input type="hidden" name="segment" value="<?= htmlspecialchars($segmentSlug); ?>" />
           <div class="form-grid">
             <?php foreach ($segmentColumns as $column): ?>
@@ -1245,210 +1322,221 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
           </div>
         </form>
       </section>
-    <?php endforeach; ?>
-
-    <section class="panel" id="approvals">
-      <h2>Pending admin approvals</h2>
-      <p class="lead">Track requests you have raised with the admin team.</p>
-      <?php if (empty($pendingApprovals)): ?>
-        <p>No approval requests logged yet.</p>
-      <?php else: ?>
-        <div class="approval-list">
-          <?php foreach ($pendingApprovals as $request): ?>
-            <?php
-              $statusLabel = $request['status'] ?? 'Pending admin review';
-              $submittedAt = $formatDateTime($request['submitted_at'] ?? null, '—');
-              $owner = $request['owner'] ?? 'Admin team';
-              $effectiveDate = $request['effective_date'] ?? '';
-            ?>
-            <article class="approval-card">
-              <div class="approval-header">
-                <p class="approval-title"><?= htmlspecialchars($request['title'] ?? 'Request'); ?></p>
-                <span class="status-pill"><?= htmlspecialchars($statusLabel); ?></span>
-              </div>
-              <p class="approval-meta">ID <?= htmlspecialchars($request['id'] ?? '—'); ?> • Submitted <?= htmlspecialchars($submittedAt); ?> • Routed to <?= htmlspecialchars($owner); ?></p>
-              <?php if (!empty($request['details'])): ?>
-                <p class="approval-details"><?= htmlspecialchars($request['details']); ?></p>
-              <?php endif; ?>
-              <?php if ($effectiveDate !== ''): ?>
-                <p class="approval-meta">Target effective date: <?= htmlspecialchars($effectiveDate); ?></p>
-              <?php endif; ?>
-              <?php if (!empty($request['last_update'])): ?>
-                <p class="approval-meta"><?= htmlspecialchars($request['last_update']); ?></p>
-              <?php endif; ?>
-            </article>
-          <?php endforeach; ?>
-        </div>
+        <?php endforeach; ?>
       <?php endif; ?>
+    <?php endif; ?>
 
-      <h3>Submit a general approval request</h3>
-      <form method="post" class="request-form">
-        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-        <input type="hidden" name="action" value="submit_general_request" />
-        <input type="hidden" name="redirect_anchor" value="approvals" />
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="change-type">Change type</label>
-            <select id="change-type" name="change_type" required>
-              <option value="">Choose a request</option>
-              <option value="Payroll bank update">Payroll bank update</option>
-              <option value="Access scope change">Access scope change</option>
-              <option value="Desk relocation">Desk relocation</option>
-              <option value="Long leave / remote work">Long leave / remote work</option>
-            </select>
+    <?php if ($currentView === 'approvals'): ?>
+      <section class="panel" id="approvals">
+        <h2>Pending admin approvals</h2>
+        <p class="lead">Track requests you have raised with the admin team.</p>
+        <?php if (empty($pendingApprovals)): ?>
+          <p>No approval requests logged yet.</p>
+        <?php else: ?>
+          <div class="approval-list">
+            <?php foreach ($pendingApprovals as $request): ?>
+              <?php
+                $statusLabel = $request['status'] ?? 'Pending admin review';
+                $submittedAt = $formatDateTime($request['submitted_at'] ?? null, '—');
+                $owner = $request['owner'] ?? 'Admin team';
+                $effectiveDate = $request['effective_date'] ?? '';
+              ?>
+              <article class="approval-card">
+                <div class="approval-header">
+                  <p class="approval-title"><?= htmlspecialchars($request['title'] ?? 'Request'); ?></p>
+                  <span class="status-pill"><?= htmlspecialchars($statusLabel); ?></span>
+                </div>
+                <p class="approval-meta">ID <?= htmlspecialchars($request['id'] ?? '—'); ?> • Submitted <?= htmlspecialchars($submittedAt); ?> • Routed to <?= htmlspecialchars($owner); ?></p>
+                <?php if (!empty($request['details'])): ?>
+                  <p class="approval-details"><?= htmlspecialchars($request['details']); ?></p>
+                <?php endif; ?>
+                <?php if ($effectiveDate !== ''): ?>
+                  <p class="approval-meta">Target effective date: <?= htmlspecialchars($effectiveDate); ?></p>
+                <?php endif; ?>
+                <?php if (!empty($request['last_update'])): ?>
+                  <p class="approval-meta"><?= htmlspecialchars($request['last_update']); ?></p>
+                <?php endif; ?>
+              </article>
+            <?php endforeach; ?>
           </div>
-          <div class="form-group">
-            <label for="change-effective">Target effective date</label>
-            <input id="change-effective" name="effective_date" type="date" />
-          </div>
-        </div>
-        <div class="form-group form-span">
-          <label for="change-justification">Summary for the admin team</label>
-          <textarea id="change-justification" name="justification" placeholder="Add context, ticket IDs, or the reason for the change" required></textarea>
-        </div>
-        <div class="form-actions">
-          <button class="primary-btn" type="submit">Submit for approval</button>
-        </div>
-      </form>
+        <?php endif; ?>
 
-      <h3>Decision history</h3>
-      <?php if (empty($approvalHistory)): ?>
-        <p>No admin decisions recorded yet.</p>
-      <?php else: ?>
-        <div class="history-list">
-          <?php foreach ($approvalHistory as $record): ?>
-            <?php
-              $status = $record['status'] ?? 'Completed';
-              $resolvedOn = $formatDateTime($record['resolved_at'] ?? $record['resolved'] ?? null, '—');
-              $outcome = $record['outcome'] ?? '';
-              $tone = 'info';
-              $statusLower = strtolower($status);
-              if (strpos($statusLower, 'decline') !== false || strpos($statusLower, 'reject') !== false) {
-                $tone = 'error';
-              } elseif (strpos($statusLower, 'approve') !== false || strpos($statusLower, 'complete') !== false) {
-                $tone = 'success';
-              }
-            ?>
-            <article class="history-item">
-              <div class="approval-header">
-                <p class="approval-title"><?= htmlspecialchars($record['title'] ?? 'Request'); ?> · <?= htmlspecialchars($record['id'] ?? ''); ?></p>
-                <span class="status-pill" data-tone="<?= htmlspecialchars($tone); ?>"><?= htmlspecialchars($status); ?></span>
-              </div>
-              <p class="approval-meta">Resolved <?= htmlspecialchars($resolvedOn); ?></p>
-              <?php if ($outcome !== ''): ?>
-                <p class="approval-meta"><?= htmlspecialchars($outcome); ?></p>
-              <?php endif; ?>
-            </article>
-          <?php endforeach; ?>
-        </div>
-      <?php endif; ?>
-    </section>
+        <h3>Submit a general approval request</h3>
+        <form method="post" class="request-form">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+          <input type="hidden" name="action" value="submit_general_request" />
+          <input type="hidden" name="redirect_anchor" value="approvals" />
+          <input type="hidden" name="redirect_view" value="<?= htmlspecialchars($currentView); ?>" />
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="change-type">Change type</label>
+              <select id="change-type" name="change_type" required>
+                <option value="">Choose a request</option>
+                <option value="Payroll bank update">Payroll bank update</option>
+                <option value="Access scope change">Access scope change</option>
+                <option value="Desk relocation">Desk relocation</option>
+                <option value="Long leave / remote work">Long leave / remote work</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="change-effective">Target effective date</label>
+              <input id="change-effective" name="effective_date" type="date" />
+            </div>
+          </div>
+          <div class="form-group form-span">
+            <label for="change-justification">Summary for the admin team</label>
+            <textarea id="change-justification" name="justification" placeholder="Add context, ticket IDs, or the reason for the change" required></textarea>
+          </div>
+          <div class="form-actions">
+            <button class="primary-btn" type="submit">Submit for approval</button>
+          </div>
+        </form>
 
-    <section class="panel" id="design-change">
-      <h2>Propose website design update</h2>
-      <p class="lead">Recommend theme tweaks or seasonal announcements. Admin approval is required before changes go live.</p>
-      <form method="post" class="request-form">
-        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-        <input type="hidden" name="action" value="request_theme_change" />
-        <input type="hidden" name="redirect_anchor" value="design-change" />
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="theme-label">Theme headline</label>
-            <input id="theme-label" name="season_label" type="text" placeholder="e.g. Winter savings drive" required />
+        <h3>Decision history</h3>
+        <?php if (empty($approvalHistory)): ?>
+          <p>No admin decisions recorded yet.</p>
+        <?php else: ?>
+          <div class="history-list">
+            <?php foreach ($approvalHistory as $record): ?>
+              <?php
+                $status = $record['status'] ?? 'Completed';
+                $resolvedOn = $formatDateTime($record['resolved_at'] ?? $record['resolved'] ?? null, '—');
+                $outcome = $record['outcome'] ?? '';
+                $tone = 'info';
+                $statusLower = strtolower($status);
+                if (strpos($statusLower, 'decline') !== false || strpos($statusLower, 'reject') !== false) {
+                  $tone = 'error';
+                } elseif (strpos($statusLower, 'approve') !== false || strpos($statusLower, 'complete') !== false) {
+                  $tone = 'success';
+                }
+              ?>
+              <article class="history-item">
+                <div class="approval-header">
+                  <p class="approval-title"><?= htmlspecialchars($record['title'] ?? 'Request'); ?> · <?= htmlspecialchars($record['id'] ?? ''); ?></p>
+                  <span class="status-pill" data-tone="<?= htmlspecialchars($tone); ?>"><?= htmlspecialchars($status); ?></span>
+                </div>
+                <p class="approval-meta">Resolved <?= htmlspecialchars($resolvedOn); ?></p>
+                <?php if ($outcome !== ''): ?>
+                  <p class="approval-meta"><?= htmlspecialchars($outcome); ?></p>
+                <?php endif; ?>
+              </article>
+            <?php endforeach; ?>
           </div>
-          <div class="form-group">
-            <label for="theme-color">Accent colour</label>
-            <input id="theme-color" name="accent_color" type="text" value="#2563EB" />
-            <p class="form-note">Use HEX format, e.g. #2563EB.</p>
-          </div>
-          <div class="form-group">
-            <label for="theme-effective">Planned go-live date</label>
-            <input id="theme-effective" name="effective_date" type="date" />
-          </div>
-        </div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="theme-background">Hero / background image</label>
-            <input id="theme-background" name="background_image" type="text" placeholder="images/hero/winter-campaign.jpg" />
-          </div>
-          <div class="form-group">
-            <label for="theme-announcement">Announcement banner</label>
-            <input id="theme-announcement" name="announcement" type="text" placeholder="Short announcement for the homepage" />
-          </div>
-        </div>
-        <div class="form-group form-span">
-          <label for="theme-justification">Why this change matters</label>
-          <textarea id="theme-justification" name="justification" rows="3" placeholder="Share campaign goals, timelines, or supporting details" required></textarea>
-        </div>
-        <div class="form-actions">
-          <button class="primary-btn" type="submit">Share with admin</button>
-        </div>
-      </form>
-    </section>
+        <?php endif; ?>
+      </section>
+    <?php endif; ?>
 
-    <section class="panel" id="profile">
-      <h2>Your profile &amp; contact preferences</h2>
-      <div class="details-grid">
-        <div>
-          <strong>User ID</strong>
-          <span><?= htmlspecialchars($accountId); ?></span>
+    <?php if ($currentView === 'design'): ?>
+      <section class="panel" id="design-change">
+        <h2>Propose website design update</h2>
+        <p class="lead">Recommend theme tweaks or seasonal announcements. Admin approval is required before changes go live.</p>
+        <form method="post" class="request-form">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+          <input type="hidden" name="action" value="request_theme_change" />
+          <input type="hidden" name="redirect_anchor" value="design-change" />
+          <input type="hidden" name="redirect_view" value="<?= htmlspecialchars($currentView); ?>" />
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="theme-label">Theme headline</label>
+              <input id="theme-label" name="season_label" type="text" placeholder="e.g. Winter savings drive" required />
+            </div>
+            <div class="form-group">
+              <label for="theme-color">Accent colour</label>
+              <input id="theme-color" name="accent_color" type="text" value="#2563EB" />
+              <p class="form-note">Use HEX format, e.g. #2563EB.</p>
+            </div>
+            <div class="form-group">
+              <label for="theme-effective">Planned go-live date</label>
+              <input id="theme-effective" name="effective_date" type="date" />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="theme-background">Hero / background image</label>
+              <input id="theme-background" name="background_image" type="text" placeholder="images/hero/winter-campaign.jpg" />
+            </div>
+            <div class="form-group">
+              <label for="theme-announcement">Announcement banner</label>
+              <input id="theme-announcement" name="announcement" type="text" placeholder="Short announcement for the homepage" />
+            </div>
+          </div>
+          <div class="form-group form-span">
+            <label for="theme-justification">Why this change matters</label>
+            <textarea id="theme-justification" name="justification" rows="3" placeholder="Share campaign goals, timelines, or supporting details" required></textarea>
+          </div>
+          <div class="form-actions">
+            <button class="primary-btn" type="submit">Share with admin</button>
+          </div>
+        </form>
+      </section>
+    <?php endif; ?>
+
+    <?php if ($currentView === 'profile'): ?>
+      <section class="panel" id="profile">
+        <h2>Your profile &amp; contact preferences</h2>
+        <div class="details-grid">
+          <div>
+            <strong>User ID</strong>
+            <span><?= htmlspecialchars($accountId); ?></span>
+          </div>
+          <div>
+            <strong>Role</strong>
+            <span><?= htmlspecialchars($roleLabel); ?></span>
+          </div>
+          <div>
+            <strong>Email</strong>
+            <span><?= htmlspecialchars($userEmail); ?></span>
+          </div>
+          <div>
+            <strong>Last sign-in</strong>
+            <span><?= htmlspecialchars($lastLogin ?? '—'); ?></span>
+          </div>
         </div>
-        <div>
-          <strong>Role</strong>
-          <span><?= htmlspecialchars($roleLabel); ?></span>
-        </div>
-        <div>
-          <strong>Email</strong>
-          <span><?= htmlspecialchars($userEmail); ?></span>
-        </div>
-        <div>
-          <strong>Last sign-in</strong>
-          <span><?= htmlspecialchars($lastLogin ?? '—'); ?></span>
-        </div>
-      </div>
-      <form method="post" class="request-form">
-        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-        <input type="hidden" name="action" value="update_profile" />
-        <input type="hidden" name="redirect_anchor" value="profile" />
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="profile-phone">Primary phone number</label>
-            <input id="profile-phone" name="phone" type="tel" value="<?= htmlspecialchars($normalizedPhone); ?>" placeholder="+91 98765 43210" />
+        <form method="post" class="request-form">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+          <input type="hidden" name="action" value="update_profile" />
+          <input type="hidden" name="redirect_anchor" value="profile" />
+          <input type="hidden" name="redirect_view" value="<?= htmlspecialchars($currentView); ?>" />
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="profile-phone">Primary phone number</label>
+              <input id="profile-phone" name="phone" type="tel" value="<?= htmlspecialchars($normalizedPhone); ?>" placeholder="+91 98765 43210" />
+            </div>
+            <div class="form-group">
+              <label for="profile-city">City / service cluster</label>
+              <input id="profile-city" name="city" type="text" value="<?= htmlspecialchars($normalizedCity); ?>" placeholder="Jamshedpur &amp; Bokaro" />
+            </div>
+            <div class="form-group">
+              <label for="profile-emergency">Emergency contact</label>
+              <input id="profile-emergency" name="emergency_contact" type="text" value="<?= htmlspecialchars($userEmergencyContact); ?>" placeholder="Name · Phone number" />
+            </div>
+            <div class="form-group">
+              <label for="profile-hours">Working hours preference</label>
+              <input id="profile-hours" name="working_hours" type="text" value="<?= htmlspecialchars($userWorkingHours); ?>" placeholder="10:00 – 18:30 IST" />
+            </div>
+            <div class="form-group">
+              <label for="profile-channel">Preferred communication channel</label>
+              <select id="profile-channel" name="preferred_channel">
+                <option value="Phone call" <?= $userPreferredChannel === 'Phone call' ? 'selected' : ''; ?>>Phone call</option>
+                <option value="WhatsApp" <?= $userPreferredChannel === 'WhatsApp' ? 'selected' : ''; ?>>WhatsApp</option>
+                <option value="Email summary" <?= $userPreferredChannel === 'Email summary' ? 'selected' : ''; ?>>Email summary</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="profile-desk">Desk location</label>
+              <input id="profile-desk" name="desk_location" type="text" value="<?= htmlspecialchars($userDeskLocation); ?>" placeholder="Operations HQ" />
+            </div>
+            <div class="form-group">
+              <label for="profile-manager">Reporting manager</label>
+              <input id="profile-manager" name="reporting_manager" type="text" value="<?= htmlspecialchars($userReportingManager); ?>" placeholder="Manager name" />
+            </div>
           </div>
-          <div class="form-group">
-            <label for="profile-city">City / service cluster</label>
-            <input id="profile-city" name="city" type="text" value="<?= htmlspecialchars($normalizedCity); ?>" placeholder="Jamshedpur &amp; Bokaro" />
+          <div class="form-actions">
+            <button class="primary-btn" type="submit">Save updates</button>
           </div>
-          <div class="form-group">
-            <label for="profile-emergency">Emergency contact</label>
-            <input id="profile-emergency" name="emergency_contact" type="text" value="<?= htmlspecialchars($userEmergencyContact); ?>" placeholder="Name · Phone number" />
-          </div>
-          <div class="form-group">
-            <label for="profile-hours">Working hours preference</label>
-            <input id="profile-hours" name="working_hours" type="text" value="<?= htmlspecialchars($userWorkingHours); ?>" placeholder="10:00 – 18:30 IST" />
-          </div>
-          <div class="form-group">
-            <label for="profile-channel">Preferred communication channel</label>
-            <select id="profile-channel" name="preferred_channel">
-              <option value="Phone call" <?= $userPreferredChannel === 'Phone call' ? 'selected' : ''; ?>>Phone call</option>
-              <option value="WhatsApp" <?= $userPreferredChannel === 'WhatsApp' ? 'selected' : ''; ?>>WhatsApp</option>
-              <option value="Email summary" <?= $userPreferredChannel === 'Email summary' ? 'selected' : ''; ?>>Email summary</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="profile-desk">Desk location</label>
-            <input id="profile-desk" name="desk_location" type="text" value="<?= htmlspecialchars($userDeskLocation); ?>" placeholder="Operations HQ" />
-          </div>
-          <div class="form-group">
-            <label for="profile-manager">Reporting manager</label>
-            <input id="profile-manager" name="reporting_manager" type="text" value="<?= htmlspecialchars($userReportingManager); ?>" placeholder="Manager name" />
-          </div>
-        </div>
-        <div class="form-actions">
-          <button class="primary-btn" type="submit">Save updates</button>
-        </div>
-      </form>
-    </section>
+        </form>
+      </section>
+    <?php endif; ?>
   </main>
 
 </body>
