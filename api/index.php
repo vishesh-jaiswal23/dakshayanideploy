@@ -286,6 +286,28 @@ switch (true) {
         $tickets[] = $ticket;
         api_write_tickets($tickets);
 
+        api_upsert_customer_record([
+            'phone' => $phone,
+            'rawPhone' => $body['phone'] ?? $body['mobile'] ?? '',
+            'name' => $name,
+            'email' => $email,
+            'siteAddress' => $siteAddress,
+            'systemSize' => $systemSize,
+            'installType' => $installType,
+            'preferredContact' => $preferredContact,
+            'applicationNumber' => $applicationNumber,
+            'schemeType' => $schemeType,
+            'schemeLabel' => $schemeLabel,
+            'systemConfiguration' => $systemConfiguration,
+            'systemConfigurationLabel' => $systemConfigurationLabel,
+            'systemConfigurationRaw' => $systemConfigurationRaw,
+            'issues' => $issues,
+            'notes' => $description,
+            'lastTicketId' => $ticketId,
+            'segment' => 'service',
+            'segmentLabel' => 'Service complaints',
+        ]);
+
         api_send_json(201, ['ticket' => $ticket]);
         break;
 
@@ -332,6 +354,108 @@ switch (true) {
             return is_array($testimonial) && ($testimonial['status'] ?? 'published') === 'published';
         }));
         api_send_json(200, ['testimonials' => $testimonials]);
+        break;
+
+    case $path === '/public/solar-advisory' && $method === 'POST':
+        $body = api_read_json_body();
+
+        $size = (float) ($body['size'] ?? $body['systemSize'] ?? 0);
+        if ($size <= 0) {
+            api_send_error(400, 'Provide a valid solar system size in kWp.');
+        }
+
+        $systemType = strtolower(api_trim_string($body['systemType'] ?? $body['type'] ?? 'residential'));
+        if (!in_array($systemType, ['residential', 'commercial', 'industrial'], true)) {
+            $systemType = 'residential';
+        }
+
+        $grossCost = (float) ($body['grossCost'] ?? $body['projectCost'] ?? 0);
+        $netCost = (float) ($body['netCost'] ?? $body['investment'] ?? 0);
+        $subsidy = (float) ($body['subsidy'] ?? ($grossCost > 0 && $netCost > 0 ? $grossCost - $netCost : 0));
+        $annualSavings = (float) ($body['annualSavings'] ?? $body['savings'] ?? 0);
+        $monthlyConsumption = (float) ($body['monthlyConsumption'] ?? 0);
+        $unitRate = (float) ($body['unitRate'] ?? 0);
+
+        if ($grossCost <= 0 && $netCost > 0 && $subsidy > 0) {
+            $grossCost = $netCost + $subsidy;
+        }
+
+        if ($netCost <= 0 && $grossCost > 0) {
+            $netCost = max(0.0, $grossCost - max(0.0, $subsidy));
+        }
+
+        if ($annualSavings <= 0 && $monthlyConsumption > 0 && $unitRate > 0) {
+            $annualSavings = $monthlyConsumption * $unitRate * 12;
+        }
+
+        if ($annualSavings <= 0) {
+            api_send_error(400, 'Provide the estimated annual savings for the system.');
+        }
+
+        $unitsPerYear = (int) round($size * 150 * 12);
+        if ($unitsPerYear < 0) {
+            $unitsPerYear = 0;
+        }
+
+        $paybackYears = null;
+        if ($netCost > 0 && $annualSavings > 0) {
+            $paybackYears = round($netCost / $annualSavings, 1);
+            if ($paybackYears < 0) {
+                $paybackYears = null;
+            }
+        }
+
+        $formatCurrency = static function (float $value): string {
+            return number_format((float) round($value));
+        };
+
+        $systemLabels = [
+            'residential' => 'PM Surya Ghar rooftop system',
+            'commercial' => 'commercial solar plant',
+            'industrial' => 'industrial solar installation',
+        ];
+        $systemLabel = $systemLabels[$systemType] ?? 'solar system';
+
+        $investmentLabel = $netCost > 0
+            ? '₹' . $formatCurrency($netCost) . ' net investment'
+            : 'minimal upfront investment';
+
+        $subsidyClause = $subsidy > 0
+            ? ' after factoring an estimated subsidy of ₹' . $formatCurrency($subsidy)
+            : '';
+
+        $paybackSentence = $paybackYears !== null
+            ? 'Expect payback in roughly ' . $paybackYears . ' years, keeping your cash flow comfortable.'
+            : 'Savings start immediately because the subsidy or financing covers most of the spend.';
+
+        $advisory = sprintf(
+            'Plan for a %.1f kWp %s to offset about %s units a year. With %s%s you unlock annual savings close to ₹%s. %s Let’s schedule a site survey this week so our engineers can finalise mounting design and subsidy paperwork.',
+            $size,
+            $systemLabel,
+            $unitsPerYear > 0 ? number_format($unitsPerYear) : 'significant',
+            $investmentLabel,
+            $subsidyClause,
+            $formatCurrency($annualSavings),
+            $paybackSentence
+        );
+
+        $financialPoints = [];
+        $financialPoints[] = sprintf('System size: %.1f kWp (%s)', $size, $systemLabel);
+        if ($grossCost > 0) {
+            $financialPoints[] = sprintf('Project cost: approx. ₹%s%s', $formatCurrency($grossCost), $subsidy > 0 ? ' with subsidy eligibility near ₹' . $formatCurrency($subsidy) : '');
+        } else {
+            $financialPoints[] = 'Project cost: Covered via subsidy/financing';
+        }
+        $financialPoints[] = sprintf('Net investment: %s%s', $netCost > 0 ? '₹' . $formatCurrency($netCost) : 'Covered via subsidy', $paybackYears !== null ? ' · Payback ~' . $paybackYears . ' years' : '');
+        $financialPoints[] = sprintf('Annual savings: about ₹%s · Book a survey to lock paperwork.', $formatCurrency($annualSavings));
+
+        api_send_json(200, [
+            'advisory' => $advisory,
+            'financial' => [
+                'language' => 'English',
+                'points' => $financialPoints,
+            ],
+        ]);
         break;
 
     case $path === '/public/case-studies' && $method === 'GET':
