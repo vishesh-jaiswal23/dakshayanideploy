@@ -1469,6 +1469,7 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
         $segmentColumns = $segmentData['columns'] ?? [];
         $segmentEntries = $segmentData['entries'] ?? [];
         $segmentAnchor = 'segment-' . $segmentSlug;
+        $segmentCsvLink = '/api/index.php?route=public/customer-template&segment=' . urlencode((string) $segmentSlug) . '&format=csv';
       ?>
       <section class="panel" id="<?= htmlspecialchars($segmentAnchor); ?>">
         <h2><?= htmlspecialchars($segmentLabel); ?></h2>
@@ -1476,6 +1477,8 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
           <?= htmlspecialchars($segmentDescription); ?>
           <br />
           <small>Submit additions or edits for admin approval. Updates go live only after review.</small>
+          <br />
+          <small><a href="<?= htmlspecialchars($segmentCsvLink); ?>" target="_blank" rel="noopener">Download CSV template</a> for faster data entry.</small>
         </p>
 
         <?php if (empty($segmentEntries)): ?>

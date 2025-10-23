@@ -18,6 +18,20 @@ $uriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $path = preg_replace('#^/api#', '', $uriPath);
 $path = '/' . trim($path, '/');
 
+if (strpos($path, '/index.php') === 0) {
+    $path = substr($path, strlen('/index.php')) ?: '';
+    $path = '/' . trim($path, '/');
+}
+
+$routeQuery = trim((string) ($_GET['route'] ?? ''), '/');
+if ($routeQuery !== '') {
+    $path = '/' . $routeQuery;
+}
+
+if ($path === '') {
+    $path = '/';
+}
+
 if ($path === '/' || $path === '') {
     $user = api_current_user();
     api_send_json(200, [
@@ -73,7 +87,7 @@ switch (true) {
             if ($handle === false) {
                 api_send_error(500, 'Unable to initialise download stream.');
             }
-            fputcsv($handle, $headers);
+            fputcsv($handle, $headers, ',', "\"", "\\");
             fclose($handle);
             exit;
         }
