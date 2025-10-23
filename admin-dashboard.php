@@ -2612,6 +2612,101 @@ foreach ($users as $user) {
     }
 }
 
+$roleSummaryConfig = [
+    'employee' => [
+        'label' => 'Employees',
+        'description' => 'Internal team members supporting daily operations.',
+        'href' => 'admin-dashboard.php?view=accounts#user-directory',
+    ],
+    'installer' => [
+        'label' => 'Installers',
+        'description' => 'Execution partners handling site work and commissioning.',
+        'href' => 'admin-dashboard.php?view=accounts#user-directory',
+    ],
+    'referrer' => [
+        'label' => 'Referrers',
+        'description' => 'Channel partners and referral advocates.',
+        'href' => 'admin-dashboard.php?view=accounts#user-directory',
+    ],
+    'customer' => [
+        'label' => 'Customers',
+        'description' => 'Accounts created for existing and prospective clients.',
+        'href' => 'admin-dashboard.php?view=customers',
+    ],
+];
+
+$roleSummaries = [];
+foreach ($roleSummaryConfig as $roleKey => $config) {
+    $roleUsers = array_values(array_filter(
+        $users,
+        static fn(array $user): bool => ($user['role'] ?? 'employee') === $roleKey
+    ));
+
+    $activeCount = 0;
+    $pendingCount = 0;
+    $inactiveCount = 0;
+
+    foreach ($roleUsers as $roleUser) {
+        $status = strtolower((string) ($roleUser['status'] ?? 'active'));
+        if ($status === 'active') {
+            $activeCount++;
+            continue;
+        }
+
+        if (in_array($status, ['pending', 'onboarding'], true)) {
+            $pendingCount++;
+            continue;
+        }
+
+        $inactiveCount++;
+    }
+
+    usort($roleUsers, static function (array $a, array $b): int {
+        $aCreated = strtotime($a['created_at'] ?? '') ?: 0;
+        $bCreated = strtotime($b['created_at'] ?? '') ?: 0;
+
+        if ($aCreated === $bCreated) {
+            return strcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
+        }
+
+        return $bCreated <=> $aCreated;
+    });
+
+    $roleSummaries[$roleKey] = [
+        'label' => $config['label'],
+        'description' => $config['description'],
+        'href' => $config['href'],
+        'total' => count($roleUsers),
+        'active' => $activeCount,
+        'pending' => $pendingCount,
+        'inactive' => $inactiveCount,
+        'people' => array_slice($roleUsers, 0, 3),
+    ];
+}
+
+$quickActions = [
+    [
+        'label' => 'Manage portal access',
+        'description' => 'Invite, suspend, or reset credentials for any user type.',
+        'href' => 'admin-dashboard.php?view=accounts#user-directory',
+    ],
+    [
+        'label' => 'Review customer pipeline',
+        'description' => 'Track onboarding status and reminders across all segments.',
+        'href' => 'admin-dashboard.php?view=customers',
+    ],
+    [
+        'label' => 'Approve employee requests',
+        'description' => 'See pending content and staffing approvals in one place.',
+        'href' => 'admin-dashboard.php?view=approvals',
+    ],
+    [
+        'label' => 'Monitor complaints',
+        'description' => 'Prioritize service tickets before they escalate.',
+        'href' => 'admin-dashboard.php?view=complaints',
+    ],
+];
+
 $openTasksList = array_values(array_filter($tasks, static function (array $task): bool {
     return strcasecmp($task['status'] ?? '', 'Completed') !== 0;
 }));
@@ -2858,6 +2953,20 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       display: flex;
       flex-wrap: wrap;
       gap: 0.6rem;
+      padding: 0.25rem 0 0.5rem;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      scroll-snap-type: x proximity;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .view-nav::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    .view-nav::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.45);
+      border-radius: 999px;
     }
 
     .view-link {
@@ -2872,6 +2981,8 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       font-size: 0.9rem;
       text-decoration: none;
       transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+      white-space: nowrap;
+      scroll-snap-align: start;
     }
 
     .view-link.is-active {
@@ -2997,6 +3108,176 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       font-size: 0.95rem;
       display: grid;
       gap: 0.35rem;
+    }
+
+    .panel-head {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .panel-head h2 {
+      margin-bottom: 0.25rem;
+    }
+
+    .panel-head .lead {
+      max-width: 48ch;
+    }
+
+    .overview-grid {
+      display: grid;
+      gap: 1.5rem;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .overview-grid__primary {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .overview-grid__secondary {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(99, 102, 241, 0.08));
+      border-radius: 1.1rem;
+      padding: 1.25rem;
+      border: 1px solid rgba(37, 99, 235, 0.18);
+      display: grid;
+      gap: 1rem;
+    }
+
+    .quick-link-list {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .overview-grid__secondary h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .quick-link {
+      display: grid;
+      gap: 0.2rem;
+      padding: 0.85rem;
+      border-radius: 0.95rem;
+      border: 1px solid rgba(37, 99, 235, 0.22);
+      background: rgba(255, 255, 255, 0.65);
+      text-decoration: none;
+      color: inherit;
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .quick-link:hover,
+    .quick-link:focus {
+      transform: translateY(-2px);
+      border-color: rgba(37, 99, 235, 0.4);
+      box-shadow: 0 12px 20px -16px rgba(37, 99, 235, 0.6);
+    }
+
+    .quick-link__title {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .quick-link__subtitle {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .role-grid {
+      display: grid;
+      gap: 1.1rem;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .role-card {
+      background: #ffffff;
+      border-radius: 1.25rem;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      padding: 1.1rem 1.2rem;
+      display: grid;
+      gap: 1rem;
+    }
+
+    .role-card__header {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .role-card__meta {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .role-card__link {
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-decoration: none;
+      color: var(--primary-strong);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .role-card__stats {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    }
+
+    .role-card__stat {
+      display: grid;
+      gap: 0.15rem;
+    }
+
+    .role-card__stat dt {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .role-card__stat dd {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .role-card__list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.6rem;
+    }
+
+    .role-card__person {
+      display: grid;
+      gap: 0.2rem;
+    }
+
+    .role-card__person-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .role-card__person-contact {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .role-card__empty {
+      margin: 0;
+      font-size: 0.85rem;
+      color: var(--muted);
     }
 
     .link-button {
@@ -3391,6 +3672,10 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
         grid-template-columns: 1fr;
       }
 
+      .overview-grid {
+        grid-template-columns: 1fr;
+      }
+
       table {
         min-width: unset;
       }
@@ -3421,6 +3706,14 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       .two-column,
       .palette-grid {
         grid-template-columns: 1fr;
+      }
+
+      .overview-grid__secondary {
+        padding: 1rem;
+      }
+
+      .quick-link {
+        padding: 0.75rem 0.85rem;
       }
 
       .metric-card,
@@ -3473,42 +3766,135 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
 
     <?php if ($currentView === 'overview'): ?>
       <section class="panel">
-        <h2>Today at a glance</h2>
-        <p class="lead">High-level summary of Dakshayani Enterprises operations.</p>
-        <div class="metric-grid">
-          <article class="metric-card">
-            <p class="metric-label">Active users</p>
-            <p class="metric-value"><?= htmlspecialchars((string) ($userStatusCounts['active'] ?? 0)); ?></p>
-            <p class="metric-helper">Portal accounts with access enabled</p>
-          </article>
-          <article class="metric-card">
-            <p class="metric-label">Projects tracked</p>
-            <p class="metric-value"><?= htmlspecialchars((string) count($projects)); ?></p>
-            <p class="metric-helper">Across all business units</p>
-          </article>
-          <article class="metric-card">
-            <p class="metric-label">Open tasks</p>
-            <p class="metric-value"><?= htmlspecialchars((string) $openTasksCount); ?></p>
-            <p class="metric-helper">Pending follow-ups for the leadership team</p>
-          </article>
-          <article class="metric-card">
-            <p class="metric-label">Open service complaints</p>
-            <p class="metric-value"><?= htmlspecialchars((string) $openComplaintsCount); ?></p>
-            <p class="metric-helper">Logged via the website &amp; portal</p>
-          </article>
-          <article class="metric-card">
-            <p class="metric-label">Last data refresh</p>
-            <p class="metric-value" style="font-size:1.05rem;">
-              <?= $lastUpdatedLabel !== '' ? htmlspecialchars($lastUpdatedLabel) : 'Just now'; ?>
-            </p>
-            <p class="metric-helper">Automatically updated after each change</p>
-          </article>
+        <div class="panel-head">
+          <div>
+            <h2>Operations pulse</h2>
+            <p class="lead">One consolidated view of activity across teams, customers, and service operations.</p>
+          </div>
+        </div>
+        <div class="overview-grid">
+          <div class="overview-grid__primary">
+            <div class="metric-grid">
+              <article class="metric-card">
+                <p class="metric-label">Active users</p>
+                <p class="metric-value"><?= htmlspecialchars((string) ($userStatusCounts['active'] ?? 0)); ?></p>
+                <p class="metric-helper">Portal accounts with access enabled</p>
+              </article>
+              <article class="metric-card">
+                <p class="metric-label">Projects tracked</p>
+                <p class="metric-value"><?= htmlspecialchars((string) count($projects)); ?></p>
+                <p class="metric-helper">Across all business units</p>
+              </article>
+              <article class="metric-card">
+                <p class="metric-label">Open tasks</p>
+                <p class="metric-value"><?= htmlspecialchars((string) $openTasksCount); ?></p>
+                <p class="metric-helper">Pending follow-ups for the leadership team</p>
+              </article>
+              <article class="metric-card">
+                <p class="metric-label">Open service complaints</p>
+                <p class="metric-value"><?= htmlspecialchars((string) $openComplaintsCount); ?></p>
+                <p class="metric-helper">Logged via the website &amp; portal</p>
+              </article>
+              <article class="metric-card">
+                <p class="metric-label">Last data refresh</p>
+                <p class="metric-value" style="font-size:1.05rem;">
+                  <?= $lastUpdatedLabel !== '' ? htmlspecialchars($lastUpdatedLabel) : 'Just now'; ?>
+                </p>
+                <p class="metric-helper">Automatically updated after each change</p>
+              </article>
+            </div>
+          </div>
+          <aside class="overview-grid__secondary" aria-label="Quick actions">
+            <div>
+              <h3 class="quick-link__title">Quick access</h3>
+              <p class="quick-link__subtitle">Jump to core workspaces in one click on desktop or a single tap on mobile.</p>
+            </div>
+            <div class="quick-link-list">
+              <?php foreach ($quickActions as $action): ?>
+                <a class="quick-link" href="<?= htmlspecialchars($action['href']); ?>">
+                  <span class="quick-link__title"><?= htmlspecialchars($action['label']); ?></span>
+                  <span class="quick-link__subtitle"><?= htmlspecialchars($action['description']); ?></span>
+                </a>
+              <?php endforeach; ?>
+            </div>
+          </aside>
         </div>
       </section>
 
       <section class="panel">
-        <h2>Highlights</h2>
-        <p class="lead">Quick insights with links to the detailed workspaces.</p>
+        <div class="panel-head">
+          <div>
+            <h2>People &amp; partners</h2>
+            <p class="lead">Stay ahead of employee, installer, referrer, and customer activity at a glance.</p>
+          </div>
+        </div>
+        <div class="role-grid">
+          <?php foreach ($roleSummaries as $roleKey => $summary): ?>
+            <?php $workspaceLabel = strtolower((string) ($summary['label'] ?? '')); ?>
+            <article class="role-card" id="overview-<?= htmlspecialchars($roleKey); ?>">
+              <div class="role-card__header">
+                <div>
+                  <h3><?= htmlspecialchars($summary['label']); ?></h3>
+                  <p class="role-card__meta"><?= htmlspecialchars($summary['description']); ?></p>
+                </div>
+                <a class="role-card__link" href="<?= htmlspecialchars($summary['href']); ?>">
+                  View <?= htmlspecialchars($workspaceLabel); ?> workspace →
+                </a>
+              </div>
+              <dl class="role-card__stats">
+                <div class="role-card__stat">
+                  <dt>Total</dt>
+                  <dd><?= htmlspecialchars((string) $summary['total']); ?></dd>
+                </div>
+                <div class="role-card__stat">
+                  <dt>Active</dt>
+                  <dd><?= htmlspecialchars((string) $summary['active']); ?></dd>
+                </div>
+                <div class="role-card__stat">
+                  <dt>Pending / onboarding</dt>
+                  <dd><?= htmlspecialchars((string) $summary['pending']); ?></dd>
+                </div>
+                <div class="role-card__stat">
+                  <dt>Inactive / suspended</dt>
+                  <dd><?= htmlspecialchars((string) $summary['inactive']); ?></dd>
+                </div>
+              </dl>
+              <?php if (!empty($summary['people'])): ?>
+                <ul class="role-card__list">
+                  <?php foreach ($summary['people'] as $person): ?>
+                    <?php
+                      $status = $person['status'] ?? '';
+                      $statusLabel = $status !== '' ? ucwords(str_replace('-', ' ', $status)) : '';
+                    ?>
+                    <li class="role-card__person">
+                      <span class="role-card__person-name"><?= htmlspecialchars($person['name'] ?? ''); ?></span>
+                      <?php if (!empty($person['email'])): ?>
+                        <span class="role-card__person-contact"><?= htmlspecialchars($person['email']); ?></span>
+                      <?php endif; ?>
+                      <?php if (!empty($person['phone'])): ?>
+                        <span class="role-card__person-contact">Phone: <?= htmlspecialchars($person['phone']); ?></span>
+                      <?php endif; ?>
+                      <?php if ($statusLabel !== ''): ?>
+                        <span class="role-card__person-contact">Status: <?= htmlspecialchars($statusLabel); ?></span>
+                      <?php endif; ?>
+                    </li>
+                  <?php endforeach; ?>
+                </ul>
+              <?php else: ?>
+                <p class="role-card__empty">No records yet. Use the quick links above to add new <?= htmlspecialchars($workspaceLabel); ?>.</p>
+              <?php endif; ?>
+            </article>
+          <?php endforeach; ?>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Highlights</h2>
+            <p class="lead">Quick insights with links to the detailed workspaces.</p>
+          </div>
+        </div>
         <div class="summary-grid">
           <article class="summary-card">
             <h3>Portal accounts</h3>
@@ -3576,8 +3962,12 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       </section>
 
       <section class="panel">
-        <h2>Latest service complaints</h2>
-        <p class="lead">Complaints submitted through the website are captured here for admin and employee follow-up.</p>
+        <div class="panel-head">
+          <div>
+            <h2>Latest service complaints</h2>
+            <p class="lead">Complaints submitted through the website are captured here for admin and employee follow-up.</p>
+          </div>
+        </div>
         <?php if (empty($recentComplaints)): ?>
           <p>No service complaints have been logged yet.</p>
         <?php else: ?>
@@ -3629,8 +4019,12 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       </section>
 
       <section class="panel">
-        <h2>Recent activity</h2>
-        <p class="lead">Automatic log of important actions across the portal.</p>
+        <div class="panel-head">
+          <div>
+            <h2>Recent activity</h2>
+            <p class="lead">Automatic log of important actions across the portal.</p>
+          </div>
+        </div>
         <?php if (empty($recentActivity)): ?>
           <p>No activity recorded yet. Actions will appear here automatically.</p>
         <?php else: ?>
@@ -3782,7 +4176,7 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
             <?php if (empty($users)): ?>
               <p>No portal users yet. Use the form to add your first collaborator.</p>
             <?php else: ?>
-              <div class="table-wrapper">
+              <div class="table-wrapper" id="user-directory">
                 <table>
                   <thead>
                     <tr>
