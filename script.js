@@ -55,8 +55,8 @@ const INLINE_PARTIALS = {
 
         <div class="nav-actions" role="group" aria-label="Header quick actions">
           <span class="nav-theme-badge" data-site-theme-label hidden></span>
-          <a href="contact.html" class="btn btn-secondary nav-link" data-nav-consult>
-            Consult / Complaint / Connect
+          <a href="login.php" class="btn btn-secondary nav-link nav-link--portal">
+            Portal Login
           </a>
         </div>
 
@@ -101,7 +101,7 @@ const INLINE_PARTIALS = {
         <div class="nav-mobile-divider" role="presentation"></div>
         <div class="nav-mobile-section" aria-label="Quick actions">
           <p class="nav-mobile-theme" data-site-theme-label hidden></p>
-          <a href="contact.html" class="btn btn-primary nav-mobile-cta" data-close-mobile>Consult / Complaint / Connect</a>
+          <a href="login.php" class="btn btn-primary nav-mobile-cta" data-close-mobile>Portal Login</a>
         </div>
       </nav>
 
