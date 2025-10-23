@@ -3026,6 +3026,16 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       font-weight: 600;
     }
 
+    .field-list {
+      margin: 0.5rem 0 1rem;
+      padding-left: 1.2rem;
+      color: var(--muted);
+    }
+
+    .field-list li {
+      margin-bottom: 0.3rem;
+    }
+
     .two-column {
       display: grid;
       gap: 1.2rem;
@@ -3419,11 +3429,11 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
             </div>
           <?php endforeach; ?>
         </div>
+        <?php $completedCsvTemplate = '/api/public/customer-template.php?segment=completed&amp;format=csv'; ?>
         <p>
-          Need a template? Download the
-          <a href="/api/public/customer-template.php?segment=potential" target="_blank" rel="noopener">Excel workbook</a>
-          or <a href="/api/public/customer-template.php?segment=potential&amp;format=csv" target="_blank" rel="noopener">CSV format</a>
-          and replace the sample data with your customer details.
+          Need a template? Every segment below includes instant Excel and CSV downloads. For completed installations you can
+          <a href="<?= $completedCsvTemplate; ?>" target="_blank" rel="noopener">grab the CSV template</a>
+          with Date of application, DISCOM, consumer, subsidy, and billing fields ready for bulk upload.
         </p>
       </section>
 
@@ -3435,6 +3445,7 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
           $segmentEntries = $segmentData['entries'] ?? [];
           $segmentTemplateLink = '/api/public/customer-template.php?segment=' . urlencode((string) $segmentSlug);
           $segmentCsvLink = $segmentTemplateLink . '&amp;format=csv';
+          $isCompletedSegment = $segmentSlug === 'completed';
         ?>
         <section class="panel" id="segment-<?= htmlspecialchars($segmentSlug); ?>">
           <h2><?= htmlspecialchars($segmentLabel); ?></h2>
@@ -3443,10 +3454,25 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
             <br />
             <small>Download template: <a href="<?= $segmentTemplateLink; ?>" target="_blank" rel="noopener">Excel</a> · <a href="<?= $segmentCsvLink; ?>" target="_blank" rel="noopener">CSV</a></small>
           </p>
+          <?php if ($isCompletedSegment): ?>
+            <ul class="field-list">
+              <li>Date of application</li>
+              <li>Application number</li>
+              <li>DISCOM name</li>
+              <li>Consumer number &amp; name</li>
+              <li>Mobile number</li>
+              <li>Capacity (kWp) installed</li>
+              <li>Installation date</li>
+              <li>Type of solar system (ongrid / hybrid / offgrid)</li>
+              <li>Subsidy disbursed &amp; disbursal date</li>
+              <li>Actual bill date</li>
+              <li>GST bill date</li>
+            </ul>
+          <?php endif; ?>
           <div class="workspace-grid">
             <div>
               <?php if (empty($segmentEntries)): ?>
-                <p>No records captured yet. Add a record manually or import your existing sheet.</p>
+                <p><?= $isCompletedSegment ? 'No completed installations added yet. Upload the CSV template for bulk entries or use the form to log a single project.' : 'No records captured yet. Add a record manually or import your existing sheet.'; ?></p>
               <?php else: ?>
                 <div class="table-wrapper">
                   <table class="customer-table">
@@ -3502,10 +3528,28 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
                         <input type="hidden" name="entry_id" value="<?= htmlspecialchars($entry['id'] ?? ''); ?>" />
                         <div class="form-grid">
                           <?php foreach ($segmentColumns as $column): ?>
-                            <?php $columnKey = $column['key']; ?>
+                            <?php
+                              $columnKey = $column['key'];
+                              $columnType = $column['type'] ?? 'text';
+                              $inputType = 'text';
+                              switch ($columnType) {
+                                case 'date':
+                                  $inputType = 'date';
+                                  break;
+                                case 'phone':
+                                  $inputType = 'tel';
+                                  break;
+                                case 'number':
+                                  $inputType = 'number';
+                                  break;
+                                case 'email':
+                                  $inputType = 'email';
+                                  break;
+                              }
+                            ?>
                             <div>
                               <label><?= htmlspecialchars($column['label'] ?? ucfirst($columnKey)); ?></label>
-                              <input name="fields[<?= htmlspecialchars($columnKey); ?>]" type="text" value="<?= htmlspecialchars($entry['fields'][$columnKey] ?? ''); ?>" />
+                              <input name="fields[<?= htmlspecialchars($columnKey); ?>]" type="<?= htmlspecialchars($inputType); ?>" <?php if ($inputType === 'number'): ?>step="any"<?php endif; ?> value="<?= htmlspecialchars($entry['fields'][$columnKey] ?? ''); ?>" />
                             </div>
                           <?php endforeach; ?>
                         </div>
@@ -3519,7 +3563,7 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
                             <input name="reminder_on" type="date" value="<?= htmlspecialchars($entry['reminder_on'] ?? ''); ?>" />
                           </div>
                         </div>
-                        <button class="btn-primary" type="submit">Update record</button>
+                        <button class="btn-primary" type="submit"><?= $isCompletedSegment ? 'Update installation' : 'Update record'; ?></button>
                       </form>
                       <form method="post" onsubmit="return confirm('Remove this record?');">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
@@ -3541,10 +3585,10 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
                 <input type="hidden" name="action" value="import_customer_segment" />
                 <input type="hidden" name="redirect_view" value="customers" />
                 <input type="hidden" name="segment" value="<?= htmlspecialchars($segmentSlug); ?>" />
-                <label for="import-<?= htmlspecialchars($segmentSlug); ?>">Import CSV or Excel</label>
+                <label for="import-<?= htmlspecialchars($segmentSlug); ?>"><?= $isCompletedSegment ? 'Bulk upload completed installations (CSV / XLSX)' : 'Import CSV or Excel'; ?></label>
                 <input id="import-<?= htmlspecialchars($segmentSlug); ?>" name="import_file" type="file" accept=".csv,.xlsx" required />
-                <p class="form-helper">Headers are matched automatically. New columns are added for you.</p>
-                <button class="btn-primary" type="submit">Upload file</button>
+                <p class="form-helper"><?= $isCompletedSegment ? 'Start with the template so every application, subsidy, and billing field is captured for each project.' : 'Headers are matched automatically. New columns are added for you.'; ?></p>
+                <button class="btn-primary" type="submit"><?= $isCompletedSegment ? 'Upload installations' : 'Upload file'; ?></button>
               </form>
               <form method="post" autocomplete="off">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
@@ -3570,9 +3614,28 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
                 <input type="hidden" name="segment" value="<?= htmlspecialchars($segmentSlug); ?>" />
                 <div class="form-grid">
                   <?php foreach ($segmentColumns as $column): ?>
+                    <?php
+                      $columnKey = $column['key'];
+                      $columnType = $column['type'] ?? 'text';
+                      $inputType = 'text';
+                      switch ($columnType) {
+                        case 'date':
+                          $inputType = 'date';
+                          break;
+                        case 'phone':
+                          $inputType = 'tel';
+                          break;
+                        case 'number':
+                          $inputType = 'number';
+                          break;
+                        case 'email':
+                          $inputType = 'email';
+                          break;
+                      }
+                    ?>
                     <div>
-                      <label><?= htmlspecialchars($column['label'] ?? ucfirst($column['key'])); ?></label>
-                      <input name="fields[<?= htmlspecialchars($column['key']); ?>]" type="text" />
+                      <label><?= htmlspecialchars($column['label'] ?? ucfirst($columnKey)); ?></label>
+                      <input name="fields[<?= htmlspecialchars($columnKey); ?>]" type="<?= htmlspecialchars($inputType); ?>" <?php if ($inputType === 'number'): ?>step="any"<?php endif; ?> />
                     </div>
                   <?php endforeach; ?>
                 </div>
@@ -3586,7 +3649,10 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
                     <input name="reminder_on" type="date" />
                   </div>
                 </div>
-                <button class="btn-primary" type="submit">Add record</button>
+                <button class="btn-primary" type="submit"><?= $isCompletedSegment ? 'Add installation' : 'Add record'; ?></button>
+                <?php if ($isCompletedSegment): ?>
+                  <p class="form-helper">Log a single project once the installation and subsidy processing are complete.</p>
+                <?php endif; ?>
               </form>
             </aside>
           </div>
