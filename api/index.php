@@ -151,6 +151,30 @@ switch (true) {
         $siteAddress = api_trim_string($body['siteAddress'] ?? $body['site_address'] ?? '');
         $systemSize = api_trim_string($body['systemSize'] ?? $body['system_size'] ?? '');
         $preferredContact = api_trim_string($body['preferredContact'] ?? $body['preferred_contact'] ?? '');
+
+        $schemeType = strtolower(api_trim_string($body['schemeType'] ?? $body['scheme_type'] ?? ''));
+        if ($schemeType === '') {
+            $schemeType = $installType === 'pmsgby' ? 'pmsgby' : 'other';
+        }
+        if (!in_array($schemeType, ['pmsgby', 'other'], true)) {
+            $schemeType = $installType === 'pmsgby' ? 'pmsgby' : 'other';
+        }
+        $schemeLabel = api_trim_string($body['schemeLabel'] ?? $body['scheme_label'] ?? '');
+        if ($schemeLabel === '') {
+            $schemeLabel = $schemeType === 'pmsgby' ? 'PM Surya Ghar Muft Bijli Yojana' : 'Other installation';
+        }
+
+        $systemConfigurationInput = $body['systemConfiguration'] ?? $body['system_configuration'] ?? '';
+        $systemConfiguration = strtolower(api_trim_string((string) $systemConfigurationInput));
+        $validConfigurations = ['ongrid', 'hybrid', 'offgrid'];
+        if (!in_array($systemConfiguration, $validConfigurations, true)) {
+            $systemConfiguration = api_normalise_system_configuration($systemConfiguration);
+        }
+        $systemConfigurationLabel = api_trim_string($body['systemConfigurationLabel'] ?? $body['system_configuration_label'] ?? '');
+        if ($systemConfigurationLabel === '') {
+            $systemConfigurationLabel = api_system_configuration_label($systemConfiguration);
+        }
+
         $description = api_trim_string($body['description'] ?? $body['issue'] ?? $body['details'] ?? '');
         $issueLabels = $body['issueLabels'] ?? $body['issue_labels'] ?? [];
         $issueValues = $body['issues'] ?? $body['issue_types'] ?? [];
@@ -207,6 +231,12 @@ switch (true) {
         if ($description !== '') {
             $timelineLines[] = $description;
         }
+        if ($schemeLabel !== '') {
+            $timelineLines[] = 'Scheme: ' . $schemeLabel;
+        }
+        if ($systemConfigurationLabel !== '') {
+            $timelineLines[] = 'Configuration: ' . $systemConfigurationLabel;
+        }
 
         $ticket = [
             'id' => $ticketId,
@@ -245,6 +275,11 @@ switch (true) {
                 'preferredContact' => $preferredContact,
                 'phoneRaw' => (string) ($body['phone'] ?? $body['mobile'] ?? ''),
                 'loggedAt' => $body['loggedAt'] ?? $timestamp,
+                'schemeType' => $schemeType,
+                'schemeLabel' => $schemeLabel,
+                'systemConfiguration' => $systemConfiguration,
+                'systemConfigurationLabel' => $systemConfigurationLabel,
+                'systemConfigurationRaw' => api_trim_string((string) $systemConfigurationInput),
             ],
         ];
 
