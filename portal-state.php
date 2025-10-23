@@ -217,6 +217,19 @@ function portal_default_state(): array
                     ],
                     'entries' => [],
                 ],
+                'completed' => [
+                    'label' => 'Completed customers',
+                    'description' => 'Commissioned plants and closed projects available for references and AMC planning.',
+                    'columns' => [
+                        ['key' => 'customer_name', 'label' => 'Customer name', 'type' => 'text'],
+                        ['key' => 'location', 'label' => 'Location', 'type' => 'text'],
+                        ['key' => 'system_capacity', 'label' => 'System capacity (kW)', 'type' => 'number'],
+                        ['key' => 'commissioned_on', 'label' => 'Commissioned on', 'type' => 'date'],
+                        ['key' => 'account_manager', 'label' => 'Account manager', 'type' => 'text'],
+                        ['key' => 'amc_status', 'label' => 'AMC status', 'type' => 'text'],
+                    ],
+                    'entries' => [],
+                ],
             ],
             'last_import' => null,
         ],
@@ -261,7 +274,12 @@ function portal_default_state(): array
         'users' => [],
         'projects' => [],
         'tasks' => [],
-        'activity_log' => []
+        'activity_log' => [],
+        'employee_approvals' => [
+            'pending' => [],
+            'history' => [],
+            'counter' => 1100,
+        ],
     ];
 }
 
@@ -785,6 +803,8 @@ function portal_load_state(): array
 
     $state['team_directory'] = $directory;
 
+    portal_ensure_employee_approvals($state);
+
     $state['activity_log'] = array_values(array_filter($state['activity_log'], static function ($entry) {
         return is_array($entry) && isset($entry['event'], $entry['timestamp']);
     }));
@@ -831,4 +851,72 @@ function portal_generate_id(string $prefix = 'id_'): string
     } catch (Exception $e) {
         return $prefix . uniqid();
     }
+}
+
+function portal_ensure_employee_approvals(array &$state): void
+{
+    $default = portal_default_state()['employee_approvals'];
+
+    if (!isset($state['employee_approvals']) || !is_array($state['employee_approvals'])) {
+        $state['employee_approvals'] = $default;
+        return;
+    }
+
+    $queue = $state['employee_approvals'];
+
+    $pending = $queue['pending'] ?? [];
+    if (!is_array($pending)) {
+        $pending = [];
+    }
+    $pending = array_values(array_filter($pending, static function ($entry): bool {
+        return is_array($entry) && isset($entry['id']) && is_string($entry['id']) && $entry['id'] !== '';
+    }));
+
+    $history = $queue['history'] ?? [];
+    if (!is_array($history)) {
+        $history = [];
+    }
+    $history = array_values(array_filter($history, static function ($entry): bool {
+        return is_array($entry) && isset($entry['id']) && is_string($entry['id']) && $entry['id'] !== '';
+    }));
+
+    $counter = $queue['counter'] ?? $default['counter'];
+    if (!is_int($counter)) {
+        $counter = (int) $counter;
+        if ($counter <= 0) {
+            $counter = $default['counter'];
+        }
+    }
+
+    $state['employee_approvals'] = [
+        'pending' => array_slice($pending, 0, 100),
+        'history' => array_slice($history, 0, 200),
+        'counter' => $counter,
+    ];
+}
+
+function portal_next_employee_request_id(array &$state): string
+{
+    portal_ensure_employee_approvals($state);
+
+    $state['employee_approvals']['counter'] += 1;
+    $counter = $state['employee_approvals']['counter'];
+
+    return sprintf('APP-%04d', max(0, (int) $counter));
+}
+
+function portal_add_employee_request(array &$state, array $request): void
+{
+    portal_ensure_employee_approvals($state);
+
+    array_unshift($state['employee_approvals']['pending'], $request);
+    $state['employee_approvals']['pending'] = array_slice($state['employee_approvals']['pending'], 0, 100);
+}
+
+function portal_archive_employee_request(array &$state, array $request): void
+{
+    portal_ensure_employee_approvals($state);
+
+    array_unshift($state['employee_approvals']['history'], $request);
+    $state['employee_approvals']['history'] = array_slice($state['employee_approvals']['history'], 0, 200);
 }
