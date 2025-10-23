@@ -735,17 +735,28 @@ function api_lookup_customer_by_phone(string $phone): array
             if ($type === 'phone') {
                 $phoneKeySet[$key] = true;
             }
-            if (in_array($key, $knownPhoneFields, true)) {
+
+            $normalizedKey = portal_normalize_column_key($key, $key);
+            if (in_array($normalizedKey, $knownPhoneFields, true)) {
                 $phoneKeySet[$key] = true;
             }
+
             if ($type === 'email') {
                 $emailKeys[] = $key;
             }
         }
 
         foreach ($knownPhoneFields as $fallbackPhoneField) {
-            if (!isset($phoneKeySet[$fallbackPhoneField])) {
-                $phoneKeySet[$fallbackPhoneField] = true;
+            $fallbackCandidates = [$fallbackPhoneField];
+            $hyphenVariant = str_replace('_', '-', $fallbackPhoneField);
+            if ($hyphenVariant !== $fallbackPhoneField) {
+                $fallbackCandidates[] = $hyphenVariant;
+            }
+
+            foreach ($fallbackCandidates as $candidateField) {
+                if (!isset($phoneKeySet[$candidateField])) {
+                    $phoneKeySet[$candidateField] = true;
+                }
             }
         }
 

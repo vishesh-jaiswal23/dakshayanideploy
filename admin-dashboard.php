@@ -1860,22 +1860,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $headerKeys = [];
-            foreach ($headers as $headerLabel) {
-                $baseKey = portal_slugify($headerLabel);
-                if ($baseKey === '') {
-                    $baseKey = 'column';
+            $assignedKeys = [];
+            $normalizedColumnMap = [];
+            foreach ($columnIndex as $existingKey => $existingColumn) {
+                $normalizedExisting = portal_normalize_column_key($existingKey, $existingKey);
+                if ($normalizedExisting !== '' && !isset($normalizedColumnMap[$normalizedExisting])) {
+                    $normalizedColumnMap[$normalizedExisting] = $existingKey;
                 }
+
+                $existingLabel = $existingColumn['label'] ?? '';
+                $normalizedLabel = portal_normalize_column_key($existingLabel, $existingLabel);
+                if ($normalizedLabel !== '' && !isset($normalizedColumnMap[$normalizedLabel])) {
+                    $normalizedColumnMap[$normalizedLabel] = $existingKey;
+                }
+            }
+
+            foreach ($headers as $headerLabel) {
+                $normalizedHeader = portal_normalize_column_key($headerLabel, $headerLabel);
+                if ($normalizedHeader === '') {
+                    $normalizedHeader = 'column';
+                }
+
+                $baseKey = $normalizedColumnMap[$normalizedHeader] ?? $normalizedHeader;
                 $key = $baseKey;
                 $suffix = 2;
-                while (isset($columnIndex[$key]) || in_array($key, array_column($headerKeys, 'key'), true)) {
-                    $key = $baseKey . '-' . $suffix;
+                while (in_array($key, $assignedKeys, true)) {
+                    $key = $baseKey . '_' . $suffix;
                     $suffix++;
                 }
+
                 if (!isset($columnIndex[$key])) {
                     $column = ['key' => $key, 'label' => $headerLabel, 'type' => 'text'];
                     $columns[] = $column;
                     $columnIndex[$key] = $column;
+
+                    $normalizedKey = portal_normalize_column_key($key, $key);
+                    if ($normalizedKey !== '' && !isset($normalizedColumnMap[$normalizedKey])) {
+                        $normalizedColumnMap[$normalizedKey] = $key;
+                    }
                 }
+
+                $assignedKeys[] = $key;
                 $headerKeys[] = ['key' => $key, 'label' => $headerLabel];
             }
 
