@@ -2763,6 +2763,7 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       justify-content: center;
       padding: clamp(2rem, 4vw, 3rem) 1.5rem;
       color: var(--theme-surface-text);
+      overflow-x: hidden;
     }
 
     main.dashboard-shell {
@@ -3020,11 +3021,18 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       align-items: start;
     }
 
+    .workspace-grid > * {
+      min-width: 0;
+    }
+
     .table-wrapper {
+      width: 100%;
       background: #ffffff;
       border-radius: 1.2rem;
       border: 1px solid rgba(148, 163, 184, 0.25);
       overflow-x: auto;
+      max-width: 100%;
+      -webkit-overflow-scrolling: touch;
     }
 
     table {
@@ -3043,6 +3051,7 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       text-align: left;
       font-size: 0.95rem;
       border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+      word-break: break-word;
     }
 
     table tbody tr:last-child td {
