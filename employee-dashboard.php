@@ -37,6 +37,8 @@ $roleLabel = $roleLabels[$_SESSION['user_role']] ?? ucfirst($_SESSION['user_role
 $userPhone = $userRecord['phone'] ?? '—';
 $userCity = $userRecord['city'] ?? '—';
 $accountId = $userRecord['id'] ?? '—';
+$normalizedPhone = $userPhone === '—' ? '' : $userPhone;
+$normalizedCity = $userCity === '—' ? '' : $userCity;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -303,6 +305,195 @@ $accountId = $userRecord['id'] ?? '—';
       text-decoration: underline;
     }
 
+    .pipeline-grid,
+    .sentiment-list,
+    .approval-list,
+    .history-list {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .pipeline-grid {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .pipeline-card,
+    .sentiment-card,
+    .approval-card,
+    .history-item {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1rem;
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .pipeline-stage,
+    .approval-title {
+      margin: 0;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .pipeline-count {
+      margin: 0;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .pipeline-note,
+    .approval-meta,
+    .approval-details {
+      margin: 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .sentiment-card strong {
+      color: #0f172a;
+    }
+
+    .sentiment-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.25rem 0.65rem;
+      background: rgba(99, 102, 241, 0.12);
+      color: #4338ca;
+    }
+
+    .status-pill[data-tone="warning"] {
+      background: rgba(249, 115, 22, 0.12);
+      color: #c2410c;
+    }
+
+    .status-pill[data-tone="success"] {
+      background: rgba(34, 197, 94, 0.12);
+      color: #15803d;
+    }
+
+    .status-pill[data-tone="error"] {
+      background: rgba(239, 68, 68, 0.12);
+      color: #b91c1c;
+    }
+
+    .approval-header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .history-item {
+      border-style: dashed;
+    }
+
+    .panel h3 {
+      margin: 0.5rem 0 0;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    form {
+      margin: 0;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .form-group {
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .form-group label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      border-radius: 0.75rem;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      background: #ffffff;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: #0f172a;
+    }
+
+    .form-group textarea {
+      min-height: 96px;
+      resize: vertical;
+    }
+
+    .form-note {
+      margin: 0.25rem 0 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .form-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      margin-top: 1rem;
+    }
+
+    .primary-btn {
+      border: none;
+      background: var(--primary);
+      color: #f8fafc;
+      padding: 0.6rem 1.3rem;
+      border-radius: 999px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 16px 32px -28px rgba(99, 102, 241, 0.8);
+    }
+
+    .primary-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .form-feedback {
+      font-size: 0.85rem;
+      margin: 0.5rem 0 0;
+      color: var(--muted);
+    }
+
+    .form-feedback[data-tone="success"] {
+      color: #15803d;
+    }
+
+    .form-feedback[data-tone="error"] {
+      color: #b91c1c;
+    }
+
+    .form-feedback[data-tone="info"] {
+      color: #4338ca;
+    }
+
     .details-grid {
       display: grid;
       gap: 0.75rem;
@@ -362,6 +553,18 @@ $accountId = $userRecord['id'] ?? '—';
     <section class="panel">
       <h2>Key metrics</h2>
       <div class="metric-grid" data-metrics></div>
+    </section>
+
+    <section class="panel">
+      <h2>Pipeline breakdown</h2>
+      <p class="lead">Live view of where your active tickets sit across the success workflow.</p>
+      <div class="pipeline-grid" data-pipeline-list></div>
+    </section>
+
+    <section class="panel">
+      <h2>Customer sentiment watchlist</h2>
+      <p class="lead">Accounts that need a personalised follow-up to protect CSAT.</p>
+      <div class="sentiment-list" data-sentiment-list></div>
     </section>
 
     <section class="panel">
@@ -456,17 +659,533 @@ $accountId = $userRecord['id'] ?? '—';
         </div>
         <div>
           <strong>Phone</strong>
-          <span><?= htmlspecialchars($userPhone === '' ? '—' : $userPhone); ?></span>
+          <span data-profile-field="phone"><?= htmlspecialchars($normalizedPhone === '' ? '—' : $normalizedPhone); ?></span>
         </div>
         <div>
           <strong>Email</strong>
           <span><?= htmlspecialchars($userEmail); ?></span>
         </div>
+        <div>
+          <strong>City / service cluster</strong>
+          <span data-profile-field="city"><?= htmlspecialchars($normalizedCity === '' ? '—' : $normalizedCity); ?></span>
+        </div>
+        <div>
+          <strong>Desk location</strong>
+          <span data-profile-field="deskLocation">—</span>
+        </div>
+        <div>
+          <strong>Working hours preference</strong>
+          <span data-profile-field="workingHours">—</span>
+        </div>
+        <div>
+          <strong>Emergency contact</strong>
+          <span data-profile-field="emergencyContact">—</span>
+        </div>
+        <div>
+          <strong>Preferred channel</strong>
+          <span data-profile-field="preferredChannel">—</span>
+        </div>
+        <div>
+          <strong>Reporting manager</strong>
+          <span data-profile-field="reportingManager">—</span>
+        </div>
       </div>
+    </section>
+
+    <section class="panel">
+      <h2>Update your contact details</h2>
+      <p class="lead">Keep your day-to-day contact preferences current for faster escalations and callbacks.</p>
+      <form data-profile-form>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="profile-phone">Primary phone number</label>
+            <input id="profile-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" data-profile-input="phone" placeholder="e.g. +91 98765 43210" />
+          </div>
+          <div class="form-group">
+            <label for="profile-city">City / service cluster</label>
+            <input id="profile-city" name="city" type="text" autocomplete="address-level2" data-profile-input="city" placeholder="e.g. Jamshedpur &amp; Bokaro" />
+          </div>
+          <div class="form-group">
+            <label for="profile-emergency">Emergency contact</label>
+            <input id="profile-emergency" name="emergencyContact" type="text" data-profile-input="emergencyContact" placeholder="Name &amp;middot; Phone number" />
+          </div>
+          <div class="form-group">
+            <label for="profile-hours">Working hours preference</label>
+            <input id="profile-hours" name="workingHours" type="text" data-profile-input="workingHours" placeholder="e.g. 10:00 &ndash; 18:30 IST" />
+          </div>
+          <div class="form-group">
+            <label for="profile-channel">Preferred communication channel</label>
+            <select id="profile-channel" name="preferredChannel" data-profile-input="preferredChannel">
+              <option value="Phone call">Phone call</option>
+              <option value="WhatsApp">WhatsApp</option>
+              <option value="Email summary">Email summary</option>
+            </select>
+          </div>
+        </div>
+        <p class="form-note">Changes save instantly for the operations roster. Sensitive updates such as bank details or access scopes should go through the approval workflow below.</p>
+        <div class="form-actions">
+          <button class="primary-btn" type="submit">Save updates</button>
+        </div>
+        <p class="form-feedback" data-profile-feedback></p>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Requests requiring admin approval</h2>
+      <p class="lead">Track sensitive changes that route to the admin desk and log new requests when you need support.</p>
+      <div class="approval-list" data-approval-list></div>
+      <p class="form-note" data-approval-summary></p>
+      <h3>Log a new approval request</h3>
+      <form data-approval-form>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="approval-change-type">Change type</label>
+            <select id="approval-change-type" name="changeType" required>
+              <option value="" disabled selected>Choose a request</option>
+              <option value="Payroll bank update">Payroll bank update</option>
+              <option value="Access scope change">Access scope change</option>
+              <option value="Desk relocation">Desk relocation</option>
+              <option value="Long leave / remote work">Long leave / remote work</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="approval-effective-date">Target effective date</label>
+            <input id="approval-effective-date" name="effectiveDate" type="date" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="approval-justification">Summary for the admin team</label>
+          <textarea id="approval-justification" name="justification" placeholder="Add context, ticket IDs, or the reason for the change"></textarea>
+        </div>
+        <div class="form-actions">
+          <button class="primary-btn" type="submit">Submit for approval</button>
+        </div>
+        <p class="form-feedback" data-approval-feedback></p>
+      </form>
+      <h3>Recent admin decisions</h3>
+      <div class="history-list" data-approval-history></div>
     </section>
   </main>
 
   <script src="portal-demo-data.js"></script>
   <script src="dashboard-auth.js"></script>
+  <script>
+    (function () {
+      const portalData = window.DAKSHAYANI_PORTAL_DEMO?.employeePortal || {};
+      const pipelineContainer = document.querySelector('[data-pipeline-list]');
+      const sentimentContainer = document.querySelector('[data-sentiment-list]');
+      const approvalsContainer = document.querySelector('[data-approval-list]');
+      const approvalSummary = document.querySelector('[data-approval-summary]');
+      const approvalHistoryContainer = document.querySelector('[data-approval-history]');
+      const profileForm = document.querySelector('[data-profile-form]');
+      const profileFeedback = document.querySelector('[data-profile-feedback]');
+      const approvalForm = document.querySelector('[data-approval-form]');
+      const approvalFeedback = document.querySelector('[data-approval-feedback]');
+      const profileDisplayNodes = document.querySelectorAll('[data-profile-field]');
+      const profileInputs = profileForm ? Array.from(profileForm.querySelectorAll('[data-profile-input]')) : [];
+
+      const phpPhone = <?= json_encode($normalizedPhone); ?>;
+      const phpCity = <?= json_encode($normalizedCity); ?>;
+
+      const profileState = {
+        phone: phpPhone || portalData.profile?.phone || '',
+        city: phpCity || portalData.profile?.serviceRegion || portalData.profile?.city || '',
+        emergencyContact: portalData.profile?.emergencyContact || '',
+        workingHours: portalData.profile?.workingHours || '',
+        preferredChannel: portalData.profile?.preferredChannel || 'Phone call',
+        deskLocation: portalData.profile?.deskLocation || '',
+        reportingManager: portalData.profile?.reportingManager || ''
+      };
+
+      const pipelineData = Array.isArray(portalData.pipeline) ? portalData.pipeline.slice() : [];
+      const sentimentData = Array.isArray(portalData.sentimentWatch) ? portalData.sentimentWatch.slice() : [];
+      const approvalsState = Array.isArray(portalData.approvals) ? portalData.approvals.map((item) => ({ ...item })) : [];
+      const approvalHistoryState = Array.isArray(portalData.approvalHistory) ? portalData.approvalHistory.map((item) => ({ ...item })) : [];
+
+      const profileDisplayMap = {};
+      profileDisplayNodes.forEach((node) => {
+        const field = node.dataset.profileField;
+        if (!field) return;
+        profileDisplayMap[field] = profileDisplayMap[field] || [];
+        profileDisplayMap[field].push(node);
+      });
+
+      const profileInputMap = {};
+      profileInputs.forEach((input) => {
+        const field = input.dataset.profileInput;
+        if (!field) return;
+        profileInputMap[field] = input;
+        const value = profileState[field] || '';
+        if (input.tagName === 'SELECT') {
+          const values = Array.from(input.options).map((option) => option.value);
+          if (values.includes(value)) {
+            input.value = value;
+          }
+        } else {
+          input.value = value;
+        }
+      });
+
+      function formatDisplay(value) {
+        if (value === null || value === undefined) {
+          return '—';
+        }
+        const trimmed = String(value).trim();
+        return trimmed.length ? trimmed : '—';
+      }
+
+      function syncProfileDisplay() {
+        Object.entries(profileDisplayMap).forEach(([field, nodes]) => {
+          let current = profileState[field];
+          if (!current) {
+            if (field === 'city') {
+              current = portalData.profile?.serviceRegion || portalData.profile?.city || '';
+            } else if (field === 'deskLocation') {
+              current = portalData.profile?.deskLocation || '';
+            } else if (field === 'workingHours') {
+              current = portalData.profile?.workingHours || '';
+            } else if (field === 'emergencyContact') {
+              current = portalData.profile?.emergencyContact || '';
+            } else if (field === 'preferredChannel') {
+              current = portalData.profile?.preferredChannel || '';
+            } else if (field === 'reportingManager') {
+              current = portalData.profile?.reportingManager || '';
+            }
+          }
+          nodes.forEach((node) => {
+            node.textContent = formatDisplay(current);
+          });
+        });
+      }
+
+      function setFeedback(node, tone, message) {
+        if (!node) return;
+        node.textContent = message || '';
+        if (!message) {
+          node.hidden = true;
+          delete node.dataset.tone;
+          return;
+        }
+        node.hidden = false;
+        if (tone && tone !== 'info') {
+          node.dataset.tone = tone;
+        } else {
+          delete node.dataset.tone;
+        }
+      }
+
+      function renderPipeline() {
+        if (!pipelineContainer) return;
+        pipelineContainer.innerHTML = '';
+        if (!pipelineData.length) {
+          const empty = document.createElement('p');
+          empty.className = 'empty';
+          empty.textContent = 'No pipeline data yet.';
+          pipelineContainer.appendChild(empty);
+          return;
+        }
+        pipelineData.forEach((item) => {
+          const card = document.createElement('article');
+          card.className = 'pipeline-card';
+          const stage = document.createElement('p');
+          stage.className = 'pipeline-stage';
+          stage.textContent = item.stage || 'Stage';
+          const count = document.createElement('p');
+          count.className = 'pipeline-count';
+          count.textContent = item.count != null ? item.count : '—';
+          card.appendChild(stage);
+          card.appendChild(count);
+          if (item.note) {
+            const note = document.createElement('p');
+            note.className = 'pipeline-note';
+            note.textContent = item.note;
+            card.appendChild(note);
+          }
+          if (item.sla) {
+            const sla = document.createElement('p');
+            sla.className = 'pipeline-note';
+            sla.textContent = item.sla;
+            card.appendChild(sla);
+          }
+          pipelineContainer.appendChild(card);
+        });
+      }
+
+      function resolveTone(label = '') {
+        const value = String(label).toLowerCase();
+        if (value.includes('risk') || value.includes('pending') || value.includes('attention')) return 'warning';
+        if (value.includes('approved') || value.includes('completed') || value.includes('improving') || value.includes('active')) return 'success';
+        if (value.includes('declined') || value.includes('rejected') || value.includes('blocked')) return 'error';
+        return 'info';
+      }
+
+      function createStatusPill(text, tone) {
+        const pill = document.createElement('span');
+        pill.className = 'status-pill';
+        pill.textContent = text;
+        if (tone && tone !== 'info') {
+          pill.dataset.tone = tone;
+        }
+        return pill;
+      }
+
+      function renderSentiments() {
+        if (!sentimentContainer) return;
+        sentimentContainer.innerHTML = '';
+        if (!sentimentData.length) {
+          const empty = document.createElement('p');
+          empty.className = 'empty';
+          empty.textContent = 'No customers flagged for follow-up today.';
+          sentimentContainer.appendChild(empty);
+          return;
+        }
+        sentimentData.forEach((item) => {
+          const card = document.createElement('article');
+          card.className = 'sentiment-card';
+          if (item.customer) {
+            const title = document.createElement('p');
+            title.innerHTML = `<strong>${item.customer}</strong>`;
+            card.appendChild(title);
+          }
+          if (item.nextStep) {
+            const next = document.createElement('p');
+            next.className = 'approval-meta';
+            next.textContent = item.nextStep;
+            card.appendChild(next);
+          }
+          const tags = document.createElement('div');
+          tags.className = 'sentiment-tags';
+          if (item.sentiment) {
+            tags.appendChild(createStatusPill(item.sentiment, resolveTone(item.sentiment)));
+          }
+          if (item.trend) {
+            tags.appendChild(createStatusPill(item.trend, resolveTone(item.trend)));
+          }
+          if (item.owner) {
+            tags.appendChild(createStatusPill(`Owner: ${item.owner}`, 'info'));
+          }
+          if (tags.childNodes.length) {
+            card.appendChild(tags);
+          }
+          if (item.due) {
+            const due = document.createElement('p');
+            due.className = 'approval-meta';
+            due.textContent = `Next check-in: ${item.due}`;
+            card.appendChild(due);
+          }
+          sentimentContainer.appendChild(card);
+        });
+      }
+
+      function renderApprovals() {
+        if (!approvalsContainer) return;
+        approvalsContainer.innerHTML = '';
+        if (!approvalsState.length) {
+          const empty = document.createElement('p');
+          empty.className = 'empty';
+          empty.textContent = 'No active approval requests yet.';
+          approvalsContainer.appendChild(empty);
+        } else {
+          approvalsState.forEach((item) => {
+            const card = document.createElement('article');
+            card.className = 'approval-card';
+            const header = document.createElement('div');
+            header.className = 'approval-header';
+            const title = document.createElement('p');
+            title.className = 'approval-title';
+            title.textContent = item.title || 'Change request';
+            header.appendChild(title);
+            if (item.status) {
+              header.appendChild(createStatusPill(item.status, resolveTone(item.status)));
+            }
+            card.appendChild(header);
+            const metaParts = [];
+            if (item.id) metaParts.push(item.id);
+            if (item.submitted) metaParts.push(`Submitted ${item.submitted}`);
+            if (item.owner) metaParts.push(`Routed to ${item.owner}`);
+            if (metaParts.length) {
+              const meta = document.createElement('p');
+              meta.className = 'approval-meta';
+              meta.textContent = metaParts.join(' • ');
+              card.appendChild(meta);
+            }
+            if (item.details) {
+              const body = document.createElement('p');
+              body.className = 'approval-details';
+              body.textContent = item.details;
+              card.appendChild(body);
+            }
+            if (item.effectiveDate) {
+              const effective = document.createElement('p');
+              effective.className = 'approval-meta';
+              effective.textContent = `Requested effective date: ${item.effectiveDate}`;
+              card.appendChild(effective);
+            }
+            if (item.lastUpdate) {
+              const update = document.createElement('p');
+              update.className = 'approval-meta';
+              update.textContent = item.lastUpdate;
+              card.appendChild(update);
+            }
+            approvalsContainer.appendChild(card);
+          });
+        }
+
+        if (approvalSummary) {
+          if (!approvalsState.length) {
+            approvalSummary.textContent = 'No approvals are awaiting action.';
+          } else {
+            const pending = approvalsState.filter((item) => String(item.status || '').toLowerCase().includes('pending')).length;
+            const approved = approvalsState.filter((item) => String(item.status || '').toLowerCase().includes('approved')).length;
+            approvalSummary.textContent = `Pending: ${pending} · Approved: ${approved} · Total tracked: ${approvalsState.length}.`;
+          }
+        }
+      }
+
+      function renderHistory() {
+        if (!approvalHistoryContainer) return;
+        approvalHistoryContainer.innerHTML = '';
+        if (!approvalHistoryState.length) {
+          const empty = document.createElement('p');
+          empty.className = 'empty';
+          empty.textContent = 'No previous admin decisions logged.';
+          approvalHistoryContainer.appendChild(empty);
+          return;
+        }
+        approvalHistoryState.forEach((item) => {
+          const row = document.createElement('article');
+          row.className = 'history-item';
+          const header = document.createElement('div');
+          header.className = 'approval-header';
+          const title = document.createElement('p');
+          title.className = 'approval-title';
+          title.textContent = `${item.title || 'Request'}${item.id ? ` · ${item.id}` : ''}`;
+          header.appendChild(title);
+          header.appendChild(createStatusPill(item.status || 'Completed', resolveTone(item.status)));
+          row.appendChild(header);
+          if (item.resolved || item.status) {
+            const meta = document.createElement('p');
+            meta.className = 'approval-meta';
+            const statusText = item.status || 'Completed';
+            meta.textContent = item.resolved ? `${statusText} on ${item.resolved}` : statusText;
+            row.appendChild(meta);
+          }
+          if (item.outcome) {
+            const outcome = document.createElement('p');
+            outcome.className = 'approval-meta';
+            outcome.textContent = item.outcome;
+            row.appendChild(outcome);
+          }
+          approvalHistoryContainer.appendChild(row);
+        });
+      }
+
+      function extractApprovalCounter() {
+        const numbers = []
+          .concat(approvalsState, approvalHistoryState)
+          .map((item) => {
+            const match = /APP-(\d+)/.exec(item?.id || '');
+            return match ? parseInt(match[1], 10) : null;
+          })
+          .filter((value) => Number.isFinite(value));
+        return numbers.length ? Math.max(...numbers) : 1100;
+      }
+
+      let approvalCounter = extractApprovalCounter();
+
+      function generateApprovalId() {
+        approvalCounter += 1;
+        return `APP-${approvalCounter}`;
+      }
+
+      function handleProfileSubmit(event) {
+        event.preventDefault();
+        if (!profileForm) return;
+        let updated = false;
+        Object.entries(profileInputMap).forEach(([field, input]) => {
+          if (!input) return;
+          let nextValue = input.value;
+          if (input.tagName === 'INPUT' || input.tagName === 'TEXTAREA') {
+            nextValue = nextValue.trim();
+          }
+          if (profileState[field] !== nextValue) {
+            profileState[field] = nextValue;
+            updated = true;
+          }
+        });
+        syncProfileDisplay();
+        if (updated) {
+          setFeedback(profileFeedback, 'success', 'Contact preferences updated. Operations will reference the latest details.');
+        } else {
+          setFeedback(profileFeedback, 'info', 'No changes detected — everything is already up to date.');
+        }
+      }
+
+      function handleApprovalSubmit(event) {
+        event.preventDefault();
+        if (!approvalForm) return;
+        const formData = new FormData(approvalForm);
+        const changeType = (formData.get('changeType') || '').toString();
+        const effectiveDate = (formData.get('effectiveDate') || '').toString();
+        const justification = (formData.get('justification') || '').toString().trim();
+        if (!changeType) {
+          setFeedback(approvalFeedback, 'error', 'Select the type of change that needs approval.');
+          return;
+        }
+        if (!justification) {
+          setFeedback(approvalFeedback, 'error', 'Add a short justification so the admin team can review quickly.');
+          return;
+        }
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+        let effectiveDisplay = '';
+        if (effectiveDate) {
+          const parsed = new Date(`${effectiveDate}T00:00:00`);
+          if (!Number.isNaN(parsed.getTime())) {
+            effectiveDisplay = formatter.format(parsed);
+          }
+        }
+        const routedTo =
+          changeType === 'Payroll bank update'
+            ? 'Finance & Admin'
+            : changeType === 'Access scope change'
+            ? 'Admin desk'
+            : changeType === 'Desk relocation'
+            ? 'Workplace support'
+            : 'People operations';
+
+        approvalsState.unshift({
+          id: generateApprovalId(),
+          title: changeType,
+          status: 'Pending admin review',
+          submitted: formatter.format(now),
+          owner: routedTo,
+          details: justification,
+          effectiveDate: effectiveDisplay,
+          lastUpdate: 'Waiting for admin triage'
+        });
+
+        renderApprovals();
+        setFeedback(approvalFeedback, 'success', 'Request submitted. You will be notified once an admin reviews it.');
+        approvalForm.reset();
+      }
+
+      if (profileForm) {
+        profileForm.addEventListener('submit', handleProfileSubmit);
+        setFeedback(profileFeedback, null, '');
+      }
+
+      if (approvalForm) {
+        approvalForm.addEventListener('submit', handleApprovalSubmit);
+        setFeedback(approvalFeedback, null, '');
+      }
+
+      syncProfileDisplay();
+      renderPipeline();
+      renderSentiments();
+      renderApprovals();
+      renderHistory();
+    })();
+  </script>
 </body>
 </html>
