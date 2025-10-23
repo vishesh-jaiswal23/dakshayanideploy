@@ -92,5 +92,86 @@
     }
   };
 
-  window.DAKSHAYANI_PORTAL_DEMO = Object.freeze({ users: [], dashboards });
+  const employeePortal = {
+    profile: {
+      deskLocation: 'Jamshedpur HQ · Pod B',
+      workingHours: '10:00 – 18:30 IST',
+      emergencyContact: 'Ritika Sharma · +91 98450 22110',
+      preferredChannel: 'Phone call',
+      reportingManager: 'Sneha Kapoor',
+      serviceRegion: 'Jamshedpur & Bokaro cluster'
+    },
+    pipeline: [
+      { stage: 'New intake', count: 6, note: 'Welcome calls pending — target response within 2 hours.' },
+      { stage: 'In progress', count: 12, note: 'Follow-ups booked for inspection confirmations.' },
+      { stage: 'Awaiting documents', count: 4, note: 'Customers to upload net-metering paperwork.', sla: 'Send reminders before 17:00 IST.' },
+      { stage: 'Escalated', count: 2, note: 'Finance holds on invoices DE-2041 and PKL-552.' }
+    ],
+    sentimentWatch: [
+      {
+        customer: 'DE-2041 · Ranchi',
+        sentiment: 'At risk',
+        nextStep: 'Inspection reschedule pending — call before 14:00 IST.',
+        owner: 'You',
+        due: '11 Oct 2024, 14:00',
+        trend: 'Needs attention'
+      },
+      {
+        customer: 'JSR-118 · Jamshedpur',
+        sentiment: 'Recovering',
+        nextStep: 'Share inverter replacement plan on WhatsApp.',
+        owner: 'Amit (Field lead)',
+        due: '12 Oct 2024, 10:30',
+        trend: 'Improving'
+      },
+      {
+        customer: 'PKL-552 · Bokaro',
+        sentiment: 'Monitor',
+        nextStep: 'Waiting on subsidy paperwork confirmation.',
+        owner: 'You',
+        due: '13 Oct 2024, 09:00',
+        trend: 'Follow closely'
+      }
+    ],
+    approvals: [
+      {
+        id: 'APP-1092',
+        title: 'Payroll bank account update',
+        status: 'Pending admin review',
+        submitted: '09 Oct 2024, 11:45',
+        owner: 'Finance & Admin',
+        details: 'New salary account at SBI Jamshedpur (DLF branch) shared for verification.',
+        effectiveDate: '12 Oct 2024',
+        lastUpdate: 'Finance team verifying cancelled cheque'
+      },
+      {
+        id: 'APP-1086',
+        title: 'CRM access scope change',
+        status: 'Approved',
+        submitted: '04 Oct 2024, 16:20',
+        owner: 'Admin desk',
+        details: 'Escalation board access requested for Bokaro cluster support.',
+        effectiveDate: '06 Oct 2024',
+        lastUpdate: 'Approved by Vishesh on 06 Oct 2024'
+      }
+    ],
+    approvalHistory: [
+      {
+        id: 'APP-1079',
+        title: 'Hardware allowance claim',
+        status: 'Completed',
+        resolved: '29 Sep 2024',
+        outcome: 'Reimbursement of ₹3,500 processed to payroll.'
+      },
+      {
+        id: 'APP-1062',
+        title: 'Shift swap request',
+        status: 'Declined',
+        resolved: '22 Sep 2024',
+        outcome: 'Declined — Sunday evening coverage required for onboarding window.'
+      }
+    ]
+  };
+
+  window.DAKSHAYANI_PORTAL_DEMO = Object.freeze({ users: [], dashboards, employeePortal });
 })();
