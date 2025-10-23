@@ -346,64 +346,47 @@
             </div>
         </section>
 
-        <audio id="tts-audio-player" style="display: none;"></audio>
-
     </main>
 
     <script>
         // --- NOTE: This block contains the essential JavaScript logic for the calculator. ---
         // --- It MUST be preserved to maintain functionality. ---
-        const GEMINI_TEXT_MODEL = 'gemini-2.5-flash-lite';
-        const GEMINI_TTS_MODEL = 'gemini-2.5-flash-preview-tts';
-
-        let API_KEY = '';
-        let API_URL_TEXT = '';
-        let API_URL_TTS = '';
-        let apiKeyPromise = null;
-
-        function configureGeminiEndpoints(key) {
-            API_KEY = key;
-            API_URL_TEXT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TEXT_MODEL}:generateContent?key=${API_KEY}`;
-            API_URL_TTS = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent?key=${API_KEY}`;
+        function sanitiseParagraph(text) {
+            const div = document.createElement('div');
+            div.textContent = typeof text === 'string' ? text : '';
+            return div.innerHTML;
         }
 
-        function loadApiKey() {
-            if (!apiKeyPromise) {
-                apiKeyPromise = fetch('api.txt', { cache: 'no-store' })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Failed to load API key.');
-                        }
-                        return response.text();
-                    })
-                    .then(text => {
-                        const key = text.trim();
-                        if (!key) {
-                            throw new Error('API key file is empty.');
-                        }
-                        configureGeminiEndpoints(key);
-                        return key;
-                    })
-                    .catch(error => {
-                        console.error('API key initialization failed:', error);
-                        throw error;
-                    });
+        function showMessage(text, details = '') {
+            const modal = document.getElementById('message-modal');
+            const textEl = document.getElementById('message-text');
+            if (!modal || !textEl) {
+                return;
             }
-            return apiKeyPromise;
+
+            const mainMessage = sanitiseParagraph(text || 'Something went wrong.');
+            const detailMessage = sanitiseParagraph(details || '');
+
+            textEl.innerHTML = detailMessage && detailMessage !== mainMessage
+                ? `${mainMessage}<br><small style="color: var(--base-500); display:block; margin-top:0.35rem;">${detailMessage}</small>`
+                : mainMessage;
+
+            modal.style.display = 'block';
         }
 
-        async function ensureApiKeyLoaded() {
-            if (!API_KEY) {
-                try {
-                    await loadApiKey();
-                } catch (error) {
-                    showMessage("Unable to load Viaan's configuration. Please try again later.");
-                    throw error;
-                }
+        async function fetchSolarAdvisory(payload) {
+            const response = await fetch('/api/public/solar-advisory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Advisory API error: ${response.status}`);
             }
-        }
 
-        const MAX_RETRIES = 3;
+            return response.json();
+        }
 
         // --- Rate Data (From original calculator.html) ---
         let pmSuryaGharRates = {
@@ -431,34 +414,6 @@
             9: 431900,
             10: 456900
         };
-
-        function showMessage(text) {
-            document.getElementById('message-text').textContent = text;
-            document.getElementById('message-modal').style.display = 'block';
-        }
-
-        async function handleFetchWithRetry(url, payload, retries = 0) {
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    if (response.status === 429 && retries < MAX_RETRIES) {
-                        const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        return handleFetchWithRetry(url, payload, retries + 1);
-                    }
-                    throw new Error(`API Error: ${response.status} ${response.statusText}`);
-                }
-                return response.json();
-            } catch (error) {
-                console.error("Fetch failed after all retries:", error);
-                throw error;
-            }
-        }
 
         let currentSolarEstimate = {
             requiredSize: 0, // kWp
@@ -497,11 +452,11 @@
         
         function calculateSolar(e, inputMethod) {
             e.preventDefault();
-            
+
             const initialMessage = document.getElementById('initial-message-results');
             const resultsContainer = document.getElementById('calculated-results');
             const loading = document.getElementById('loading-spinner');
-            
+
             initialMessage.style.display = 'none';
             resultsContainer.classList.add('hidden');
             loading.style.display = 'flex';
@@ -515,21 +470,29 @@
                 consumption = parseFloat(document.getElementById('input-units').value);
                 rate = parseFloat(document.getElementById('units-rate').value);
                 type = document.getElementById('units-type').value;
-                if (isNaN(consumption) || consumption <= 0) validationError = 'Please enter a valid Monthly Units Consumed.';
+                if (isNaN(consumption) || consumption <= 0) {
+                    validationError = 'Please enter a valid Monthly Units Consumed.';
+                }
             } else if (inputMethod === 'bill') {
                 const billAmount = parseFloat(document.getElementById('bill-amount').value);
                 rate = parseFloat(document.getElementById('bill-rate').value);
                 type = document.getElementById('bill-type').value;
 
-                if (isNaN(billAmount) || billAmount <= 0) validationError = 'Please enter a valid Monthly Bill Amount.';
-                else if (isNaN(rate) || rate <= 0) validationError = 'Please enter a valid Average Unit Rate.';
-                else consumption = billAmount / rate;
+                if (isNaN(billAmount) || billAmount <= 0) {
+                    validationError = 'Please enter a valid Monthly Bill Amount.';
+                } else if (isNaN(rate) || rate <= 0) {
+                    validationError = 'Please enter a valid Average Unit Rate.';
+                } else {
+                    consumption = billAmount / rate;
+                }
             } else if (inputMethod === 'load') {
                 const whPerDay = calculateLoadWhPerDay();
                 consumption = (whPerDay * 30) / 1000;
                 rate = parseFloat(document.getElementById('load-rate').value);
                 type = document.getElementById('load-profile').value === 'residential' ? 'residential' : 'commercial';
-                if (whPerDay === 0) validationError = 'Please enter a valid appliance load (W/h).';
+                if (whPerDay === 0) {
+                    validationError = 'Please enter a valid appliance load (W/h).';
+                }
             }
 
             if (validationError) {
@@ -539,17 +502,24 @@
                 showMessage(validationError);
                 return;
             }
-            if (isNaN(rate) || rate <= 0) rate = 6.50;
+
+            if (isNaN(rate) || rate <= 0) {
+                rate = 6.50;
+            }
 
             let requiredSize = consumption / LOCAL_UNITS_PER_KW_PER_MONTH;
             requiredSize = Math.ceil(requiredSize * 2) / 2;
-            if (requiredSize < 1) requiredSize = 1;
-            if (type === 'residential' && requiredSize > 10) requiredSize = 10;
+            if (requiredSize < 1) {
+                requiredSize = 1;
+            }
+            if (type === 'residential' && requiredSize > 10) {
+                requiredSize = 10;
+            }
 
-            let grossCost = getGrossCost(requiredSize, type);
-            let subsidy = getSubsidy(requiredSize, type);
-            let netCost = Math.max(0, grossCost - subsidy);
-            let annualSavings = consumption * rate * 12;
+            const grossCost = getGrossCost(requiredSize, type);
+            const subsidy = getSubsidy(requiredSize, type);
+            const netCost = Math.max(0, grossCost - subsidy);
+            const annualSavings = consumption * rate * 12;
 
             currentSolarEstimate = {
                 requiredSize,
@@ -565,62 +535,57 @@
             document.getElementById('monthly-gen-output').textContent = (requiredSize * LOCAL_UNITS_PER_KW_PER_MONTH).toFixed(0) + ' Units';
             document.getElementById('annual-savings-output').textContent = '₹' + annualSavings.toLocaleString('en-IN', { maximumFractionDigits: 0 });
             document.getElementById('area-output').textContent = (requiredSize * AREA_PER_KW).toFixed(0) + ' sq. ft.';
-            
+
             document.getElementById('loan-amount').value = netCost.toFixed(0);
             document.getElementById('emi-output-container').classList.add('hidden');
 
-            document.getElementById('ai-advisory-output').innerHTML = '<p class="loader"><i class="fa-solid fa-spinner fa-spin"></i> Generating personalized advice...</p>';
-            document.getElementById('financial-summary-output').innerHTML = '<p class="loader"><i class="fa-solid fa-spinner fa-spin"></i> Finalizing costs...</p>';
-            
-            Promise.all([
-                callAIGuidance(requiredSize, netCost, annualSavings, type),
-                callAIFinancialSummary(requiredSize, grossCost, subsidy, netCost, annualSavings, type)
-            ]).finally(() => {
-                 loading.style.display = 'none';
-                 resultsContainer.classList.remove('hidden');
-            });
-        }
-        
-        function buildUserContent(text) {
-            return [{ role: 'user', parts: [{ text }] }];
-        }
+            const aiOutput = document.getElementById('ai-advisory-output');
+            const financeOutput = document.getElementById('financial-summary-output');
 
-        function extractCandidateText(result) {
-            const parts = result?.candidates?.[0]?.content?.parts;
-            if (!Array.isArray(parts)) {
-                return '';
-            }
-            const textPart = parts.find(part => typeof part?.text === 'string');
-            return textPart?.text?.trim() || '';
-        }
+            aiOutput.innerHTML = '<p class="loader"><i class="fa-solid fa-spinner fa-spin"></i> Generating personalised advice...</p>';
+            financeOutput.innerHTML = '<p class="loader"><i class="fa-solid fa-spinner fa-spin"></i> Finalising costs...</p>';
 
-        function sanitiseParagraph(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+            const advisoryPayload = {
+                size: requiredSize,
+                systemType: type,
+                grossCost,
+                netCost,
+                subsidy,
+                annualSavings,
+                monthlyConsumption: consumption,
+                unitRate: rate
+            };
 
-        function extractJsonPayload(rawText) {
-            if (typeof rawText !== 'string') {
-                return null;
-            }
-            const trimmed = rawText.trim();
-            if (!trimmed) {
-                return null;
-            }
-            try {
-                return JSON.parse(trimmed);
-            } catch (error) {
-                const match = trimmed.match(/\{[\s\S]*\}/);
-                if (match) {
-                    try {
-                        return JSON.parse(match[0]);
-                    } catch (_) {
-                        return null;
+            fetchSolarAdvisory(advisoryPayload)
+                .then((data) => {
+                    const advisoryText = typeof data?.advisory === 'string' ? data.advisory.trim() : '';
+                    if (advisoryText !== '') {
+                        aiOutput.innerHTML = `<p style="color: var(--base-700);">${sanitiseParagraph(advisoryText)}</p>`;
+                    } else {
+                        aiOutput.innerHTML = renderFallbackAdvisory(requiredSize, netCost, annualSavings, type);
                     }
-                }
-                return null;
-            }
+
+                    const points = Array.isArray(data?.financial?.points) ? data.financial.points : [];
+                    if (points.length) {
+                        let html = '<ul>';
+                        points.forEach((point) => {
+                            html += `<li>${sanitiseParagraph(point)}</li>`;
+                        });
+                        html += '</ul>';
+                        financeOutput.innerHTML = html;
+                    } else {
+                        financeOutput.innerHTML = renderFallbackFinancialSummary(requiredSize, grossCost, subsidy, netCost, annualSavings, type);
+                    }
+                })
+                .catch((error) => {
+                    console.error('Solar advisory error:', error);
+                    aiOutput.innerHTML = renderFallbackAdvisory(requiredSize, netCost, annualSavings, type);
+                    financeOutput.innerHTML = renderFallbackFinancialSummary(requiredSize, grossCost, subsidy, netCost, annualSavings, type);
+                })
+                .finally(() => {
+                    loading.style.display = 'none';
+                    resultsContainer.classList.remove('hidden');
+                });
         }
 
         function formatCurrencyINR(value) {
@@ -664,192 +629,41 @@
             return html;
         }
 
-        async function callAIGuidance(size, cost, savings, type) {
-            const prompt = `Act as Dakshayani Enterprises' lead solar advisor. Based on a customer's estimated requirement of a ${size.toFixed(1)} kWp ${type} solar system, which offers an estimated annual saving of ₹${savings.toLocaleString('en-IN', { maximumFractionDigits: 0 })} and a net investment of ₹${cost.toLocaleString('en-IN', { maximumFractionDigits: 0 })}, provide a concise, single-paragraph advisory. Focus on the core benefits (savings, PM Surya Ghar subsidy/finance, ROI) and the next necessary step (site survey).`;
-            const outputEl = document.getElementById('ai-advisory-output');
-
-            const payload = {
-                contents: buildUserContent(prompt),
-                systemInstruction: {
-                    role: 'system',
-                    parts: [{ text: "You are a friendly and professional solar expert based in Jharkhand, India. Use encouraging and clear language. Your output must be a single HTML paragraph without headings or lists." }]
-                }
-            };
-
-            try {
-                await ensureApiKeyLoaded();
-                const result = await handleFetchWithRetry(API_URL_TEXT, payload);
-                const text = extractCandidateText(result);
-                if (text) {
-                    const safeParagraph = sanitiseParagraph(text);
-                    outputEl.innerHTML = `<p style="color: var(--base-700);">${safeParagraph}</p>`;
-                } else {
-                    outputEl.innerHTML = renderFallbackAdvisory(size, cost, savings, type);
-                }
-            } catch (error) {
-                console.error('Viaan advisory error:', error);
-                const showConfigError = error?.message?.includes('API key');
-                if (showConfigError) {
-                    outputEl.innerHTML = `<p style="color: #EF4444; font-size: 0.875rem;">Viaan's advisory is unavailable because the configuration could not be loaded.</p>`;
-                } else {
-                    outputEl.innerHTML = renderFallbackAdvisory(size, cost, savings, type);
-                }
-            }
-        }
-
-        async function callAIFinancialSummary(size, grossCost, subsidy, netCost, annualSavings, type) {
-            const prompt = `Generate a financial summary for a ${size.toFixed(1)} kWp solar system (Type: ${type}). Key figures are: Gross Cost: ₹${grossCost}, Subsidy: ₹${subsidy}, Net Investment: ₹${netCost}, Annual Savings: ₹${annualSavings}. The summary should be a concise list of 4 bullet points, in either Hindi or English, detailing the investment, subsidy amount, annual savings, and total project type.`;
-            const outputEl = document.getElementById('financial-summary-output');
-
-            const payload = {
-                contents: buildUserContent(prompt),
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "OBJECT",
-                        properties: {
-                            language: { type: "STRING", enum: ["English", "Hindi"] },
-                            points: {
-                                type: "ARRAY",
-                                items: { type: "STRING" }
-                            }
-                        },
-                        propertyOrdering: ["language", "points"]
-                    }
-                }
-            };
-
-            try {
-                await ensureApiKeyLoaded();
-                const result = await handleFetchWithRetry(API_URL_TEXT, payload);
-                const jsonText = extractCandidateText(result);
-                const parsedJson = extractJsonPayload(jsonText);
-
-                if (!parsedJson || !Array.isArray(parsedJson.points)) {
-                    throw new Error('Invalid financial summary payload');
-                }
-
-                let html = `<ul>`;
-                parsedJson.points.forEach(point => {
-                    html += `<li>${sanitiseParagraph(point)}</li>`;
-                });
-                html += `</ul>`;
-
-                if (html.trim() === '<ul></ul>') {
-                    outputEl.innerHTML = renderFallbackFinancialSummary(size, grossCost, subsidy, netCost, annualSavings, type);
-                } else {
-                    outputEl.innerHTML = html;
-                }
-            } catch (error) {
-                const showConfigError = error?.message?.includes('API key');
-                if (showConfigError) {
-                    outputEl.innerHTML = `<p style="color: #EF4444; font-size: 0.875rem;">Financial snapshot is unavailable because Viaan's configuration could not be loaded.</p>`;
-                } else {
-                    outputEl.innerHTML = renderFallbackFinancialSummary(size, grossCost, subsidy, netCost, annualSavings, type);
-                }
-                console.error("Structured JSON Error:", error);
-            }
-        }
-        
-        function base64ToArrayBuffer(base64) {
-            const binaryString = atob(base64);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
-            }
-            return bytes.buffer;
-        }
-
-        function pcmToWav(pcm16, sampleRate = 24000) {
-            const numChannels = 1;
-            const bytesPerSample = 2;
-            const byteRate = sampleRate * numChannels * bytesPerSample;
-            const blockAlign = numChannels * bytesPerSample;
-
-            const buffer = new ArrayBuffer(44 + pcm16.byteLength);
-            const view = new DataView(buffer);
-
-            view.setUint32(0, 0x52494646, false);
-            view.setUint32(4, 36 + pcm16.byteLength, true);
-            view.setUint32(8, 0x57415645, false);
-            view.setUint32(12, 0x666d7420, false);
-            view.setUint32(16, 16, true);
-            view.setUint16(20, 1, true);
-            view.setUint16(22, numChannels, true);
-            view.setUint32(24, sampleRate, true);
-            view.setUint32(28, byteRate, true);
-            view.setUint16(32, blockAlign, true);
-            view.setUint16(34, 16, true);
-            view.setUint32(36, 0x64617461, false);
-            view.setUint32(40, pcm16.byteLength, true);
-
-            const dataView = new Uint8Array(buffer, 44);
-            dataView.set(new Uint8Array(pcm16.buffer));
-
-            return new Blob([view], { type: 'audio/wav' });
-        }
-        
-        async function callTTSUnitRate() {
+        function callTTSUnitRate() {
             const button = document.querySelector('.tts-button');
+            if (!button) {
+                return;
+            }
+
+            const explanation = "Average Unit Rate is calculated by dividing your total monthly bill amount by the total units of electricity consumed. This gives you the actual rupee cost per unit you pay, which is essential for accurate solar savings projections.";
+
+            if (!('speechSynthesis' in window)) {
+                showMessage('Audio unavailable', 'Your browser does not support speech playback.');
+                return;
+            }
+
             const originalHtml = button.innerHTML;
-            const player = document.getElementById('tts-audio-player');
-            
             button.disabled = true;
-            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Loading Audio...';
+            button.innerHTML = '<i class="fa-solid fa-volume-up"></i> Playing...';
 
-            const ttsText = "Average Unit Rate is calculated by dividing your total monthly bill amount by the total units of electricity consumed. This gives you the actual rupee cost per unit you pay, which is essential for accurate solar savings projections.";
+            const utterance = new SpeechSynthesisUtterance(explanation);
+            utterance.lang = 'en-IN';
+            utterance.rate = 1;
+            utterance.pitch = 1;
 
-            const payload = {
-                contents: buildUserContent(ttsText),
-                generationConfig: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: {
-                        voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } }
-                    }
-                },
-                model: GEMINI_TTS_MODEL
+            utterance.onend = () => {
+                button.disabled = false;
+                button.innerHTML = originalHtml;
             };
 
-            try {
-                await ensureApiKeyLoaded();
-                const result = await handleFetchWithRetry(API_URL_TTS, payload);
-                const part = result.candidates?.[0]?.content?.parts?.[0];
-                const audioData = part?.inlineData?.data;
-                const mimeType = part?.inlineData?.mimeType;
-
-                if (audioData && mimeType && mimeType.startsWith("audio/")) {
-                    const pcmData = base64ToArrayBuffer(audioData);
-                    const pcm16 = new Int16Array(pcmData);
-                    const sampleRate = 24000;
-                    
-                    const wavBlob = pcmToWav(pcm16, sampleRate);
-                    const audioUrl = URL.createObjectURL(wavBlob);
-                    
-                    player.src = audioUrl;
-                    player.play();
-                    
-                    button.innerHTML = '<i class="fa-solid fa-volume-up"></i> Playing...';
-                    
-                    player.onended = () => {
-                        button.innerHTML = originalHtml;
-                        button.disabled = false;
-                        URL.revokeObjectURL(audioUrl);
-                    };
-                } else {
-                    showMessage('Audio Error', 'Failed to decode audio data.');
-                    button.innerHTML = originalHtml;
-                    button.disabled = false;
-                }
-            } catch (error) {
-                console.error('TTS error:', error);
-                const message = error?.message?.includes('API key')
-                    ? "Unable to play audio because Viaan's configuration could not be loaded."
-                    : "Failed to connect to Viaan's voice service.";
-                showMessage(message);
-                button.innerHTML = originalHtml;
+            utterance.onerror = () => {
                 button.disabled = false;
-            }
+                button.innerHTML = originalHtml;
+                showMessage('Audio unavailable', 'Unable to start voice playback right now.');
+            };
+
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(utterance);
         }
 
         function calculateEMI() {

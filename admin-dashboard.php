@@ -275,6 +275,72 @@ function admin_prepare_recent_complaints(array $tickets, int $limit = 8): array
     return array_slice($prepared, 0, $limit);
 }
 
+function admin_analyse_tickets(array $tickets): array
+{
+    $statusCounts = [];
+    $priorityCounts = [];
+    $channelCounts = [];
+    $latestUpdate = null;
+    $openStatuses = ['open', 'pending', 'new', 'in-progress'];
+    $highPriorityLabels = ['high', 'urgent'];
+    $openCount = 0;
+    $highPriority = 0;
+
+    foreach ($tickets as $ticket) {
+        if (!is_array($ticket)) {
+            continue;
+        }
+
+        $status = strtolower(trim((string) ($ticket['status'] ?? 'open')));
+        if ($status === '') {
+            $status = 'open';
+        }
+        $statusCounts[$status] = ($statusCounts[$status] ?? 0) + 1;
+        if (in_array($status, $openStatuses, true)) {
+            $openCount++;
+        }
+
+        $priority = strtolower(trim((string) ($ticket['priority'] ?? 'medium')));
+        if ($priority === '') {
+            $priority = 'medium';
+        }
+        $priorityCounts[$priority] = ($priorityCounts[$priority] ?? 0) + 1;
+        if (in_array($priority, $highPriorityLabels, true)) {
+            $highPriority++;
+        }
+
+        $channel = strtolower(trim((string) ($ticket['channel'] ?? 'web')));
+        if ($channel === '') {
+            $channel = 'web';
+        }
+        $channelCounts[$channel] = ($channelCounts[$channel] ?? 0) + 1;
+
+        $updatedAt = $ticket['updatedAt'] ?? $ticket['updated_at'] ?? $ticket['createdAt'] ?? $ticket['created_at'] ?? null;
+        if (is_string($updatedAt) && $updatedAt !== '') {
+            if ($latestUpdate === null || strcmp($updatedAt, $latestUpdate) > 0) {
+                $latestUpdate = $updatedAt;
+            }
+        }
+    }
+
+    ksort($statusCounts);
+    ksort($priorityCounts);
+    ksort($channelCounts);
+
+    $total = count($tickets);
+
+    return [
+        'total' => $total,
+        'open' => $openCount,
+        'closed' => max($total - $openCount, 0),
+        'highPriority' => $highPriority,
+        'statusCounts' => $statusCounts,
+        'priorityCounts' => $priorityCounts,
+        'channelCounts' => $channelCounts,
+        'latestUpdate' => $latestUpdate,
+    ];
+}
+
 if (empty($_SESSION['csrf_token'])) {
     try {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -292,6 +358,7 @@ $viewLabels = [
     'approvals' => 'Employee approvals',
     'projects' => 'Projects',
     'tasks' => 'Tasks',
+    'complaints' => 'Complaint tracking',
     'content' => 'Content manager',
     'settings' => 'Site settings',
     'activity' => 'Activity log',
@@ -2567,6 +2634,9 @@ foreach ($tickets as $ticket) {
     }
 }
 
+$ticketInsights = admin_analyse_tickets($tickets);
+$allComplaintRows = admin_prepare_recent_complaints($tickets, count($tickets));
+
 $projectsByTarget = $projects;
 usort($projectsByTarget, static function (array $a, array $b): int {
     $aDate = $a['target_date'] ?? '';
@@ -3537,6 +3607,135 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
                 <small><?= htmlspecialchars($log['actor']); ?> · <?= htmlspecialchars(date('j M Y, g:i A', strtotime($log['timestamp']))); ?></small>
               </div>
             <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+      </section>
+    <?php elseif ($currentView === 'complaints'): ?>
+      <?php $latestComplaintTimestamp = $ticketInsights['latestUpdate'] ?? null; ?>
+      <?php $latestComplaintFormatted = $latestComplaintTimestamp ? date('j M Y, g:i A', strtotime($latestComplaintTimestamp)) : '—'; ?>
+      <section class="panel">
+        <h2>Service complaint metrics</h2>
+        <p class="lead">All complaints logged via the customer contact form and portal API are tracked here.</p>
+        <div class="metric-grid">
+          <article class="metric-card">
+            <p class="metric-label">Total complaints</p>
+            <p class="metric-value"><?= htmlspecialchars((string) ($ticketInsights['total'] ?? 0)); ?></p>
+            <p class="metric-helper">Stored in the ticket registry</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Open complaints</p>
+            <p class="metric-value"><?= htmlspecialchars((string) ($ticketInsights['open'] ?? 0)); ?></p>
+            <p class="metric-helper">Awaiting closure or follow-up</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">High-priority</p>
+            <p class="metric-value"><?= htmlspecialchars((string) ($ticketInsights['highPriority'] ?? 0)); ?></p>
+            <p class="metric-helper">Inverter, battery, or net-metering issues</p>
+          </article>
+          <article class="metric-card">
+            <p class="metric-label">Last update</p>
+            <p class="metric-value"><?= htmlspecialchars($latestComplaintFormatted); ?></p>
+            <p class="metric-helper">Most recent ticket activity</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Complaint breakdown</h2>
+        <div class="summary-grid">
+          <article class="summary-card">
+            <h3>Status distribution</h3>
+            <?php if (empty($ticketInsights['statusCounts'])): ?>
+              <p class="form-helper">No complaints have been logged yet.</p>
+            <?php else: ?>
+              <ul class="summary-list">
+                <?php foreach ($ticketInsights['statusCounts'] as $statusKey => $count): ?>
+                  <li><?= htmlspecialchars(ucfirst(str_replace('-', ' ', $statusKey))); ?>: <strong><?= htmlspecialchars((string) $count); ?></strong></li>
+                <?php endforeach; ?>
+              </ul>
+            <?php endif; ?>
+          </article>
+          <article class="summary-card">
+            <h3>Priority mix</h3>
+            <?php if (empty($ticketInsights['priorityCounts'])): ?>
+              <p class="form-helper">No priority data available yet.</p>
+            <?php else: ?>
+              <ul class="summary-list">
+                <?php foreach ($ticketInsights['priorityCounts'] as $priorityKey => $count): ?>
+                  <li><?= htmlspecialchars(ucfirst($priorityKey)); ?>: <strong><?= htmlspecialchars((string) $count); ?></strong></li>
+                <?php endforeach; ?>
+              </ul>
+            <?php endif; ?>
+          </article>
+          <article class="summary-card">
+            <h3>Channels</h3>
+            <?php if (empty($ticketInsights['channelCounts'])): ?>
+              <p class="form-helper">Complaints will appear here once logged.</p>
+            <?php else: ?>
+              <ul class="summary-list">
+                <?php foreach ($ticketInsights['channelCounts'] as $channelKey => $count): ?>
+                  <li><?= htmlspecialchars(ucfirst($channelKey)); ?>: <strong><?= htmlspecialchars((string) $count); ?></strong></li>
+                <?php endforeach; ?>
+              </ul>
+            <?php endif; ?>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>All service complaints</h2>
+        <p class="lead">Download or review every ticket captured through the website complaint form.</p>
+        <?php if (empty($allComplaintRows)): ?>
+          <p>No complaints have been logged yet.</p>
+        <?php else: ?>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ticket</th>
+                  <th>Customer</th>
+                  <th>Issues</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Logged</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($allComplaintRows as $complaint): ?>
+                  <?php $issuesText = !empty($complaint['issueLabels']) ? implode(', ', $complaint['issueLabels']) : ''; ?>
+                  <tr>
+                    <td>
+                      <strong><?= htmlspecialchars($complaint['id'] ?: '—'); ?></strong>
+                      <?php if (!empty($complaint['subject'])): ?>
+                        <div class="form-helper"><?= htmlspecialchars($complaint['subject']); ?></div>
+                      <?php endif; ?>
+                    </td>
+                    <td>
+                      <strong><?= htmlspecialchars($complaint['requesterName']); ?></strong>
+                      <?php if (($complaint['requesterPhone'] ?? '') !== ''): ?>
+                        <div class="form-helper">+91 <?= htmlspecialchars($complaint['requesterPhone']); ?></div>
+                      <?php endif; ?>
+                      <?php if (($complaint['siteAddress'] ?? '') !== ''): ?>
+                        <div class="form-helper"><?= htmlspecialchars($complaint['siteAddress']); ?></div>
+                      <?php endif; ?>
+                    </td>
+                    <td>
+                      <?php if ($issuesText !== ''): ?>
+                        <?= htmlspecialchars($issuesText); ?>
+                      <?php else: ?>
+                        <span class="form-helper">—</span>
+                      <?php endif; ?>
+                    </td>
+                    <td><span class="status-chip" data-status="<?= htmlspecialchars(strtolower($complaint['priority'])); ?>"><?= htmlspecialchars($complaint['priority']); ?></span></td>
+                    <td><span class="status-chip" data-status="<?= htmlspecialchars(strtolower($complaint['status'])); ?>"><?= htmlspecialchars($complaint['status']); ?></span></td>
+                    <td>
+                      <?= htmlspecialchars($complaint['channel']); ?><br />
+                      <span class="form-helper"><?= htmlspecialchars($complaint['createdAtFormatted']); ?></span>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
           </div>
         <?php endif; ?>
       </section>

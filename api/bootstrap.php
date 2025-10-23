@@ -7,6 +7,7 @@ require_once __DIR__ . '/../portal-state.php';
 const API_DATA_DIR = __DIR__ . '/../server/data';
 const API_USERS_KEY = 'users';
 const API_TICKETS_FILE = API_DATA_DIR . '/tickets.json';
+const API_CUSTOMERS_FILE = API_DATA_DIR . '/customers.json';
 const API_SEARCH_INDEX_FILE = API_DATA_DIR . '/search-index.json';
 const API_KNOWLEDGE_FILE = API_DATA_DIR . '/knowledge-articles.json';
 const API_TESTIMONIALS_FILE = API_DATA_DIR . '/testimonials.json';
@@ -540,6 +541,144 @@ function api_write_tickets(array $tickets): void
     api_write_json_file(API_TICKETS_FILE, array_values($tickets));
 }
 
+function api_read_customer_records(): array
+{
+    $records = api_read_json_file(API_CUSTOMERS_FILE, []);
+    if (!is_array($records)) {
+        return [];
+    }
+
+    return array_values(array_filter($records, static fn($record) => is_array($record)));
+}
+
+function api_write_customer_records(array $records): void
+{
+    $filtered = array_values(array_filter($records, static fn($record) => is_array($record)));
+    api_write_json_file(API_CUSTOMERS_FILE, $filtered);
+}
+
+function api_upsert_customer_record(array $input): array
+{
+    $normalizedPhone = api_normalise_phone($input['phone'] ?? $input['mobile'] ?? '');
+    if ($normalizedPhone === '') {
+        return api_read_customer_records();
+    }
+
+    $records = api_read_customer_records();
+    $now = date('c');
+
+    $prepared = [
+        'phone' => $normalizedPhone,
+        'rawPhone' => api_trim_string((string) ($input['rawPhone'] ?? $input['phoneRaw'] ?? $input['phone'] ?? '')),
+        'name' => api_trim_string($input['name'] ?? $input['customer_name'] ?? ''),
+        'email' => api_normalise_email($input['email'] ?? $input['customer_email'] ?? ''),
+        'siteAddress' => api_trim_string($input['siteAddress'] ?? $input['site_address'] ?? ''),
+        'systemSize' => api_trim_string($input['systemSize'] ?? $input['system_size'] ?? ''),
+        'installType' => strtolower(api_trim_string($input['installType'] ?? $input['install_type'] ?? '')),
+        'preferredContact' => api_trim_string($input['preferredContact'] ?? $input['preferred_contact'] ?? ''),
+        'applicationNumber' => api_trim_string($input['applicationNumber'] ?? $input['application_number'] ?? ''),
+        'schemeType' => strtolower(api_trim_string($input['schemeType'] ?? $input['scheme_type'] ?? '')),
+        'schemeLabel' => api_trim_string($input['schemeLabel'] ?? $input['scheme_label'] ?? ''),
+        'systemConfiguration' => api_trim_string($input['systemConfiguration'] ?? $input['system_configuration'] ?? ''),
+        'systemConfigurationLabel' => api_trim_string($input['systemConfigurationLabel'] ?? $input['system_configuration_label'] ?? ''),
+        'systemConfigurationRaw' => api_trim_string($input['systemConfigurationRaw'] ?? $input['system_configuration_raw'] ?? ''),
+        'notes' => api_trim_string($input['notes'] ?? $input['description'] ?? ''),
+        'issues' => array_values(array_filter(array_map(static fn($issue) => api_trim_string((string) $issue), $input['issues'] ?? []), static fn($value) => $value !== '')),
+        'lastTicketId' => api_trim_string($input['lastTicketId'] ?? $input['ticketId'] ?? $input['id'] ?? ''),
+        'segment' => api_trim_string($input['segment'] ?? ''),
+        'segmentLabel' => api_trim_string($input['segmentLabel'] ?? ''),
+        'reference' => api_trim_string($input['reference'] ?? ''),
+        'lastUpdated' => $now,
+    ];
+
+    if ($prepared['installType'] === '') {
+        $prepared['installType'] = $prepared['schemeType'] === 'pmsgby' ? 'pmsgby' : 'private';
+    }
+
+    if ($prepared['schemeType'] === '') {
+        $prepared['schemeType'] = $prepared['installType'] === 'pmsgby' ? 'pmsgby' : 'other';
+    }
+
+    if ($prepared['schemeLabel'] === '') {
+        $prepared['schemeLabel'] = $prepared['schemeType'] === 'pmsgby'
+            ? 'PM Surya Ghar Muft Bijli Yojana'
+            : 'Other installation';
+    }
+
+    if ($prepared['name'] === '') {
+        $prepared['name'] = 'Existing customer';
+    }
+
+    $normalizedConfiguration = api_normalise_system_configuration($prepared['systemConfiguration']);
+    if ($normalizedConfiguration !== '') {
+        $prepared['systemConfiguration'] = $normalizedConfiguration;
+    }
+
+    if ($prepared['systemConfigurationLabel'] === '' && $prepared['systemConfiguration'] !== '') {
+        $prepared['systemConfigurationLabel'] = api_system_configuration_label($prepared['systemConfiguration']);
+    }
+
+    if ($prepared['segment'] === '') {
+        $prepared['segment'] = 'service';
+    }
+
+    if ($prepared['segmentLabel'] === '') {
+        $prepared['segmentLabel'] = 'Customer service desk';
+    }
+
+    if ($prepared['reference'] === '') {
+        if ($prepared['applicationNumber'] !== '') {
+            $prepared['reference'] = $prepared['applicationNumber'];
+        } elseif ($prepared['lastTicketId'] !== '') {
+            $prepared['reference'] = $prepared['lastTicketId'];
+        }
+    }
+
+    $updated = false;
+    foreach ($records as $index => $record) {
+        if (!is_array($record)) {
+            continue;
+        }
+
+        if (api_normalise_phone($record['phone'] ?? '') !== $normalizedPhone) {
+            continue;
+        }
+
+        $existing = $record;
+        foreach ($prepared as $key => $value) {
+            if ($key === 'issues') {
+                $currentIssues = isset($existing['issues']) && is_array($existing['issues'])
+                    ? $existing['issues']
+                    : [];
+                $mergedIssues = array_unique(array_merge($currentIssues, $value));
+                if ($mergedIssues !== []) {
+                    $existing['issues'] = array_values($mergedIssues);
+                }
+                continue;
+            }
+
+            if ($value === '' || $value === null) {
+                continue;
+            }
+
+            $existing[$key] = $value;
+        }
+
+        $existing['lastUpdated'] = $now;
+        $records[$index] = $existing;
+        $updated = true;
+        break;
+    }
+
+    if (!$updated) {
+        $records[] = $prepared;
+    }
+
+    api_write_customer_records($records);
+
+    return $records;
+}
+
 function api_lookup_customer_by_phone(string $phone): array
 {
     $normalized = api_normalise_phone($phone);
@@ -797,6 +936,62 @@ function api_lookup_customer_by_phone(string $phone): array
             ];
         }
     }
+
+    foreach (api_read_customer_records() as $record) {
+        if (!is_array($record)) {
+            continue;
+        }
+
+        if (api_normalise_phone($record['phone'] ?? '') !== $normalized) {
+            continue;
+        }
+
+        $recordConfiguration = api_normalise_system_configuration($record['systemConfiguration'] ?? '');
+        if ($recordConfiguration === '' && isset($record['systemConfigurationRaw'])) {
+            $recordConfiguration = api_normalise_system_configuration($record['systemConfigurationRaw']);
+        }
+
+        $matches[] = [
+            'entryId' => $record['id'] ?? '',
+            'segment' => $record['segment'] ?? 'service',
+            'segmentLabel' => $record['segmentLabel'] ?? 'Customer service desk',
+            'name' => $record['name'] ?? 'Existing customer',
+            'email' => $record['email'] ?? '',
+            'phone' => $normalized,
+            'rawPhone' => $record['rawPhone'] ?? ($record['phone'] ?? ''),
+            'siteAddress' => $record['siteAddress'] ?? '',
+            'systemSize' => $record['systemSize'] ?? '',
+            'applicationNumber' => $record['applicationNumber'] ?? '',
+            'installType' => $record['installType'] ?? 'private',
+            'preferredContact' => $record['preferredContact'] ?? '',
+            'reference' => $record['reference'] ?? ($record['applicationNumber'] ?? ($record['lastTicketId'] ?? '')),
+            'updatedAt' => $record['lastUpdated'] ?? ($record['updatedAt'] ?? null),
+            'notes' => $record['notes'] ?? '',
+            'schemeType' => $record['schemeType'] ?? (($record['installType'] ?? '') === 'pmsgby' ? 'pmsgby' : 'other'),
+            'schemeLabel' => $record['schemeLabel'] ?? ((($record['installType'] ?? '') === 'pmsgby') ? 'PM Surya Ghar Muft Bijli Yojana' : 'Other installation'),
+            'systemConfiguration' => $recordConfiguration,
+            'systemConfigurationLabel' => $record['systemConfigurationLabel'] ?? ($recordConfiguration !== '' ? api_system_configuration_label($recordConfiguration) : ''),
+            'systemConfigurationRaw' => $record['systemConfigurationRaw'] ?? ($record['systemConfiguration'] ?? ''),
+        ];
+    }
+
+    $uniqueMatches = [];
+    $seenKeys = [];
+    foreach ($matches as $match) {
+        $referenceKey = $match['reference'] ?? '';
+        $dedupeKey = $referenceKey !== ''
+            ? $match['phone'] . '|' . $referenceKey
+            : $match['phone'];
+
+        if (isset($seenKeys[$dedupeKey])) {
+            continue;
+        }
+
+        $seenKeys[$dedupeKey] = true;
+        $uniqueMatches[] = $match;
+    }
+
+    $matches = $uniqueMatches;
 
     usort($matches, static function (array $a, array $b): int {
         return strcmp($b['updatedAt'] ?? '', $a['updatedAt'] ?? '');
