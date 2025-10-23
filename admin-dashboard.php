@@ -229,6 +229,7 @@ $viewLabels = [
     'overview' => 'Overview',
     'accounts' => 'Accounts',
     'customers' => 'Customers',
+    'approvals' => 'Employee approvals',
     'projects' => 'Projects',
     'tasks' => 'Tasks',
     'content' => 'Content manager',
@@ -1926,6 +1927,238 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             redirect_with_flash('customers');
 
+        case 'approve_employee_request':
+            $requestId = trim($_POST['request_id'] ?? '');
+            $decisionNotes = trim($_POST['decision_notes'] ?? '');
+
+            $pendingRequests = &$state['employee_approvals']['pending'];
+            $requestIndex = null;
+            foreach ($pendingRequests as $index => $pendingRequest) {
+                if (($pendingRequest['id'] ?? '') === $requestId) {
+                    $requestIndex = $index;
+                    break;
+                }
+            }
+
+            if ($requestIndex === null) {
+                flash('error', 'Approval request not found.');
+                redirect_with_flash('approvals');
+            }
+
+            $requestData = $pendingRequests[$requestIndex];
+            $requestType = $requestData['type'] ?? 'general';
+            $payload = is_array($requestData['payload'] ?? null) ? $requestData['payload'] : [];
+            $activityMessage = "Approved employee request {$requestId}.";
+
+            switch ($requestType) {
+                case 'customer_add':
+                    $segmentSlug = $payload['segment'] ?? '';
+                    if (!isset($state['customer_registry']['segments'][$segmentSlug])) {
+                        flash('error', 'Customer segment no longer exists.');
+                        redirect_with_flash('approvals');
+                    }
+
+                    $segment = &$state['customer_registry']['segments'][$segmentSlug];
+                    $columns = $segment['columns'] ?? [];
+                    $fieldsInput = is_array($payload['fields'] ?? null) ? $payload['fields'] : [];
+                    $normalized = [];
+                    $hasValue = false;
+                    foreach ($columns as $column) {
+                        if (!is_array($column) || !isset($column['key'])) {
+                            continue;
+                        }
+                        $key = $column['key'];
+                        $value = trim((string) ($fieldsInput[$key] ?? ''));
+                        $normalized[$key] = $value;
+                        if ($value !== '') {
+                            $hasValue = true;
+                        }
+                    }
+
+                    $notes = trim((string) ($payload['notes'] ?? ''));
+                    $reminderOn = trim((string) ($payload['reminder_on'] ?? ''));
+
+                    if (!$hasValue && $notes === '') {
+                        flash('error', 'Cannot add an empty customer record.');
+                        redirect_with_flash('approvals');
+                    }
+
+                    $segment['entries'][] = [
+                        'id' => portal_generate_id('cust_'),
+                        'fields' => $normalized,
+                        'notes' => $notes,
+                        'reminder_on' => $reminderOn,
+                        'created_at' => date('c'),
+                        'updated_at' => date('c'),
+                    ];
+
+                    $activityMessage = sprintf('Approved employee addition to %s (%s).', $segment['label'] ?? ucfirst($segmentSlug), $requestId);
+                    break;
+
+                case 'customer_update':
+                    $segmentSlug = $payload['segment'] ?? '';
+                    $entryId = $payload['entry_id'] ?? '';
+                    $targetSegment = $payload['target_segment'] ?? $segmentSlug;
+
+                    if (!isset($state['customer_registry']['segments'][$segmentSlug], $state['customer_registry']['segments'][$targetSegment])) {
+                        flash('error', 'Customer segment referenced in the request is unavailable.');
+                        redirect_with_flash('approvals');
+                    }
+
+                    $originSegment = &$state['customer_registry']['segments'][$segmentSlug];
+                    $targetSegmentRef = &$state['customer_registry']['segments'][$targetSegment];
+                    $fieldsInput = is_array($payload['fields'] ?? null) ? $payload['fields'] : [];
+                    $notes = trim((string) ($payload['notes'] ?? ''));
+                    $reminderOn = trim((string) ($payload['reminder_on'] ?? ''));
+                    $updated = false;
+
+                    if ($targetSegment === $segmentSlug) {
+                        $columns = $originSegment['columns'] ?? [];
+                        foreach ($originSegment['entries'] as &$entry) {
+                            if (($entry['id'] ?? '') === $entryId) {
+                                $normalized = [];
+                                foreach ($columns as $column) {
+                                    if (!is_array($column) || !isset($column['key'])) {
+                                        continue;
+                                    }
+                                    $key = $column['key'];
+                                    $normalized[$key] = trim((string) ($fieldsInput[$key] ?? ''));
+                                }
+                                $entry['fields'] = $normalized;
+                                $entry['notes'] = $notes;
+                                $entry['reminder_on'] = $reminderOn;
+                                $entry['updated_at'] = date('c');
+                                $updated = true;
+                                break;
+                            }
+                        }
+                        unset($entry);
+                    } else {
+                        $columnsTarget = $targetSegmentRef['columns'] ?? [];
+                        $movedEntry = null;
+                        foreach ($originSegment['entries'] as $idx => $entry) {
+                            if (($entry['id'] ?? '') === $entryId) {
+                                $movedEntry = $entry;
+                                array_splice($originSegment['entries'], $idx, 1);
+                                break;
+                            }
+                        }
+
+                        if ($movedEntry !== null) {
+                            $normalized = [];
+                            foreach ($columnsTarget as $column) {
+                                if (!is_array($column) || !isset($column['key'])) {
+                                    continue;
+                                }
+                                $key = $column['key'];
+                                $normalized[$key] = trim((string) ($fieldsInput[$key] ?? ''));
+                            }
+
+                            $targetSegmentRef['entries'][] = [
+                                'id' => $movedEntry['id'] ?? portal_generate_id('cust_'),
+                                'fields' => $normalized,
+                                'notes' => $notes,
+                                'reminder_on' => $reminderOn,
+                                'created_at' => $movedEntry['created_at'] ?? date('c'),
+                                'updated_at' => date('c'),
+                            ];
+                            $updated = true;
+                        }
+                    }
+
+                    if (!$updated) {
+                        flash('error', 'Unable to update the requested customer record.');
+                        redirect_with_flash('approvals');
+                    }
+
+                    $activityMessage = sprintf('Approved employee update for %s (%s).', $requestData['title'] ?? 'customer record', $requestId);
+                    break;
+
+                case 'design_change':
+                    $seasonLabel = trim((string) ($payload['season_label'] ?? ''));
+                    if ($seasonLabel === '') {
+                        flash('error', 'Theme headline is required to approve this change.');
+                        redirect_with_flash('approvals');
+                    }
+
+                    $accentColor = portal_sanitize_hex_color($payload['accent_color'] ?? ($state['site_theme']['accent_color'] ?? '#2563EB'), $state['site_theme']['accent_color'] ?? '#2563EB');
+                    $announcement = trim((string) ($payload['announcement'] ?? ''));
+                    $backgroundImage = trim((string) ($payload['background_image'] ?? ''));
+
+                    $state['site_theme']['season_label'] = $seasonLabel;
+                    $state['site_theme']['accent_color'] = $accentColor;
+                    $state['site_theme']['announcement'] = $announcement;
+                    if ($backgroundImage !== '') {
+                        $state['site_theme']['background_image'] = $backgroundImage;
+                    }
+
+                    $activityMessage = sprintf('Approved employee theme update (%s).', $requestId);
+                    break;
+
+                default:
+                    // General requests are logged without system changes.
+                    $activityMessage = sprintf('Marked employee request %s as approved.', $requestId);
+                    break;
+            }
+
+            array_splice($pendingRequests, $requestIndex, 1);
+            $requestData['status'] = 'Approved';
+            $requestData['resolved_at'] = date('c');
+            $requestData['last_update'] = sprintf('Approved on %s by %s', date('j M Y, g:i A'), $actorName);
+            $requestData['outcome'] = $decisionNotes !== ''
+                ? 'Approved — ' . $decisionNotes
+                : sprintf('Approved by %s', $actorName);
+
+            portal_archive_employee_request($state, $requestData);
+            portal_record_activity($state, $activityMessage, $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Request approved successfully.');
+            } else {
+                flash('error', 'Changes were applied but the approval log could not be saved.');
+            }
+
+            redirect_with_flash('approvals');
+
+        case 'reject_employee_request':
+            $requestId = trim($_POST['request_id'] ?? '');
+            $decisionNotes = trim($_POST['decision_notes'] ?? '');
+
+            $pendingRequests = &$state['employee_approvals']['pending'];
+            $requestIndex = null;
+            foreach ($pendingRequests as $index => $pendingRequest) {
+                if (($pendingRequest['id'] ?? '') === $requestId) {
+                    $requestIndex = $index;
+                    break;
+                }
+            }
+
+            if ($requestIndex === null) {
+                flash('error', 'Approval request not found.');
+                redirect_with_flash('approvals');
+            }
+
+            $requestData = $pendingRequests[$requestIndex];
+            array_splice($pendingRequests, $requestIndex, 1);
+
+            $requestData['status'] = 'Declined';
+            $requestData['resolved_at'] = date('c');
+            $requestData['last_update'] = sprintf('Declined on %s by %s', date('j M Y, g:i A'), $actorName);
+            $requestData['outcome'] = $decisionNotes !== ''
+                ? 'Declined — ' . $decisionNotes
+                : sprintf('Declined by %s', $actorName);
+
+            portal_archive_employee_request($state, $requestData);
+            portal_record_activity($state, sprintf('Declined employee request %s.', $requestId), $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Request marked as declined.');
+            } else {
+                flash('error', 'Unable to record the decision.');
+            }
+
+            redirect_with_flash('approvals');
+
         default:
             flash('error', 'Unknown action requested.');
             redirect_with_flash($redirectView);
@@ -2008,6 +2241,34 @@ foreach ($customerRegistry['segments'] as $slug => $segment) {
         'label' => $segment['label'] ?? ucfirst(str_replace('-', ' ', $slug)),
         'count' => count($segment['entries'] ?? []),
     ];
+}
+
+$employeeApprovalsState = $state['employee_approvals'] ?? ['pending' => [], 'history' => []];
+$pendingEmployeeRequests = array_values($employeeApprovalsState['pending'] ?? []);
+$employeeApprovalHistory = array_values($employeeApprovalsState['history'] ?? []);
+
+usort($pendingEmployeeRequests, static function (array $a, array $b): int {
+    return strcmp($b['submitted_at'] ?? '', $a['submitted_at'] ?? '');
+});
+
+usort($employeeApprovalHistory, static function (array $a, array $b): int {
+    return strcmp($b['resolved_at'] ?? $b['resolved'] ?? '', $a['resolved_at'] ?? $a['resolved'] ?? '');
+});
+
+$employeeApprovalStats = [
+    'pending' => count($pendingEmployeeRequests),
+    'approved' => 0,
+    'declined' => 0,
+];
+
+foreach ($employeeApprovalHistory as $historyEntry) {
+    $status = strtolower((string) ($historyEntry['status'] ?? ''));
+    if (strpos($status, 'approve') !== false || strpos($status, 'complete') !== false) {
+        $employeeApprovalStats['approved']++;
+    }
+    if (strpos($status, 'decline') !== false || strpos($status, 'reject') !== false) {
+        $employeeApprovalStats['declined']++;
+    }
 }
 
 $roleLabels = [
@@ -3331,6 +3592,176 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
           </div>
         </section>
       <?php endforeach; ?>
+
+    <?php elseif ($currentView === 'approvals'): ?>
+      <section class="panel">
+        <h2>Employee approvals</h2>
+        <p class="lead">Review customer lifecycle updates and design changes submitted by team members. Approvals apply live updates, while declines keep the current state unchanged.</p>
+        <div class="metric-grid">
+          <div class="metric-card">
+            <p class="metric-label">Pending</p>
+            <p class="metric-value"><?= htmlspecialchars((string) ($employeeApprovalStats['pending'] ?? 0)); ?></p>
+            <p class="metric-helper">Awaiting admin action</p>
+          </div>
+          <div class="metric-card">
+            <p class="metric-label">Approved</p>
+            <p class="metric-value"><?= htmlspecialchars((string) ($employeeApprovalStats['approved'] ?? 0)); ?></p>
+            <p class="metric-helper">Completed decisions</p>
+          </div>
+          <div class="metric-card">
+            <p class="metric-label">Declined</p>
+            <p class="metric-value"><?= htmlspecialchars((string) ($employeeApprovalStats['declined'] ?? 0)); ?></p>
+            <p class="metric-helper">Requests turned down</p>
+          </div>
+        </div>
+      </section>
+
+      <?php if (empty($pendingEmployeeRequests)): ?>
+        <section class="panel">
+          <h3>No pending requests</h3>
+          <p class="lead">Employees have no submissions waiting for approval right now.</p>
+        </section>
+      <?php else: ?>
+        <?php foreach ($pendingEmployeeRequests as $request): ?>
+          <?php
+            $requestId = $request['id'] ?? '';
+            $requestTitle = $request['title'] ?? 'Employee request';
+            $submittedAt = $request['submitted_at'] ?? $request['submitted'] ?? '';
+            $submittedBy = $request['submitted_by'] ?? 'Employee';
+            $owner = $request['owner'] ?? 'Admin team';
+            $details = $request['details'] ?? '';
+            $effectiveDate = $request['effective_date'] ?? '';
+            $requestType = $request['type'] ?? 'general';
+            $payload = is_array($request['payload'] ?? null) ? $request['payload'] : [];
+            $segmentLabel = $request['segment_label'] ?? '';
+            $submittedDisplay = $submittedAt && strtotime($submittedAt) ? date('j M Y, g:i A', strtotime($submittedAt)) : '—';
+            $typeLabels = [
+              'customer_add' => 'Customer addition',
+              'customer_update' => 'Customer update',
+              'design_change' => 'Design change',
+              'general' => 'General request',
+            ];
+            $typeLabel = $typeLabels[$requestType] ?? ucfirst(str_replace('_', ' ', $requestType));
+          ?>
+          <section class="panel" id="approval-<?= htmlspecialchars($requestId); ?>">
+            <h3><?= htmlspecialchars($requestTitle); ?></h3>
+            <p class="lead">ID <?= htmlspecialchars($requestId); ?> · Submitted <?= htmlspecialchars($submittedDisplay); ?> · From <?= htmlspecialchars($submittedBy); ?> · Routed to <?= htmlspecialchars($owner); ?></p>
+            <ul class="pill-list">
+              <li><?= htmlspecialchars($typeLabel); ?></li>
+              <?php if ($segmentLabel !== ''): ?>
+                <li><?= htmlspecialchars($segmentLabel); ?></li>
+              <?php endif; ?>
+            </ul>
+            <?php if ($details !== ''): ?>
+              <p><?= htmlspecialchars($details); ?></p>
+            <?php endif; ?>
+            <?php if ($effectiveDate !== ''): ?>
+              <p class="form-helper">Requested effective date: <?= htmlspecialchars($effectiveDate); ?></p>
+            <?php endif; ?>
+            <?php if (!empty($payload['fields']) && is_array($payload['fields'])): ?>
+              <div class="table-wrapper" style="margin-top: 0.75rem;">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Field</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($payload['fields'] as $fieldKey => $fieldValue): ?>
+                      <tr>
+                        <td><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string) $fieldKey))); ?></td>
+                        <td><?= htmlspecialchars((string) $fieldValue); ?></td>
+                      </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php endif; ?>
+            <?php if (!empty($payload['notes']) || !empty($payload['reminder_on'])): ?>
+              <p class="form-helper">
+                <?php if (!empty($payload['notes'])): ?>Notes: <?= htmlspecialchars($payload['notes']); ?><?php endif; ?>
+                <?php if (!empty($payload['reminder_on'])): ?><?= !empty($payload['notes']) ? ' · ' : '' ?>Reminder: <?= htmlspecialchars($payload['reminder_on']); ?><?php endif; ?>
+              </p>
+            <?php endif; ?>
+            <?php if ($requestType === 'customer_update' && isset($payload['target_segment']) && isset($payload['segment'])): ?>
+              <?php if ($payload['target_segment'] !== $payload['segment']): ?>
+                <p class="form-helper">Requested move: <?= htmlspecialchars((string) $payload['segment']); ?> → <?= htmlspecialchars((string) $payload['target_segment']); ?></p>
+              <?php endif; ?>
+            <?php endif; ?>
+            <div class="workspace-grid">
+              <form method="post" autocomplete="off">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                <input type="hidden" name="action" value="approve_employee_request" />
+                <input type="hidden" name="redirect_view" value="approvals" />
+                <input type="hidden" name="request_id" value="<?= htmlspecialchars($requestId); ?>" />
+                <div class="form-group">
+                  <label for="approve-notes-<?= htmlspecialchars($requestId); ?>">Decision notes (optional)</label>
+                  <textarea id="approve-notes-<?= htmlspecialchars($requestId); ?>" name="decision_notes" rows="2" placeholder="Add audit notes for this approval"></textarea>
+                </div>
+                <div class="form-actions">
+                  <button class="btn-primary" type="submit">Approve &amp; apply</button>
+                </div>
+              </form>
+              <form method="post" autocomplete="off" onsubmit="return confirm('Decline this request?');">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                <input type="hidden" name="action" value="reject_employee_request" />
+                <input type="hidden" name="redirect_view" value="approvals" />
+                <input type="hidden" name="request_id" value="<?= htmlspecialchars($requestId); ?>" />
+                <div class="form-group">
+                  <label for="reject-notes-<?= htmlspecialchars($requestId); ?>">Reason for decline</label>
+                  <textarea id="reject-notes-<?= htmlspecialchars($requestId); ?>" name="decision_notes" rows="2" placeholder="Explain why this change is being declined"></textarea>
+                </div>
+                <div class="form-actions">
+                  <button class="btn-destructive" type="submit">Decline request</button>
+                </div>
+              </form>
+            </div>
+          </section>
+        <?php endforeach; ?>
+      <?php endif; ?>
+
+      <section class="panel">
+        <h2>Decision history</h2>
+        <?php if (empty($employeeApprovalHistory)): ?>
+          <p>No approval history recorded yet.</p>
+        <?php else: ?>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Request</th>
+                  <th>Status</th>
+                  <th>Resolved on</th>
+                  <th>Outcome</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($employeeApprovalHistory as $historyEntry): ?>
+                  <?php
+                    $historyId = $historyEntry['id'] ?? '';
+                    $historyTitle = $historyEntry['title'] ?? 'Request';
+                    $historyStatus = $historyEntry['status'] ?? 'Completed';
+                    $resolvedAt = $historyEntry['resolved_at'] ?? $historyEntry['resolved'] ?? '';
+                    $resolvedDisplay = $resolvedAt && strtotime($resolvedAt) ? date('j M Y, g:i A', strtotime($resolvedAt)) : '—';
+                    $outcome = $historyEntry['outcome'] ?? '—';
+                    $statusSlug = strtolower(preg_replace('/[^a-z0-9]+/', '-', $historyStatus) ?? '');
+                  ?>
+                  <tr>
+                    <td>
+                      <strong><?= htmlspecialchars($historyTitle); ?></strong>
+                      <div class="form-helper">ID <?= htmlspecialchars($historyId); ?></div>
+                    </td>
+                    <td><span class="status-chip" data-status="<?= htmlspecialchars($statusSlug); ?>"><?= htmlspecialchars($historyStatus); ?></span></td>
+                    <td><?= htmlspecialchars($resolvedDisplay); ?></td>
+                    <td><?= htmlspecialchars($outcome); ?></td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
+      </section>
 
     <?php elseif ($currentView === 'projects'): ?>
       <section class="panel">
