@@ -291,6 +291,34 @@
     sectionsHost.hidden = false;
   }
 
+  function updateThemeBadges(theme) {
+    const label = theme && typeof theme.seasonLabel === 'string' ? theme.seasonLabel.trim() : '';
+    const announcement = theme && typeof theme.announcement === 'string' ? theme.announcement.trim() : '';
+    const nodes = document.querySelectorAll('[data-site-theme-label]');
+
+    nodes.forEach((node) => {
+      if (!(node instanceof HTMLElement)) {
+        return;
+      }
+      if (label === '') {
+        node.textContent = '';
+        node.hidden = true;
+        node.removeAttribute('title');
+        return;
+      }
+
+      node.textContent = label;
+      node.hidden = false;
+      if (announcement !== '') {
+        node.setAttribute('title', announcement);
+        node.dataset.themeAnnouncement = announcement;
+      } else {
+        node.removeAttribute('title');
+        delete node.dataset.themeAnnouncement;
+      }
+    });
+  }
+
   function updateHero(hero) {
     if (!hero) return;
 
@@ -574,6 +602,8 @@
         heroAnnouncement.textContent = '';
       }
     }
+
+    updateThemeBadges(theme);
   }
 
   const siteContentPromise = fetch(endpoint, { cache: 'no-store' })
@@ -584,12 +614,22 @@
       return response.json();
     })
     .then((data) => {
-      applyTheme(data.theme || {});
-      updateHero(data.hero || {});
-      renderSections(data.sections || []);
-      renderOffers(data.offers || []);
-      renderTestimonials(data.testimonials || []);
-      return data;
+      const theme = data.theme || {};
+      const hero = data.hero || {};
+      const sections = data.sections || [];
+      const offers = data.offers || [];
+      const testimonials = data.testimonials || [];
+
+      applyTheme(theme);
+      updateHero(hero);
+      renderSections(sections);
+      renderOffers(offers);
+      renderTestimonials(testimonials);
+
+      const detail = { theme, hero, sections, offers, testimonials };
+      document.dispatchEvent(new CustomEvent('dakshayani:site-content-ready', { detail }));
+
+      return detail;
     })
     .catch((error) => {
       console.error('Unable to load site content', error);
@@ -600,6 +640,7 @@
         heroAnnouncement.hidden = true;
         heroAnnouncement.textContent = '';
       }
+      document.dispatchEvent(new CustomEvent('dakshayani:site-content-error', { detail: { error } }));
       throw error;
     });
 

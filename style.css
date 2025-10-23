@@ -609,6 +609,25 @@ p {
   order: 2;
 }
 
+.nav-theme-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  box-shadow: inset 0 0 0 1px rgba(30, 58, 138, 0.15);
+  text-transform: uppercase;
+}
+
+.nav-theme-badge[hidden] {
+  display: none !important;
+}
+
 .nav-desktop {
   display: flex;
   align-items: center;
@@ -782,6 +801,21 @@ p {
 .nav-mobile-section {
   display: grid;
   gap: 0.5rem;
+}
+
+.nav-mobile-theme {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--accent-blue-dark);
+  background: rgba(37, 99, 235, 0.12);
+  letter-spacing: 0.01em;
+}
+
+.nav-mobile-theme[hidden] {
+  display: none !important;
 }
 
 .nav-mobile-divider {

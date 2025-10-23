@@ -54,6 +54,7 @@ const INLINE_PARTIALS = {
         </nav>
 
         <div class="nav-actions" role="group" aria-label="Header quick actions">
+          <span class="nav-theme-badge" data-site-theme-label hidden></span>
           <a href="contact.html" class="btn btn-secondary nav-link" data-nav-consult>
             Consult / Complaint / Connect
           </a>
@@ -99,6 +100,7 @@ const INLINE_PARTIALS = {
         </div>
         <div class="nav-mobile-divider" role="presentation"></div>
         <div class="nav-mobile-section" aria-label="Quick actions">
+          <p class="nav-mobile-theme" data-site-theme-label hidden></p>
           <a href="contact.html" class="btn btn-primary nav-mobile-cta" data-close-mobile>Consult / Complaint / Connect</a>
         </div>
       </nav>
@@ -398,6 +400,102 @@ function resolvePartialUrl(relativePath) {
   const baseUrl = new URL('./', scriptUrl);
   return new URL(relativePath, baseUrl).toString();
 }
+
+let siteContentReadyPromise = null;
+
+function ensureSiteContentReady() {
+  if (siteContentReadyPromise) {
+    return siteContentReadyPromise;
+  }
+
+  const globalPromise = window.DakshayaniSiteContent;
+  if (globalPromise && typeof globalPromise.then === 'function') {
+    siteContentReadyPromise = globalPromise;
+    return siteContentReadyPromise;
+  }
+
+  const existingScript = document.querySelector('script[src*="site-content.js"]');
+
+  siteContentReadyPromise = new Promise((resolve, reject) => {
+    const handleReady = () => {
+      const promise = window.DakshayaniSiteContent;
+      if (promise && typeof promise.then === 'function') {
+        promise.then(resolve).catch(reject);
+      } else {
+        resolve(null);
+      }
+    };
+
+    const handleError = () => {
+      reject(new Error('Failed to load site-content.js'));
+    };
+
+    if (existingScript) {
+      existingScript.addEventListener('load', handleReady, { once: true });
+      existingScript.addEventListener('error', handleError, { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = resolvePartialUrl('site-content.js');
+    script.defer = true;
+    script.addEventListener('load', handleReady, { once: true });
+    script.addEventListener('error', handleError, { once: true });
+    document.head.appendChild(script);
+  }).catch((error) => {
+    console.warn(error);
+    return null;
+  });
+
+  return siteContentReadyPromise;
+}
+
+let latestSiteContent = null;
+
+function syncThemeBadges(detail) {
+  const theme = detail && detail.theme ? detail.theme : null;
+  const label = theme && typeof theme.seasonLabel === 'string' ? theme.seasonLabel.trim() : '';
+  const announcement = theme && typeof theme.announcement === 'string' ? theme.announcement.trim() : '';
+
+  if (label) {
+    document.body.dataset.themeSeason = label;
+  } else {
+    delete document.body.dataset.themeSeason;
+  }
+
+  document.querySelectorAll('[data-site-theme-label]').forEach((node) => {
+    if (!(node instanceof HTMLElement)) {
+      return;
+    }
+    if (!label) {
+      node.textContent = '';
+      node.hidden = true;
+      node.removeAttribute('title');
+      delete node.dataset.themeAnnouncement;
+      return;
+    }
+
+    node.textContent = label;
+    node.hidden = false;
+    if (announcement) {
+      node.setAttribute('title', announcement);
+      node.dataset.themeAnnouncement = announcement;
+    } else {
+      node.removeAttribute('title');
+      delete node.dataset.themeAnnouncement;
+    }
+  });
+}
+
+document.addEventListener('dakshayani:site-content-ready', (event) => {
+  latestSiteContent = event.detail || latestSiteContent;
+  syncThemeBadges(latestSiteContent);
+});
+
+document.addEventListener('dakshayani:site-content-error', () => {
+  latestSiteContent = null;
+  syncThemeBadges(null);
+});
 
 /**
  * Determine the canonical page key from the current location.
@@ -1244,9 +1342,21 @@ window.initDakshayaniTranslate = function initDakshayaniTranslate() {
 
 // Wait for the document to be interactive before injecting content.
 document.addEventListener('DOMContentLoaded', () => {
-  injectPartial('header.site-header', PARTIALS.header);
-  injectPartial('footer.site-footer', PARTIALS.footer);
+  const headerPromise = injectPartial('header.site-header', PARTIALS.header);
+  const footerPromise = injectPartial('footer.site-footer', PARTIALS.footer);
   stampCurrentYear();
   initSiteSettings();
   setupLeadForm();
+  ensureSiteContentReady().then((detail) => {
+    if (detail) {
+      latestSiteContent = detail;
+      syncThemeBadges(detail);
+    }
+  });
+  Promise.resolve(headerPromise).then(() => {
+    if (latestSiteContent) {
+      syncThemeBadges(latestSiteContent);
+    }
+  });
+  Promise.resolve(footerPromise).catch(() => {});
 });
