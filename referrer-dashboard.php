@@ -42,6 +42,19 @@ $roleLabel = $roleLabels[$_SESSION['user_role']] ?? ucfirst($_SESSION['user_role
 $userPhone = $userRecord['phone'] ?? '—';
 $userCity = $userRecord['city'] ?? '—';
 $accountId = $userRecord['id'] ?? '—';
+
+$lastDataRefreshLabel = '';
+$lastDataRefreshTimestamp = portal_parse_datetime($state['last_updated'] ?? null);
+if ($lastDataRefreshTimestamp === null) {
+  $stateFileTimestamp = file_exists(PORTAL_DATA_FILE) ? filemtime(PORTAL_DATA_FILE) : false;
+  if ($stateFileTimestamp !== false) {
+    $lastDataRefreshTimestamp = $stateFileTimestamp;
+  }
+}
+
+if ($lastDataRefreshTimestamp !== null) {
+  $lastDataRefreshLabel = portal_format_datetime($lastDataRefreshTimestamp);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -177,47 +190,63 @@ $accountId = $userRecord['id'] ?? '—';
                 <?php endif; ?>
               </p>
             </div>
-            <div class="hero-cards">
-              <article class="hero-card">
-                <span class="hero-card__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M8 2v4" />
-                    <path d="M16 2v4" />
-                    <rect x="3" y="5" width="18" height="18" rx="2" />
-                    <path d="M3 10h18" />
+            <div class="page-header__aside">
+              <div class="page-header__actions">
+                <button type="button" class="refresh-button" data-refresh-button>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10" />
+                    <path d="M20.49 15A9 9 0 0 1 6.36 18.36L1 14" />
                   </svg>
-                </span>
-                <p class="hero-card__title">New leads this week</p>
-                <p class="hero-card__value">4</p>
-                <p class="hero-card__note">Two prospects already scheduled for site visits.</p>
-              </article>
-              <article class="hero-card">
-                <span class="hero-card__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 1v4" />
-                    <path d="m4.93 4.93 3.54 3.54" />
-                    <path d="M2 12h4" />
-                    <path d="m4.93 19.07 3.54-3.54" />
-                    <path d="M12 15v8" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                </span>
-                <p class="hero-card__title">Rewards in queue</p>
-                <p class="hero-card__value">₹36,500</p>
-                <p class="hero-card__note">Next payout hits your bank on 20 Oct.</p>
-              </article>
-              <article class="hero-card">
-                <span class="hero-card__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M13 2H6a2 2 0 0 0-2 2v16l5-3 5 3V4" />
-                    <path d="M17 7h4" />
-                    <path d="M19 5v4" />
-                  </svg>
-                </span>
-                <p class="hero-card__title">Conversion streak</p>
-                <p class="hero-card__value">3 wins</p>
-                <p class="hero-card__note">Three consecutive deals closed in the last 10 days.</p>
-              </article>
+                  Refresh data
+                </button>
+                <?php if ($lastDataRefreshLabel !== ''): ?>
+                  <span class="refresh-meta">Last updated <?= htmlspecialchars($lastDataRefreshLabel); ?></span>
+                <?php endif; ?>
+              </div>
+              <div class="hero-cards">
+                <article class="hero-card">
+                  <span class="hero-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M8 2v4" />
+                      <path d="M16 2v4" />
+                      <rect x="3" y="5" width="18" height="18" rx="2" />
+                      <path d="M3 10h18" />
+                    </svg>
+                  </span>
+                  <p class="hero-card__title">New leads this week</p>
+                  <p class="hero-card__value">4</p>
+                  <p class="hero-card__note">Two prospects already scheduled for site visits.</p>
+                </article>
+                <article class="hero-card">
+                  <span class="hero-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 1v4" />
+                      <path d="m4.93 4.93 3.54 3.54" />
+                      <path d="M2 12h4" />
+                      <path d="m4.93 19.07 3.54-3.54" />
+                      <path d="M12 15v8" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </span>
+                  <p class="hero-card__title">Rewards in queue</p>
+                  <p class="hero-card__value">₹36,500</p>
+                  <p class="hero-card__note">Next payout hits your bank on 20 Oct.</p>
+                </article>
+                <article class="hero-card">
+                  <span class="hero-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M13 2H6a2 2 0 0 0-2 2v16l5-3 5 3V4" />
+                      <path d="M17 7h4" />
+                      <path d="M19 5v4" />
+                    </svg>
+                  </span>
+                  <p class="hero-card__title">Conversion streak</p>
+                  <p class="hero-card__value">3 wins</p>
+                  <p class="hero-card__note">Three consecutive deals closed in the last 10 days.</p>
+                </article>
+              </div>
             </div>
           </header>
 
@@ -414,6 +443,14 @@ $accountId = $userRecord['id'] ?? '—';
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('[data-refresh-button]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          button.classList.add('is-refreshing');
+          button.disabled = true;
+          window.location.reload();
+        });
+      });
+
       if (!window.Chart) {
         return;
       }

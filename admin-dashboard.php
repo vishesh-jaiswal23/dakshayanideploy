@@ -2770,6 +2770,31 @@ foreach ($tickets as $ticket) {
 $ticketInsights = admin_analyse_tickets($tickets);
 $allComplaintRows = admin_prepare_recent_complaints($tickets, count($tickets));
 
+$lastDataRefreshLabel = '';
+$lastDataRefreshTimestamp = null;
+$ticketFileTimestamp = file_exists(ADMIN_TICKETS_FILE) ? filemtime(ADMIN_TICKETS_FILE) : false;
+if ($ticketFileTimestamp !== false) {
+    $lastDataRefreshTimestamp = $ticketFileTimestamp;
+}
+
+$stateUpdatedTimestamp = portal_parse_datetime($state['last_updated'] ?? null);
+if ($stateUpdatedTimestamp !== null) {
+    if ($lastDataRefreshTimestamp === null || $stateUpdatedTimestamp > $lastDataRefreshTimestamp) {
+        $lastDataRefreshTimestamp = $stateUpdatedTimestamp;
+    }
+}
+
+if ($lastDataRefreshTimestamp === null) {
+    $stateFileTimestamp = file_exists(PORTAL_DATA_FILE) ? filemtime(PORTAL_DATA_FILE) : false;
+    if ($stateFileTimestamp !== false) {
+        $lastDataRefreshTimestamp = $stateFileTimestamp;
+    }
+}
+
+if ($lastDataRefreshTimestamp !== null) {
+    $lastDataRefreshLabel = portal_format_datetime($lastDataRefreshTimestamp);
+}
+
 $projectsByTarget = $projects;
 usort($projectsByTarget, static function (array $a, array $b): int {
     $aDate = $a['target_date'] ?? '';
@@ -2925,41 +2950,57 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
                 <?php endif; ?>
               </p>
             </div>
-            <div class="hero-cards">
-              <article class="hero-card">
-                <span class="hero-card__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 4h16v6H4z" />
-                    <path d="M2 14h20" />
-                    <path d="M7 20h10" />
+            <div class="page-header__aside">
+              <div class="page-header__actions">
+                <button type="button" class="refresh-button" data-refresh-button>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10" />
+                    <path d="M20.49 15A9 9 0 0 1 6.36 18.36L1 14" />
                   </svg>
-                </span>
-                <p class="hero-card__title">Active users</p>
-                <p class="hero-card__value"><?= htmlspecialchars((string) ($userStatusCounts['active'] ?? 0)); ?></p>
-                <p class="hero-card__note">Across customers, installers, employees, and referrers.</p>
-              </article>
-              <article class="hero-card">
-                <span class="hero-card__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 11l3 3L22 4" />
-                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                  </svg>
-                </span>
-                <p class="hero-card__title">Open admin tasks</p>
-                <p class="hero-card__value"><?= htmlspecialchars((string) $openTasksCount); ?></p>
-                <p class="hero-card__note">Keep an eye on leadership follow-ups and escalations.</p>
-              </article>
-              <article class="hero-card">
-                <span class="hero-card__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 6v6l3 3" />
-                  </svg>
-                </span>
-                <p class="hero-card__title">Data freshness</p>
-                <p class="hero-card__value"><?= htmlspecialchars($lastUpdatedLabel !== '' ? $lastUpdatedLabel : 'Just now'); ?></p>
-                <p class="hero-card__note">Automatic sync after every portal update.</p>
-              </article>
+                  Refresh data
+                </button>
+                <?php if ($lastDataRefreshLabel !== ''): ?>
+                  <span class="refresh-meta">Last updated <?= htmlspecialchars($lastDataRefreshLabel); ?></span>
+                <?php endif; ?>
+              </div>
+              <div class="hero-cards">
+                <article class="hero-card">
+                  <span class="hero-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 4h16v6H4z" />
+                      <path d="M2 14h20" />
+                      <path d="M7 20h10" />
+                    </svg>
+                  </span>
+                  <p class="hero-card__title">Active users</p>
+                  <p class="hero-card__value"><?= htmlspecialchars((string) ($userStatusCounts['active'] ?? 0)); ?></p>
+                  <p class="hero-card__note">Across customers, installers, employees, and referrers.</p>
+                </article>
+                <article class="hero-card">
+                  <span class="hero-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M9 11l3 3L22 4" />
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                    </svg>
+                  </span>
+                  <p class="hero-card__title">Open admin tasks</p>
+                  <p class="hero-card__value"><?= htmlspecialchars((string) $openTasksCount); ?></p>
+                  <p class="hero-card__note">Keep an eye on leadership follow-ups and escalations.</p>
+                </article>
+                <article class="hero-card">
+                  <span class="hero-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M12 6v6l3 3" />
+                    </svg>
+                  </span>
+                  <p class="hero-card__title">Data freshness</p>
+                  <p class="hero-card__value"><?= htmlspecialchars($lastUpdatedLabel !== '' ? $lastUpdatedLabel : 'Just now'); ?></p>
+                  <p class="hero-card__note">Automatic sync after every portal update.</p>
+                </article>
+              </div>
             </div>
           </header>
 
@@ -5190,6 +5231,14 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('[data-refresh-button]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          button.classList.add('is-refreshing');
+          button.disabled = true;
+          window.location.reload();
+        });
+      });
+
       if (!window.Chart) {
         return;
       }

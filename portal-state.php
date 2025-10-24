@@ -86,6 +86,34 @@ function portal_build_palette_entry(string $background, ?string $text = null, ?s
     ];
 }
 
+function portal_parse_datetime(?string $value): ?int
+{
+    if (!is_string($value)) {
+        return null;
+    }
+
+    $trimmed = trim($value);
+    if ($trimmed === '') {
+        return null;
+    }
+
+    $timestamp = strtotime($trimmed);
+    if ($timestamp === false) {
+        return null;
+    }
+
+    return $timestamp;
+}
+
+function portal_format_datetime(?int $timestamp, string $format = 'j M Y, g:i A'): string
+{
+    if ($timestamp === null || $timestamp <= 0) {
+        return '';
+    }
+
+    return date($format, $timestamp);
+}
+
 function portal_slugify(string $value): string
 {
     $value = strtolower(trim($value));
