@@ -42,6 +42,19 @@ $roleLabel = $roleLabels[$_SESSION['user_role']] ?? ucfirst($_SESSION['user_role
 $userPhone = $userRecord['phone'] ?? '—';
 $userCity = $userRecord['city'] ?? '—';
 $accountId = $userRecord['id'] ?? '—';
+
+$lastDataRefreshLabel = '';
+$lastDataRefreshTimestamp = portal_parse_datetime($state['last_updated'] ?? null);
+if ($lastDataRefreshTimestamp === null) {
+  $stateFileTimestamp = file_exists(PORTAL_DATA_FILE) ? filemtime(PORTAL_DATA_FILE) : false;
+  if ($stateFileTimestamp !== false) {
+    $lastDataRefreshTimestamp = $stateFileTimestamp;
+  }
+}
+
+if ($lastDataRefreshTimestamp !== null) {
+  $lastDataRefreshLabel = portal_format_datetime($lastDataRefreshTimestamp);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -175,49 +188,65 @@ $accountId = $userRecord['id'] ?? '—';
                 <?php endif; ?>
               </p>
             </div>
-            <div class="hero-cards">
-              <article class="hero-card">
-                <span class="hero-card__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 2v5" />
-                    <path d="m4.93 4.93 3.54 3.54" />
-                    <path d="M2 12h5" />
-                    <path d="m4.93 19.07 3.54-3.54" />
-                    <path d="M12 17v5" />
-                    <path d="m19.07 19.07-3.54-3.54" />
-                    <path d="M17 12h5" />
-                    <path d="m19.07 4.93-3.54 3.54" />
-                    <circle cx="12" cy="12" r="3" />
+            <div class="page-header__aside">
+              <div class="page-header__actions">
+                <button type="button" class="refresh-button" data-refresh-button>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10" />
+                    <path d="M20.49 15A9 9 0 0 1 6.36 18.36L1 14" />
                   </svg>
-                </span>
-                <p class="hero-card__title">System status</p>
-                <p class="hero-card__value">Net metering pending</p>
-                <p class="hero-card__note">Inspection is booked — once cleared we will switch on monitoring for you.</p>
-              </article>
-              <article class="hero-card">
-                <span class="hero-card__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Z" />
-                    <path d="M20 21a8 8 0 0 0-16 0" />
-                  </svg>
-                </span>
-                <p class="hero-card__title">Your crew lead</p>
-                <p class="hero-card__value">Rohit Kumar</p>
-                <p class="hero-card__note">Project manager · +91 88000 00000 · care@dakshayani.co.in</p>
-              </article>
-              <article class="hero-card">
-                <span class="hero-card__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 8c-2.21 0-4 1.79-4 4v6h8v-6c0-2.21-1.79-4-4-4Z" />
-                    <path d="M8 12h8" />
-                    <path d="M9 21h6" />
-                    <path d="M12 3v2" />
-                  </svg>
-                </span>
-                <p class="hero-card__title">Savings achieved</p>
-                <p class="hero-card__value">₹ 58,400</p>
-                <p class="hero-card__note">Since commissioning your solar journey with Dakshayani.</p>
-              </article>
+                  Refresh data
+                </button>
+                <?php if ($lastDataRefreshLabel !== ''): ?>
+                  <span class="refresh-meta">Last updated <?= htmlspecialchars($lastDataRefreshLabel); ?></span>
+                <?php endif; ?>
+              </div>
+              <div class="hero-cards">
+                <article class="hero-card">
+                  <span class="hero-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 2v5" />
+                      <path d="m4.93 4.93 3.54 3.54" />
+                      <path d="M2 12h5" />
+                      <path d="m4.93 19.07 3.54-3.54" />
+                      <path d="M12 17v5" />
+                      <path d="m19.07 19.07-3.54-3.54" />
+                      <path d="M17 12h5" />
+                      <path d="m19.07 4.93-3.54 3.54" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </span>
+                  <p class="hero-card__title">System status</p>
+                  <p class="hero-card__value">Net metering pending</p>
+                  <p class="hero-card__note">Inspection is booked — once cleared we will switch on monitoring for you.</p>
+                </article>
+                <article class="hero-card">
+                  <span class="hero-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Z" />
+                      <path d="M20 21a8 8 0 0 0-16 0" />
+                    </svg>
+                  </span>
+                  <p class="hero-card__title">Your crew lead</p>
+                  <p class="hero-card__value">Rohit Kumar</p>
+                  <p class="hero-card__note">Project manager · +91 88000 00000 · care@dakshayani.co.in</p>
+                </article>
+                <article class="hero-card">
+                  <span class="hero-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 8c-2.21 0-4 1.79-4 4v6h8v-6c0-2.21-1.79-4-4-4Z" />
+                      <path d="M8 12h8" />
+                      <path d="M9 21h6" />
+                      <path d="M12 3v2" />
+                    </svg>
+                  </span>
+                  <p class="hero-card__title">Savings achieved</p>
+                  <p class="hero-card__value">₹ 58,400</p>
+                  <p class="hero-card__note">Since commissioning your solar journey with Dakshayani.</p>
+                </article>
+              </div>
             </div>
           </header>
 
@@ -410,6 +439,14 @@ $accountId = $userRecord['id'] ?? '—';
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('[data-refresh-button]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          button.classList.add('is-refreshing');
+          button.disabled = true;
+          window.location.reload();
+        });
+      });
+
       if (!window.Chart) {
         return;
       }

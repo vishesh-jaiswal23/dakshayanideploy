@@ -384,6 +384,22 @@
       const schemeSelect = complaintForm.querySelector('#complaintScheme');
       const systemConfigurationSelect = complaintForm.querySelector('#systemConfiguration');
 
+      const resolveApiUrl = (path) => {
+        const relativePath = (path || '').toString().replace(/^\/+/, '');
+        const base = window.PORTAL_API_BASE || '/api/';
+
+        if (window.PORTAL_API_BASE) {
+          try {
+            return new URL(relativePath, window.PORTAL_API_BASE).toString();
+          } catch (error) {
+            console.warn('Unable to resolve portal API base', error);
+          }
+        }
+
+        const normalisedBase = base.endsWith('/') ? base : `${base}/`;
+        return `${normalisedBase}${relativePath}`;
+      };
+
       const SCHEME_LABELS = {
         pmsgby: 'PM Surya Ghar Muft Bijli Yojana',
         other: 'Other installation'
@@ -864,10 +880,25 @@
           loggedAt: new Date().toISOString(),
         };
 
-        return fetch('/api/public/complaints', {
+        const endpoint = resolveApiUrl('public/complaints');
+        const serialized = JSON.stringify(body);
+
+        if (navigator.sendBeacon) {
+          try {
+            const blob = new Blob([serialized], { type: 'application/json' });
+            if (navigator.sendBeacon(endpoint, blob)) {
+              return Promise.resolve();
+            }
+          } catch (error) {
+            console.warn('Beacon transmission failed, falling back to fetch', error);
+          }
+        }
+
+        return fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+          body: serialized,
+          keepalive: true,
         }).catch((error) => {
           console.warn('Unable to log complaint to portal API', error);
         });

@@ -287,6 +287,66 @@ body[data-role]::before {
   gap: 0.75rem;
 }
 
+.page-header__aside {
+  display: grid;
+  gap: 1rem;
+  align-content: flex-start;
+}
+
+.page-header__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.refresh-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: rgba(148, 163, 184, 0.16);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.refresh-button:hover,
+.refresh-button:focus {
+  background: rgba(14, 165, 233, 0.18);
+  color: var(--accent-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 35px -28px rgba(14, 165, 233, 0.65);
+}
+
+.refresh-button svg {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.3s ease;
+}
+
+.refresh-button.is-refreshing svg {
+  animation: refresh-spin 0.85s linear infinite;
+}
+
+.refresh-meta {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+@keyframes refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .page-header .eyebrow {
   margin: 0;
   font-size: 0.8rem;
@@ -1183,6 +1243,10 @@ body[data-role]::before {
 @media (max-width: 1080px) {
   .page-header {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .page-header__actions {
+    justify-content: flex-start;
   }
 
   .overview-grid {

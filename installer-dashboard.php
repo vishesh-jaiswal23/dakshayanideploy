@@ -42,6 +42,19 @@ $roleLabel = $roleLabels[$_SESSION['user_role']] ?? ucfirst($_SESSION['user_role
 $userPhone = $userRecord['phone'] ?? '—';
 $userCity = $userRecord['city'] ?? '—';
 $accountId = $userRecord['id'] ?? '—';
+
+$lastDataRefreshLabel = '';
+$lastDataRefreshTimestamp = portal_parse_datetime($state['last_updated'] ?? null);
+if ($lastDataRefreshTimestamp === null) {
+  $stateFileTimestamp = file_exists(PORTAL_DATA_FILE) ? filemtime(PORTAL_DATA_FILE) : false;
+  if ($stateFileTimestamp !== false) {
+    $lastDataRefreshTimestamp = $stateFileTimestamp;
+  }
+}
+
+if ($lastDataRefreshTimestamp !== null) {
+  $lastDataRefreshLabel = portal_format_datetime($lastDataRefreshTimestamp);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -179,47 +192,63 @@ $accountId = $userRecord['id'] ?? '—';
                 <?php endif; ?>
               </p>
             </div>
-            <div class="hero-cards">
-              <article class="hero-card">
-                <span class="hero-card__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 12h18" />
-                    <path d="M3 6h18" />
-                    <path d="M3 18h18" />
+            <div class="page-header__aside">
+              <div class="page-header__actions">
+                <button type="button" class="refresh-button" data-refresh-button>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10" />
+                    <path d="M20.49 15A9 9 0 0 1 6.36 18.36L1 14" />
                   </svg>
-                </span>
-                <p class="hero-card__title">Today's focus</p>
-                <p class="hero-card__value">6 live jobs</p>
-                <p class="hero-card__note">Two sites need structural clearance follow-ups before noon.</p>
-              </article>
-              <article class="hero-card">
-                <span class="hero-card__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M4 4h16v6H4z" />
-                    <path d="M16 2v4" />
-                    <path d="M8 2v4" />
-                    <path d="M4 14h16" />
-                  </svg>
-                </span>
-                <p class="hero-card__title">Crew check-in</p>
-                <p class="hero-card__value">08:30 IST</p>
-                <p class="hero-card__note">Huddle at Jamshedpur HQ with safety refresher on harness inspections.</p>
-              </article>
-              <article class="hero-card">
-                <span class="hero-card__icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 1v4" />
-                    <path d="m4.93 4.93 2.83 2.83" />
-                    <path d="M1 12h4" />
-                    <path d="m4.93 19.07 2.83-2.83" />
-                    <path d="M12 15v8" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                </span>
-                <p class="hero-card__title">Safety status</p>
-                <p class="hero-card__value">All clear</p>
-                <p class="hero-card__note">PPE inspections updated · No incidents reported in the last 14 days.</p>
-              </article>
+                  Refresh data
+                </button>
+                <?php if ($lastDataRefreshLabel !== ''): ?>
+                  <span class="refresh-meta">Last updated <?= htmlspecialchars($lastDataRefreshLabel); ?></span>
+                <?php endif; ?>
+              </div>
+              <div class="hero-cards">
+                <article class="hero-card">
+                  <span class="hero-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 12h18" />
+                      <path d="M3 6h18" />
+                      <path d="M3 18h18" />
+                    </svg>
+                  </span>
+                  <p class="hero-card__title">Today's focus</p>
+                  <p class="hero-card__value">6 live jobs</p>
+                  <p class="hero-card__note">Two sites need structural clearance follow-ups before noon.</p>
+                </article>
+                <article class="hero-card">
+                  <span class="hero-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 4h16v6H4z" />
+                      <path d="M16 2v4" />
+                      <path d="M8 2v4" />
+                      <path d="M4 14h16" />
+                    </svg>
+                  </span>
+                  <p class="hero-card__title">Crew check-in</p>
+                  <p class="hero-card__value">08:30 IST</p>
+                  <p class="hero-card__note">Huddle at Jamshedpur HQ with safety refresher on harness inspections.</p>
+                </article>
+                <article class="hero-card">
+                  <span class="hero-card__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 1v4" />
+                      <path d="m4.93 4.93 2.83 2.83" />
+                      <path d="M1 12h4" />
+                      <path d="m4.93 19.07 2.83-2.83" />
+                      <path d="M12 15v8" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </span>
+                  <p class="hero-card__title">Safety status</p>
+                  <p class="hero-card__value">All clear</p>
+                  <p class="hero-card__note">PPE inspections updated · No incidents reported in the last 14 days.</p>
+                </article>
+              </div>
             </div>
           </header>
 
@@ -428,6 +457,14 @@ $accountId = $userRecord['id'] ?? '—';
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('[data-refresh-button]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          button.classList.add('is-refreshing');
+          button.disabled = true;
+          window.location.reload();
+        });
+      });
+
       if (!window.Chart) {
         return;
       }
