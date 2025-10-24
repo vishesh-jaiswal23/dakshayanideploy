@@ -2829,6 +2829,12 @@ $footerBackground = $themePalette['footer']['background'] ?? '#111827';
 $footerText = $themePalette['footer']['text'] ?? '#E2E8F0';
 $borderColor = admin_mix_color($surfaceText, $surfaceBackground, 0.85);
 $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
+$displayName = $_SESSION['display_name'] ?? 'Administrator';
+$initialCharacter = mb_substr($displayName, 0, 1, 'UTF-8');
+if ($initialCharacter === false || $initialCharacter === '') {
+    $initialCharacter = substr((string) $displayName, 0, 1);
+}
+$displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -2877,23 +2883,163 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
     body {
       margin: 0;
       font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: radial-gradient(circle at top, rgba(37, 99, 235, 0.25), transparent 55%), var(--bg);
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      padding: clamp(2rem, 4vw, 3rem) 1.5rem;
+      background: var(--theme-page-background);
       color: var(--theme-surface-text);
       overflow-x: hidden;
     }
 
+    .dashboard-app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.06), transparent 26%) no-repeat;
+    }
+
+    .dashboard-topbar {
+      background: linear-gradient(135deg, rgba(11, 31, 58, 0.95), rgba(13, 51, 94, 0.92));
+      color: var(--accent-text);
+      padding: 1.25rem clamp(1.5rem, 5vw, 3rem);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      box-shadow: 0 26px 52px -30px rgba(11, 31, 58, 0.65);
+      position: relative;
+      z-index: 2;
+    }
+
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--accent-text);
+    }
+
+    .brand-mark {
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.18);
+      display: grid;
+      place-items: center;
+      font-size: 1.3rem;
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.1;
+    }
+
+    .brand-name {
+      font-size: 1rem;
+      letter-spacing: 0.06em;
+    }
+
+    .brand-tagline {
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: none;
+      opacity: 0.78;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .role-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.9rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.15);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .user-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      padding: 0.45rem 0.9rem 0.45rem 0.45rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--accent-text);
+    }
+
+    .user-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.18);
+      display: grid;
+      place-items: center;
+      font-weight: 600;
+      font-size: 1.05rem;
+      letter-spacing: 0.02em;
+    }
+
+    .user-meta {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
+    }
+
+    .user-name {
+      font-weight: 600;
+      font-size: 0.92rem;
+      color: var(--accent-text);
+    }
+
+    .user-email {
+      font-size: 0.75rem;
+      opacity: 0.75;
+      color: var(--accent-text);
+    }
+
+    .topbar-actions form {
+      margin: 0;
+    }
+
+    .topbar-logout {
+      border: none;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.2);
+      color: var(--accent-text);
+      padding: 0.55rem 1.3rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    .topbar-logout:hover,
+    .topbar-logout:focus {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
     main.dashboard-shell {
-      width: min(1200px, 100%);
+      width: min(1200px, calc(100% - 3rem));
       background: var(--surface);
-      border-radius: 1.75rem;
-      box-shadow: 0 40px 70px -45px rgba(15, 23, 42, 0.65);
+      border-radius: 1.9rem;
+      box-shadow: 0 40px 70px -45px rgba(15, 23, 42, 0.55);
       display: grid;
       gap: clamp(1.5rem, 3vw, 2.5rem);
       padding: clamp(2rem, 4vw, 3rem);
+      margin: clamp(-3.5rem, -6vw, -3rem) auto 3rem;
+      position: relative;
+      z-index: 1;
     }
 
     header.dashboard-header {
@@ -2930,23 +3076,6 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       display: flex;
       gap: 0.75rem;
       align-items: center;
-    }
-
-    .logout-btn {
-      border: none;
-      border-radius: 999px;
-      padding: 0.65rem 1.35rem;
-      font-weight: 600;
-      background: rgba(37, 99, 235, 0.12);
-      color: var(--primary-strong);
-      cursor: pointer;
-      transition: background 0.2s ease, transform 0.2s ease;
-    }
-
-    .logout-btn:hover,
-    .logout-btn:focus {
-      background: rgba(37, 99, 235, 0.2);
-      transform: translateY(-1px);
     }
 
     .view-nav {
@@ -3676,19 +3805,31 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
         grid-template-columns: 1fr;
       }
 
+      main.dashboard-shell {
+        width: calc(100% - 2rem);
+        margin: -2.75rem auto 2.5rem;
+      }
+
       table {
         min-width: unset;
       }
     }
 
     @media (max-width: 720px) {
-      body {
-        padding: 1.5rem;
+      .dashboard-topbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .topbar-actions {
+        width: 100%;
+        justify-content: space-between;
       }
 
       main.dashboard-shell {
         border-radius: 1.5rem;
         padding: 1.75rem;
+        margin: -2.3rem auto 1.75rem;
       }
 
       .view-nav {
@@ -3727,42 +3868,60 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
   </style>
 </head>
 <body data-view="<?= htmlspecialchars($currentView); ?>">
-  <main class="dashboard-shell">
-    <header class="dashboard-header">
-      <div>
-        <p class="eyebrow">Admin portal</p>
-        <h1>Welcome back, <?= htmlspecialchars($_SESSION['display_name'] ?? 'Administrator'); ?></h1>
-        <p class="subhead">
-          Signed in as <?= htmlspecialchars(OWNER_EMAIL); ?>
-          <?php if ($lastAdminLogin): ?>
-            · Last login <?= htmlspecialchars($lastAdminLogin); ?>
-          <?php endif; ?>
-        </p>
+  <div class="dashboard-app">
+    <header class="dashboard-topbar">
+      <div class="topbar-brand">
+        <span class="brand-mark" aria-hidden="true">D</span>
+        <span class="brand-text">
+          <span class="brand-name">Dakshayani</span>
+          <span class="brand-tagline">Admin workspace</span>
+        </span>
       </div>
-      <div class="dashboard-header__actions">
+      <div class="topbar-actions">
+        <span class="role-chip">Administrator</span>
+        <div class="user-pill">
+          <span class="user-avatar" aria-hidden="true"><?= htmlspecialchars($displayInitial); ?></span>
+          <div class="user-meta">
+            <span class="user-name"><?= htmlspecialchars($displayName); ?></span>
+            <span class="user-email"><?= htmlspecialchars(OWNER_EMAIL); ?></span>
+          </div>
+        </div>
         <form method="post" action="logout.php">
-          <button class="logout-btn" type="submit">Log out</button>
+          <button class="topbar-logout" type="submit">Log out</button>
         </form>
       </div>
     </header>
+    <main class="dashboard-shell">
+      <header class="dashboard-header page-header">
+        <div>
+          <p class="eyebrow">Admin portal</p>
+          <h1>Welcome back, <?= htmlspecialchars($displayName); ?></h1>
+          <p class="subhead">
+            Signed in as <?= htmlspecialchars(OWNER_EMAIL); ?>
+            <?php if ($lastAdminLogin): ?>
+              · Last login <?= htmlspecialchars($lastAdminLogin); ?>
+            <?php endif; ?>
+          </p>
+        </div>
+      </header>
 
-    <nav class="view-nav" aria-label="Dashboard sections">
-      <?php foreach ($viewLabels as $viewKey => $label): ?>
-        <?php $href = $viewKey === 'overview' ? 'admin-dashboard.php' : 'admin-dashboard.php?view=' . urlencode($viewKey); ?>
-        <a class="view-link <?= $viewKey === $currentView ? 'is-active' : ''; ?>" href="<?= htmlspecialchars($href); ?>"><?= htmlspecialchars($label); ?></a>
-      <?php endforeach; ?>
-    </nav>
+      <nav class="view-nav" aria-label="Dashboard sections">
+        <?php foreach ($viewLabels as $viewKey => $label): ?>
+          <?php $href = $viewKey === 'overview' ? 'admin-dashboard.php' : 'admin-dashboard.php?view=' . urlencode($viewKey); ?>
+          <a class="view-link <?= $viewKey === $currentView ? 'is-active' : ''; ?>" href="<?= htmlspecialchars($href); ?>"><?= htmlspecialchars($label); ?></a>
+        <?php endforeach; ?>
+      </nav>
 
-    <?php if (!empty($flashMessages['success']) || !empty($flashMessages['error'])): ?>
-      <div class="flash-list" role="status">
-        <?php foreach ($flashMessages['success'] as $message): ?>
-          <div class="flash-message" data-tone="success"><?= htmlspecialchars($message); ?></div>
-        <?php endforeach; ?>
-        <?php foreach ($flashMessages['error'] as $message): ?>
-          <div class="flash-message" data-tone="error"><?= htmlspecialchars($message); ?></div>
-        <?php endforeach; ?>
-      </div>
-    <?php endif; ?>
+      <?php if (!empty($flashMessages['success']) || !empty($flashMessages['error'])): ?>
+        <div class="flash-list" role="status">
+          <?php foreach ($flashMessages['success'] as $message): ?>
+            <div class="flash-message" data-tone="success"><?= htmlspecialchars($message); ?></div>
+          <?php endforeach; ?>
+          <?php foreach ($flashMessages['error'] as $message): ?>
+            <div class="flash-message" data-tone="error"><?= htmlspecialchars($message); ?></div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
 
     <?php if ($currentView === 'overview'): ?>
       <section class="panel">
@@ -5915,7 +6074,8 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
         <?php endif; ?>
       </section>
     <?php endif; ?>
-  </main>
+    </main>
+  </div>
   <script>
     (function () {
       function hexToRgb(hex) {
