@@ -24,6 +24,11 @@ foreach ($state['users'] as $user) {
 $displayName = $_SESSION['display_name'] ?? ($userRecord['name'] ?? 'Installer');
 $lastLogin = $_SESSION['last_login'] ?? null;
 $userEmail = $_SESSION['user_email'] ?? ($userRecord['email'] ?? '');
+$initialCharacter = mb_substr($displayName, 0, 1, 'UTF-8');
+if ($initialCharacter === false || $initialCharacter === '') {
+  $initialCharacter = substr((string) $displayName, 0, 1);
+}
+$displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D');
 
 $roleLabels = [
   'customer' => 'Customer',
@@ -51,35 +56,187 @@ $accountId = $userRecord['id'] ?? '—';
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --primary: #0ea5e9;
-      --muted: rgba(15, 23, 42, 0.6);
+      color-scheme: light;
+      --page-bg: #eef2f9;
+      --topbar-bg: linear-gradient(135deg, #0b1f3a, #123262);
+      --topbar-text: #f8fafc;
+      --surface: #ffffff;
+      --surface-subtle: #f7f9fd;
       --border: rgba(15, 23, 42, 0.08);
+      --border-strong: rgba(14, 165, 233, 0.2);
+      --primary: #0ea5e9;
+      --primary-soft: rgba(14, 165, 233, 0.14);
+      --primary-strong: #0284c7;
+      --muted: rgba(15, 23, 42, 0.6);
+      --success: #16a34a;
+      --warning: #f59e0b;
+      --danger: #dc2626;
+      --shadow-card: 0 38px 70px -48px rgba(15, 23, 42, 0.55);
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       margin: 0;
       font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: radial-gradient(circle at 10% 0%, rgba(14, 165, 233, 0.18), transparent 55%), #0f172a;
-      min-height: 100vh;
-      padding: 2.5rem 1.5rem;
-      display: flex;
-      justify-content: center;
+      background: var(--page-bg);
       color: #0f172a;
     }
 
-    .dashboard-shell {
-      width: min(1100px, 100%);
-      background: #ffffff;
-      border-radius: 2rem;
-      padding: clamp(2rem, 4vw, 3rem);
-      box-shadow: 0 40px 80px -45px rgba(15, 23, 42, 0.6);
-      display: grid;
-      gap: clamp(1.4rem, 3vw, 2.4rem);
+    .dashboard-app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.06), transparent 30%) no-repeat;
     }
 
-    header {
+    .dashboard-topbar {
+      background: var(--topbar-bg);
+      color: var(--topbar-text);
+      padding: 1.2rem clamp(1.5rem, 5vw, 2.75rem);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      box-shadow: 0 24px 48px -32px rgba(11, 31, 58, 0.65);
+      position: relative;
+      z-index: 2;
+    }
+
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.18);
+      display: grid;
+      place-items: center;
+      font-size: 1.25rem;
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.1;
+    }
+
+    .brand-name {
+      font-size: 1rem;
+      letter-spacing: 0.05em;
+    }
+
+    .brand-tagline {
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: none;
+      opacity: 0.75;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .role-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+    }
+
+    .user-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.45rem 0.85rem 0.45rem 0.45rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.18);
+      display: grid;
+      place-items: center;
+      font-weight: 600;
+      font-size: 1rem;
+      letter-spacing: 0.02em;
+    }
+
+    .user-meta {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
+    }
+
+    .user-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--topbar-text);
+    }
+
+    .user-email {
+      font-size: 0.75rem;
+      opacity: 0.75;
+      color: var(--topbar-text);
+    }
+
+    .topbar-actions form {
+      margin: 0;
+    }
+
+    .topbar-logout {
+      border: none;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.18);
+      color: var(--topbar-text);
+      padding: 0.55rem 1.25rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    .topbar-logout:hover,
+    .topbar-logout:focus {
+      background: rgba(255, 255, 255, 0.28);
+      transform: translateY(-1px);
+    }
+
+    .dashboard-shell {
+      width: min(1100px, calc(100% - 3rem));
+      background: var(--surface);
+      border-radius: 24px;
+      padding: clamp(1.85rem, 4vw, 3rem);
+      box-shadow: var(--shadow-card);
+      display: grid;
+      gap: clamp(1.4rem, 3vw, 2.4rem);
+      margin: clamp(-3.5rem, -6vw, -2.75rem) auto 3rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .page-header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
@@ -92,7 +249,7 @@ $accountId = $userRecord['id'] ?? '—';
       font-weight: 600;
       letter-spacing: 0.18em;
       font-size: 0.75rem;
-      color: var(--primary);
+      color: var(--primary-strong);
       margin: 0 0 0.5rem;
     }
 
@@ -108,37 +265,32 @@ $accountId = $userRecord['id'] ?? '—';
       color: var(--muted);
     }
 
-    .logout-btn {
-      border: none;
-      background: var(--primary);
-      color: #f8fafc;
-      padding: 0.65rem 1.4rem;
-      border-radius: 999px;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 20px 35px -25px rgba(14, 165, 233, 0.7);
-    }
-
     .status-banner {
       border-radius: 1.25rem;
       padding: 1rem 1.2rem;
-      background: rgba(14, 165, 233, 0.12);
-      border: 1px solid rgba(14, 165, 233, 0.2);
-      color: #0369a1;
+      background: var(--primary-soft);
+      border: 1px solid rgba(14, 165, 233, 0.24);
+      color: var(--primary-strong);
       font-size: 0.95rem;
     }
 
     .status-banner[data-tone="error"] {
-      background: #fee2e2;
+      background: rgba(220, 38, 38, 0.08);
       color: #b91c1c;
-      border-color: #fecaca;
+      border-color: rgba(220, 38, 38, 0.22);
+    }
+
+    .status-banner[data-tone="success"] {
+      background: rgba(22, 163, 74, 0.12);
+      border-color: rgba(22, 163, 74, 0.22);
+      color: #15803d;
     }
 
     .panel {
       border: 1px solid var(--border);
-      border-radius: 1.5rem;
+      border-radius: 20px;
       padding: clamp(1.4rem, 2.6vw, 2rem);
-      background: #f8fafc;
+      background: var(--surface-subtle);
       display: grid;
       gap: 1rem;
     }
@@ -163,9 +315,10 @@ $accountId = $userRecord['id'] ?? '—';
 
     .metric-card {
       background: #ffffff;
-      border-radius: 1.2rem;
+      border-radius: 18px;
       padding: 1rem 1.1rem;
-      border: 1px solid rgba(14, 165, 233, 0.18);
+      border: 1px solid rgba(14, 165, 233, 0.22);
+      box-shadow: 0 16px 28px -24px rgba(14, 165, 233, 0.35);
     }
 
     .metric-label {
@@ -328,31 +481,71 @@ $accountId = $userRecord['id'] ?? '—';
       font-size: 0.9rem;
     }
 
+    @media (max-width: 900px) {
+      .dashboard-shell {
+        width: calc(100% - 2rem);
+        margin: -2.75rem auto 2.5rem;
+      }
+    }
+
     @media (max-width: 720px) {
-      body { padding: 1.5rem; }
-      .dashboard-shell { border-radius: 1.5rem; }
+      .dashboard-topbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .topbar-actions {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .dashboard-shell {
+        border-radius: 20px;
+        margin: -2.25rem auto 1.5rem;
+        padding: 1.5rem;
+      }
     }
   </style>
 </head>
 <body data-role="installer">
-  <main class="dashboard-shell">
-    <header>
-      <div>
-        <p class="eyebrow">Installer portal</p>
-        <h1>Hey, <?= htmlspecialchars($displayName); ?></h1>
-        <p class="subhead">
-          Signed in as <?= htmlspecialchars($userEmail); ?>
-          <?php if ($lastLogin): ?>
-            · Last login <?= htmlspecialchars($lastLogin); ?>
-          <?php endif; ?>
-        </p>
+  <div class="dashboard-app">
+    <header class="dashboard-topbar">
+      <div class="topbar-brand">
+        <span class="brand-mark" aria-hidden="true">D</span>
+        <span class="brand-text">
+          <span class="brand-name">Dakshayani</span>
+          <span class="brand-tagline">Installer portal</span>
+        </span>
       </div>
-      <form method="post" action="logout.php">
-        <button class="logout-btn" type="submit">Sign out</button>
-      </form>
+      <div class="topbar-actions">
+        <span class="role-chip"><?= htmlspecialchars($roleLabel); ?></span>
+        <div class="user-pill">
+          <span class="user-avatar" aria-hidden="true"><?= htmlspecialchars($displayInitial); ?></span>
+          <div class="user-meta">
+            <span class="user-name"><?= htmlspecialchars($displayName); ?></span>
+            <span class="user-email"><?= htmlspecialchars($userEmail); ?></span>
+          </div>
+        </div>
+        <form method="post" action="logout.php">
+          <button class="topbar-logout" type="submit">Sign out</button>
+        </form>
+      </div>
     </header>
+    <main class="dashboard-shell">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Installer portal</p>
+          <h1>Hey, <?= htmlspecialchars($displayName); ?></h1>
+          <p class="subhead">
+            Review your site schedule and action items for today.
+            <?php if ($lastLogin): ?>
+              Last sign-in <?= htmlspecialchars($lastLogin); ?>.
+            <?php endif; ?>
+          </p>
+        </div>
+      </header>
 
-    <div class="status-banner" data-dashboard-status hidden></div>
+      <div class="status-banner" data-dashboard-status hidden></div>
 
     <section class="panel">
       <h2>Field overview</h2>
@@ -450,12 +643,12 @@ $accountId = $userRecord['id'] ?? '—';
       </div>
     </section>
 
-    <section class="panel">
-      <h2>Your crew details</h2>
-      <div class="details-grid">
-        <div>
-          <strong>User ID</strong>
-          <span><?= htmlspecialchars($accountId); ?></span>
+      <section class="panel">
+        <h2>Your crew details</h2>
+        <div class="details-grid">
+          <div>
+            <strong>User ID</strong>
+            <span><?= htmlspecialchars($accountId); ?></span>
         </div>
         <div>
           <strong>Role</strong>
@@ -469,9 +662,10 @@ $accountId = $userRecord['id'] ?? '—';
           <strong>Email</strong>
           <span><?= htmlspecialchars($userEmail); ?></span>
         </div>
-      </div>
-    </section>
-  </main>
+        </div>
+      </section>
+    </main>
+  </div>
 
   <script src="portal-demo-data.js"></script>
   <script src="dashboard-auth.js"></script>
