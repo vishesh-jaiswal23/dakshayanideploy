@@ -12,7 +12,7 @@ if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
 }
 
 const OWNER_EMAIL = 'd.entranchi@gmail.com';
-const ADMIN_TICKETS_FILE = __DIR__ . '/server/data/tickets.json';
+const ADMIN_TICKETS_FILE = 'server/data/tickets.json';
 
 function flash(string $type, string $message): void
 {
@@ -218,6 +218,7 @@ function admin_parse_xlsx_file(string $path): array
 
 function admin_read_tickets(): array
 {
+    clearstatcache();
     if (!file_exists(ADMIN_TICKETS_FILE)) {
         return [];
     }
