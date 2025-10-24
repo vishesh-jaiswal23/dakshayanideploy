@@ -53,459 +53,9 @@ $accountId = $userRecord['id'] ?? '—';
   <link rel="icon" href="images/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      color-scheme: light;
-      --page-bg: #eef2f9;
-      --topbar-bg: linear-gradient(135deg, #0b1f3a, #123262);
-      --topbar-text: #f8fafc;
-      --surface: #ffffff;
-      --surface-subtle: #f7f9fd;
-      --border: rgba(15, 23, 42, 0.08);
-      --border-strong: rgba(14, 165, 233, 0.2);
-      --primary: #0ea5e9;
-      --primary-soft: rgba(14, 165, 233, 0.14);
-      --primary-strong: #0284c7;
-      --muted: rgba(15, 23, 42, 0.6);
-      --success: #16a34a;
-      --warning: #f59e0b;
-      --danger: #dc2626;
-      --shadow-card: 0 38px 70px -48px rgba(15, 23, 42, 0.55);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--page-bg);
-      color: #0f172a;
-    }
-
-    .dashboard-app {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      background: linear-gradient(180deg, rgba(15, 23, 42, 0.06), transparent 30%) no-repeat;
-    }
-
-    .dashboard-topbar {
-      background: var(--topbar-bg);
-      color: var(--topbar-text);
-      padding: 1.2rem clamp(1.5rem, 5vw, 2.75rem);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1.5rem;
-      flex-wrap: wrap;
-      box-shadow: 0 24px 48px -32px rgba(11, 31, 58, 0.65);
-      position: relative;
-      z-index: 2;
-    }
-
-    .topbar-brand {
-      display: flex;
-      align-items: center;
-      gap: 0.85rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .brand-mark {
-      width: 44px;
-      height: 44px;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.18);
-      display: grid;
-      place-items: center;
-      font-size: 1.25rem;
-    }
-
-    .brand-text {
-      display: flex;
-      flex-direction: column;
-      line-height: 1.1;
-    }
-
-    .brand-name {
-      font-size: 1rem;
-      letter-spacing: 0.05em;
-    }
-
-    .brand-tagline {
-      font-size: 0.75rem;
-      font-weight: 500;
-      text-transform: none;
-      opacity: 0.75;
-    }
-
-    .topbar-actions {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
-
-    .role-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      padding: 0.35rem 0.85rem;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.16);
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-    }
-
-    .user-pill {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.45rem 0.85rem 0.45rem 0.45rem;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.1);
-    }
-
-    .user-avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.18);
-      display: grid;
-      place-items: center;
-      font-weight: 600;
-      font-size: 1rem;
-      letter-spacing: 0.02em;
-    }
-
-    .user-meta {
-      display: flex;
-      flex-direction: column;
-      line-height: 1.2;
-    }
-
-    .user-name {
-      font-weight: 600;
-      font-size: 0.9rem;
-      color: var(--topbar-text);
-    }
-
-    .user-email {
-      font-size: 0.75rem;
-      opacity: 0.75;
-      color: var(--topbar-text);
-    }
-
-    .topbar-actions form {
-      margin: 0;
-    }
-
-    .topbar-logout {
-      border: none;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.18);
-      color: var(--topbar-text);
-      padding: 0.55rem 1.25rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s ease, transform 0.2s ease;
-    }
-
-    .topbar-logout:hover,
-    .topbar-logout:focus {
-      background: rgba(255, 255, 255, 0.28);
-      transform: translateY(-1px);
-    }
-
-    .dashboard-shell {
-      width: min(1100px, calc(100% - 3rem));
-      background: var(--surface);
-      border-radius: 24px;
-      padding: clamp(1.85rem, 4vw, 3rem);
-      box-shadow: var(--shadow-card);
-      display: grid;
-      gap: clamp(1.4rem, 3vw, 2.4rem);
-      margin: clamp(-3.5rem, -6vw, -2.75rem) auto 3rem;
-      position: relative;
-      z-index: 1;
-    }
-
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      flex-wrap: wrap;
-      gap: 1.25rem;
-    }
-
-    .eyebrow {
-      text-transform: uppercase;
-      font-weight: 600;
-      letter-spacing: 0.18em;
-      font-size: 0.75rem;
-      color: var(--primary-strong);
-      margin: 0 0 0.5rem;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: clamp(1.75rem, 3vw, 2.35rem);
-      font-weight: 700;
-    }
-
-    .subhead {
-      margin: 0;
-      font-size: 0.95rem;
-      color: var(--muted);
-    }
-
-    .status-banner {
-      border-radius: 1.25rem;
-      padding: 1rem 1.2rem;
-      background: var(--primary-soft);
-      border: 1px solid rgba(14, 165, 233, 0.24);
-      color: var(--primary-strong);
-      font-size: 0.95rem;
-    }
-
-    .status-banner[data-tone="error"] {
-      background: rgba(220, 38, 38, 0.08);
-      color: #b91c1c;
-      border-color: rgba(220, 38, 38, 0.22);
-    }
-
-    .status-banner[data-tone="success"] {
-      background: rgba(22, 163, 74, 0.12);
-      border-color: rgba(22, 163, 74, 0.22);
-      color: #15803d;
-    }
-
-    .panel {
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: clamp(1.4rem, 2.6vw, 2rem);
-      background: var(--surface-subtle);
-      display: grid;
-      gap: 1rem;
-    }
-
-    .panel h2 {
-      margin: 0;
-      font-size: 1.15rem;
-      font-weight: 600;
-    }
-
-    .panel .lead {
-      margin: 0;
-      font-size: 0.95rem;
-      color: var(--muted);
-    }
-
-    .metric-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 1rem;
-    }
-
-    .metric-card {
-      background: #ffffff;
-      border-radius: 18px;
-      padding: 1rem 1.1rem;
-      border: 1px solid rgba(14, 165, 233, 0.22);
-      box-shadow: 0 16px 28px -24px rgba(14, 165, 233, 0.35);
-    }
-
-    .metric-label {
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      font-size: 0.75rem;
-      color: rgba(15, 23, 42, 0.55);
-      margin: 0 0 0.3rem;
-    }
-
-    .metric-value {
-      margin: 0;
-      font-size: 1.55rem;
-      font-weight: 700;
-      color: #0f172a;
-    }
-
-    .metric-helper {
-      margin: 0.35rem 0 0;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .timeline-list, .task-list, .job-grid, .resource-grid, .checklist {
-      display: grid;
-      gap: 0.75rem;
-    }
-
-    .timeline-row, .task-row, .job-card, .resource-card, .checklist-item {
-      background: #ffffff;
-      border-radius: 1rem;
-      border: 1px solid var(--border);
-      padding: 0.85rem 1rem;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem 1rem;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .timeline-label {
-      font-weight: 600;
-      margin: 0;
-      color: #0f172a;
-    }
-
-    .timeline-date, .timeline-status, .task-status, .job-meta {
-      margin: 0;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .job-grid {
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-
-    .job-card {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.5rem;
-      min-height: 150px;
-    }
-
-    .job-card h3 {
-      margin: 0;
-      font-size: 1.1rem;
-      font-weight: 600;
-      color: #0f172a;
-    }
-
-    .job-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      border-radius: 999px;
-      padding: 0.35rem 0.75rem;
-      font-size: 0.8rem;
-      font-weight: 600;
-      background: rgba(14, 165, 233, 0.16);
-      color: #0ea5e9;
-    }
-
-    .checklist {
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-
-    .checklist-item {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.5rem;
-    }
-
-    .checklist-item[data-state="done"] {
-      border-color: rgba(34, 197, 94, 0.28);
-    }
-
-    .checklist-item[data-state="action"] {
-      border-color: rgba(249, 115, 22, 0.35);
-      box-shadow: 0 14px 24px -22px rgba(249, 115, 22, 0.55);
-    }
-
-    .resource-grid {
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    }
-
-    .resource-card {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.6rem;
-      min-height: 160px;
-    }
-
-    .resource-card h3 {
-      margin: 0;
-      font-weight: 600;
-      color: #0f172a;
-    }
-
-    .resource-actions {
-      margin-top: auto;
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-    }
-
-    .resource-actions a {
-      font-weight: 600;
-      font-size: 0.9rem;
-      color: var(--primary);
-      text-decoration: none;
-    }
-
-    .resource-actions a:hover,
-    .resource-actions a:focus {
-      text-decoration: underline;
-    }
-
-    .details-grid {
-      display: grid;
-      gap: 0.75rem;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    }
-
-    .details-grid span {
-      display: block;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .details-grid strong {
-      display: block;
-      font-weight: 600;
-      margin-bottom: 0.2rem;
-      color: #0f172a;
-    }
-
-    .empty {
-      margin: 0;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    @media (max-width: 900px) {
-      .dashboard-shell {
-        width: calc(100% - 2rem);
-        margin: -2.75rem auto 2.5rem;
-      }
-    }
-
-    @media (max-width: 720px) {
-      .dashboard-topbar {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .topbar-actions {
-        width: 100%;
-        justify-content: space-between;
-      }
-
-      .dashboard-shell {
-        border-radius: 20px;
-        margin: -2.25rem auto 1.5rem;
-        padding: 1.5rem;
-      }
-    }
-  </style>
+
+  <link rel="stylesheet" href="dashboard-modern.css" />
+  <style></style>
 </head>
 <body data-role="installer">
   <div class="dashboard-app">
@@ -532,142 +82,413 @@ $accountId = $userRecord['id'] ?? '—';
       </div>
     </header>
     <main class="dashboard-shell">
-      <header class="page-header">
-        <div>
-          <p class="eyebrow">Installer portal</p>
-          <h1>Hey, <?= htmlspecialchars($displayName); ?></h1>
-          <p class="subhead">
-            Review your site schedule and action items for today.
-            <?php if ($lastLogin): ?>
-              Last sign-in <?= htmlspecialchars($lastLogin); ?>.
-            <?php endif; ?>
+      <div class="dashboard-layout">
+        <aside class="dashboard-sidebar" aria-label="Installer navigation">
+          <div class="sidebar-header">
+            <span class="sidebar-label">Navigation</span>
+            <p class="sidebar-title">Field operations</p>
+          </div>
+          <nav class="sidebar-nav">
+            <a class="sidebar-link" href="#field-overview" aria-current="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 12h18" />
+                <path d="M3 6h18" />
+                <path d="M3 18h18" />
+              </svg>
+              Field overview
+            </a>
+            <a class="sidebar-link" href="#installer-metrics">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 19h16" />
+                <path d="M7 19V9" />
+                <path d="M12 19V5" />
+                <path d="M17 19v-7" />
+              </svg>
+              Performance metrics
+            </a>
+            <a class="sidebar-link" href="#installer-analytics">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 3" />
+              </svg>
+              Analytics &amp; charts
+            </a>
+            <a class="sidebar-link" href="#installer-jobs">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="4" />
+                <path d="M16 2v4" />
+                <path d="M8 2v4" />
+                <path d="M3 10h18" />
+              </svg>
+              Upcoming jobs
+            </a>
+            <a class="sidebar-link" href="#installer-tasks">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 6h9" />
+                <path d="M4 12h9" />
+                <path d="M4 18h9" />
+                <path d="m16 6 2 2 3-3" />
+              </svg>
+              Daily tasks
+            </a>
+            <a class="sidebar-link" href="#crew-plan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="9" cy="7" r="4" />
+                <path d="M17 11v6" />
+                <path d="M21 11v6" />
+                <path d="M7 22a4 4 0 0 1 4-4" />
+              </svg>
+              Crew deployment
+            </a>
+            <a class="sidebar-link" href="#installer-checklist">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
+              Site readiness
+            </a>
+            <a class="sidebar-link" href="#installer-resources">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 19.5V5a2 2 0 0 1 2-2h9" />
+                <path d="M20 7v12.5a1.5 1.5 0 0 1-1.5 1.5H6" />
+                <path d="M9 3v5h5" />
+              </svg>
+              Resources
+            </a>
+            <a class="sidebar-link" href="#installer-profile">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="7" r="4" />
+                <path d="M5.5 21a7.5 7.5 0 0 1 13 0" />
+              </svg>
+              Profile details
+            </a>
+          </nav>
+          <p class="sidebar-footnote">
+            Stay ahead of inspections, monitor crew utilisation, and surface blockers before the daily stand-up.
           </p>
+        </aside>
+        <div class="dashboard-main">
+          <header class="page-header">
+            <div class="page-header__content">
+              <p class="eyebrow">Installer portal</p>
+              <h1>On-site plan for <?= htmlspecialchars($displayName); ?></h1>
+              <p class="subhead">
+                Review your site schedule and action items for today.
+                <?php if ($lastLogin): ?>
+                  Last sign-in <?= htmlspecialchars($lastLogin); ?>.
+                <?php endif; ?>
+              </p>
+            </div>
+            <div class="hero-cards">
+              <article class="hero-card">
+                <span class="hero-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12h18" />
+                    <path d="M3 6h18" />
+                    <path d="M3 18h18" />
+                  </svg>
+                </span>
+                <p class="hero-card__title">Today's focus</p>
+                <p class="hero-card__value">6 live jobs</p>
+                <p class="hero-card__note">Two sites need structural clearance follow-ups before noon.</p>
+              </article>
+              <article class="hero-card">
+                <span class="hero-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4h16v6H4z" />
+                    <path d="M16 2v4" />
+                    <path d="M8 2v4" />
+                    <path d="M4 14h16" />
+                  </svg>
+                </span>
+                <p class="hero-card__title">Crew check-in</p>
+                <p class="hero-card__value">08:30 IST</p>
+                <p class="hero-card__note">Huddle at Jamshedpur HQ with safety refresher on harness inspections.</p>
+              </article>
+              <article class="hero-card">
+                <span class="hero-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 1v4" />
+                    <path d="m4.93 4.93 2.83 2.83" />
+                    <path d="M1 12h4" />
+                    <path d="m4.93 19.07 2.83-2.83" />
+                    <path d="M12 15v8" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </span>
+                <p class="hero-card__title">Safety status</p>
+                <p class="hero-card__value">All clear</p>
+                <p class="hero-card__note">PPE inspections updated · No incidents reported in the last 14 days.</p>
+              </article>
+            </div>
+          </header>
+
+          <div class="status-banner" data-dashboard-status hidden></div>
+
+          <section class="panel" id="field-overview">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Overview</span>
+                <h2>Field overview</h2>
+                <p>Quick insight into job count, completion pace, and hand-offs.</p>
+              </div>
+            </div>
+            <p class="panel-intro" data-dashboard-headline>Loading overview…</p>
+          </section>
+
+          <section class="panel" id="installer-metrics">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Live KPIs</span>
+                <h2>Key metrics</h2>
+                <p>Track workload, completion time, and safety performance at a glance.</p>
+              </div>
+            </div>
+            <div class="metric-grid" data-metrics></div>
+          </section>
+
+          <section class="panel" id="installer-analytics">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Insight</span>
+                <h2>Operational analytics</h2>
+                <p>Visualise crew utilisation and how jobs are distributed across cities.</p>
+              </div>
+            </div>
+            <div class="charts-grid">
+              <article class="chart-card">
+                <h3>Crew utilisation (this week)</h3>
+                <canvas id="installer-utilisation-chart" aria-label="Crew utilisation chart"></canvas>
+                <ul class="chart-legend">
+                  <li><span style="background:#0ea5e9"></span>On-site</li>
+                  <li><span style="background:#facc15"></span>Standby</li>
+                  <li><span style="background:#94a3b8"></span>Training / admin</li>
+                </ul>
+              </article>
+              <article class="chart-card">
+                <h3>Jobs by city</h3>
+                <canvas id="installer-city-chart" aria-label="Jobs by city bar chart"></canvas>
+                <ul class="chart-legend">
+                  <li><span style="background:#0ea5e9"></span>Active jobs</li>
+                </ul>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" id="installer-jobs">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Schedule</span>
+                <h2>Upcoming jobs</h2>
+                <p>Keep tabs on your next mobilisations and logistics checks.</p>
+              </div>
+            </div>
+            <div class="timeline-list" data-timeline></div>
+          </section>
+
+          <section class="panel" id="installer-tasks">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Execution</span>
+                <h2>Today's tasks</h2>
+                <p>Finish these checklists before end-of-day sync with operations.</p>
+              </div>
+            </div>
+            <div class="task-list" data-tasks></div>
+          </section>
+
+          <section class="panel" id="crew-plan">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Deployment</span>
+                <h2>Today's crew plan</h2>
+                <p>Deployment snapshot with leads, crew strength, and job phase.</p>
+              </div>
+            </div>
+            <div class="job-grid">
+              <article class="job-card">
+                <h3>Team A · Ranchi</h3>
+                <p class="job-meta">Lead: <strong>Sunita Singh</strong></p>
+                <p class="job-meta">Crew: 4 technicians · Crane slot 09:00–12:00</p>
+                <span class="job-badge">Install &amp; wiring</span>
+              </article>
+              <article class="job-card">
+                <h3>Team B · Bokaro</h3>
+                <p class="job-meta">Lead: <strong>Akash Mehra</strong></p>
+                <p class="job-meta">Crew: 3 technicians · Safety audit at 14:00</p>
+                <span class="job-badge">Commissioning</span>
+              </article>
+              <article class="job-card">
+                <h3>Team C · Jamshedpur</h3>
+                <p class="job-meta">Lead: <strong>Priya Das</strong></p>
+                <p class="job-meta">Crew: 5 technicians · Roof access cleared</p>
+                <span class="job-badge">Pre-install survey</span>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" id="installer-checklist">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Quality</span>
+                <h2>Site readiness checklist</h2>
+                <p>Confirm these before marking a job ready for commissioning.</p>
+              </div>
+            </div>
+            <div class="checklist">
+              <article class="checklist-item" data-state="done">
+                <h3>Safety briefing</h3>
+                <p class="job-meta">Use the latest PPE inspection log shared yesterday.</p>
+              </article>
+              <article class="checklist-item" data-state="action">
+                <h3>Material receipts</h3>
+                <p class="job-meta">Awaiting POD upload for inverter batch INV-44521.</p>
+              </article>
+              <article class="checklist-item">
+                <h3>Quality photos</h3>
+                <p class="job-meta">Capture DC isolator close-ups after wiring run completion.</p>
+              </article>
+              <article class="checklist-item" data-state="done">
+                <h3>Permit display</h3>
+                <p class="job-meta">Work permits printed and carried by all supervisors.</p>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" id="installer-resources">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Support</span>
+                <h2>Resources &amp; quick links</h2>
+                <p>Reference documentation, tools, and trackers for the field team.</p>
+              </div>
+            </div>
+            <div class="resource-grid">
+              <article class="resource-card">
+                <h3>Installation handbook</h3>
+                <p class="job-meta">Latest SOP for Dakshayani rooftop systems including torque specs.</p>
+                <div class="resource-actions">
+                  <a href="#">Download PDF</a>
+                  <a href="#">View change log</a>
+                </div>
+              </article>
+              <article class="resource-card">
+                <h3>Inventory tracker</h3>
+                <p class="job-meta">Live sheet of module, inverter, and BOS stock across warehouses.</p>
+                <div class="resource-actions">
+                  <a href="#">Open tracker</a>
+                  <a href="#">Report shortage</a>
+                </div>
+              </article>
+              <article class="resource-card">
+                <h3>Tool maintenance</h3>
+                <p class="job-meta">Submit service requests for crimpers, testers, and safety gear.</p>
+                <div class="resource-actions">
+                  <a href="#">Book service</a>
+                  <a href="#">Checklist</a>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" id="installer-profile">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Profile</span>
+                <h2>Your crew details</h2>
+                <p>Contact information that the back office uses for escalations.</p>
+              </div>
+            </div>
+            <div class="details-grid">
+              <div>
+                <strong>User ID</strong>
+                <span><?= htmlspecialchars($accountId); ?></span>
+              </div>
+              <div>
+                <strong>Role</strong>
+                <span><?= htmlspecialchars($roleLabel); ?></span>
+              </div>
+              <div>
+                <strong>Phone</strong>
+                <span><?= htmlspecialchars($userPhone === '' ? '—' : $userPhone); ?></span>
+              </div>
+              <div>
+                <strong>Email</strong>
+                <span><?= htmlspecialchars($userEmail); ?></span>
+              </div>
+            </div>
+          </section>
         </div>
-      </header>
-
-      <div class="status-banner" data-dashboard-status hidden></div>
-
-    <section class="panel">
-      <h2>Field overview</h2>
-      <p class="lead" data-dashboard-headline>Loading overview…</p>
-    </section>
-
-    <section class="panel">
-      <h2>Key metrics</h2>
-      <div class="metric-grid" data-metrics></div>
-    </section>
-
-    <section class="panel">
-      <h2>Upcoming jobs</h2>
-      <div class="timeline-list" data-timeline></div>
-    </section>
-
-    <section class="panel">
-      <h2>Today's tasks</h2>
-      <div class="task-list" data-tasks></div>
-    </section>
-
-    <section class="panel">
-      <h2>Today's crew plan</h2>
-      <div class="job-grid">
-        <article class="job-card">
-          <h3>Team A · Ranchi</h3>
-          <p class="job-meta">Lead: <strong>Sunita Singh</strong></p>
-          <p class="job-meta">Crew: 4 technicians · Crane slot 09:00–12:00</p>
-          <span class="job-badge">Install &amp; wiring</span>
-        </article>
-        <article class="job-card">
-          <h3>Team B · Bokaro</h3>
-          <p class="job-meta">Lead: <strong>Akash Mehra</strong></p>
-          <p class="job-meta">Crew: 3 technicians · Safety audit at 14:00</p>
-          <span class="job-badge">Commissioning</span>
-        </article>
-        <article class="job-card">
-          <h3>Team C · Jamshedpur</h3>
-          <p class="job-meta">Lead: <strong>Priya Das</strong></p>
-          <p class="job-meta">Crew: 5 technicians · Roof access cleared</p>
-          <span class="job-badge">Pre-install survey</span>
-        </article>
       </div>
-    </section>
-
-    <section class="panel">
-      <h2>Site readiness checklist</h2>
-      <div class="checklist">
-        <article class="checklist-item" data-state="done">
-          <h3>Safety briefing</h3>
-          <p class="job-meta">Use the latest PPE inspection log shared yesterday.</p>
-        </article>
-        <article class="checklist-item" data-state="action">
-          <h3>Material receipts</h3>
-          <p class="job-meta">Awaiting POD upload for inverter batch INV-44521.</p>
-        </article>
-        <article class="checklist-item">
-          <h3>Quality photos</h3>
-          <p class="job-meta">Capture DC isolator close-ups after wiring run completion.</p>
-        </article>
-        <article class="checklist-item" data-state="done">
-          <h3>Permit display</h3>
-          <p class="job-meta">Work permits printed and carried by all supervisors.</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="panel">
-      <h2>Resources &amp; quick links</h2>
-      <div class="resource-grid">
-        <article class="resource-card">
-          <h3>Installation handbook</h3>
-          <p class="job-meta">Latest SOP for Dakshayani rooftop systems including torque specs.</p>
-          <div class="resource-actions">
-            <a href="#">Download PDF</a>
-            <a href="#">View change log</a>
-          </div>
-        </article>
-        <article class="resource-card">
-          <h3>Inventory tracker</h3>
-          <p class="job-meta">Live sheet of module, inverter, and BOS stock across warehouses.</p>
-          <div class="resource-actions">
-            <a href="#">Open tracker</a>
-            <a href="#">Report shortage</a>
-          </div>
-        </article>
-        <article class="resource-card">
-          <h3>Tool maintenance</h3>
-          <p class="job-meta">Submit service requests for crimpers, testers, and safety gear.</p>
-          <div class="resource-actions">
-            <a href="#">Book service</a>
-            <a href="#">Checklist</a>
-          </div>
-        </article>
-      </div>
-    </section>
-
-      <section class="panel">
-        <h2>Your crew details</h2>
-        <div class="details-grid">
-          <div>
-            <strong>User ID</strong>
-            <span><?= htmlspecialchars($accountId); ?></span>
-        </div>
-        <div>
-          <strong>Role</strong>
-          <span><?= htmlspecialchars($roleLabel); ?></span>
-        </div>
-        <div>
-          <strong>Phone</strong>
-          <span><?= htmlspecialchars($userPhone === '' ? '—' : $userPhone); ?></span>
-        </div>
-        <div>
-          <strong>Email</strong>
-          <span><?= htmlspecialchars($userEmail); ?></span>
-        </div>
-        </div>
-      </section>
     </main>
   </div>
 
   <script src="portal-demo-data.js"></script>
   <script src="dashboard-auth.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      if (!window.Chart) {
+        return;
+      }
+
+      const utilisationCtx = document.getElementById('installer-utilisation-chart');
+      if (utilisationCtx) {
+        new Chart(utilisationCtx, {
+          type: 'doughnut',
+          data: {
+            labels: ['On-site', 'Standby', 'Training / admin'],
+            datasets: [
+              {
+                data: [68, 20, 12],
+                backgroundColor: ['#0ea5e9', '#facc15', '#94a3b8'],
+                borderWidth: 0
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            cutout: '68%',
+            plugins: { legend: { display: false } }
+          }
+        });
+      }
+
+      const cityCtx = document.getElementById('installer-city-chart');
+      if (cityCtx) {
+        new Chart(cityCtx, {
+          type: 'bar',
+          data: {
+            labels: ['Ranchi', 'Jamshedpur', 'Bokaro', 'Dhanbad'],
+            datasets: [
+              {
+                data: [3, 2, 1, 1],
+                backgroundColor: '#0ea5e9',
+                borderRadius: 12,
+                maxBarThickness: 46
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: {
+                ticks: { color: '#64748b' },
+                grid: { display: false }
+              },
+              y: {
+                ticks: { color: '#64748b' },
+                grid: { color: 'rgba(148, 163, 184, 0.2)', drawBorder: false },
+                beginAtZero: true,
+                suggestedMax: 4
+              }
+            }
+          }
+        });
+      }
+    });
+  </script>
 </body>
 </html>

@@ -53,455 +53,9 @@ $accountId = $userRecord['id'] ?? '—';
   <link rel="icon" href="images/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      color-scheme: light;
-      --page-bg: #eef2f9;
-      --topbar-bg: linear-gradient(135deg, #0b1f3a, #123262);
-      --topbar-text: #f8fafc;
-      --surface: #ffffff;
-      --surface-subtle: #f7f9fd;
-      --border: rgba(15, 23, 42, 0.08);
-      --border-strong: rgba(15, 23, 42, 0.14);
-      --primary: #0f9d8d;
-      --primary-soft: rgba(15, 157, 141, 0.14);
-      --primary-strong: #0b7664;
-      --muted: rgba(15, 23, 42, 0.6);
-      --success: #16a34a;
-      --warning: #f97316;
-      --danger: #dc2626;
-      --shadow-card: 0 38px 70px -48px rgba(15, 23, 42, 0.55);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--page-bg);
-      color: #0f172a;
-    }
-
-    .dashboard-app {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      background: linear-gradient(180deg, rgba(15, 23, 42, 0.06), transparent 30%) no-repeat;
-    }
-
-    .dashboard-topbar {
-      background: var(--topbar-bg);
-      color: var(--topbar-text);
-      padding: 1.2rem clamp(1.5rem, 5vw, 2.75rem);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1.5rem;
-      flex-wrap: wrap;
-      box-shadow: 0 24px 48px -32px rgba(11, 31, 58, 0.65);
-      position: relative;
-      z-index: 2;
-    }
-
-    .topbar-brand {
-      display: flex;
-      align-items: center;
-      gap: 0.85rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .brand-mark {
-      width: 44px;
-      height: 44px;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.18);
-      display: grid;
-      place-items: center;
-      font-size: 1.25rem;
-    }
-
-    .brand-text {
-      display: flex;
-      flex-direction: column;
-      line-height: 1.1;
-    }
-
-    .brand-name {
-      font-size: 1rem;
-      letter-spacing: 0.05em;
-    }
-
-    .brand-tagline {
-      font-size: 0.75rem;
-      font-weight: 500;
-      text-transform: none;
-      opacity: 0.75;
-    }
-
-    .topbar-actions {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
-
-    .role-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      padding: 0.35rem 0.85rem;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.16);
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-    }
-
-    .user-pill {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.45rem 0.85rem 0.45rem 0.45rem;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.1);
-    }
-
-    .user-avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.18);
-      display: grid;
-      place-items: center;
-      font-weight: 600;
-      font-size: 1rem;
-      letter-spacing: 0.02em;
-    }
-
-    .user-meta {
-      display: flex;
-      flex-direction: column;
-      line-height: 1.2;
-    }
-
-    .user-name {
-      font-weight: 600;
-      font-size: 0.9rem;
-      color: var(--topbar-text);
-    }
-
-    .user-email {
-      font-size: 0.75rem;
-      opacity: 0.75;
-      color: var(--topbar-text);
-    }
-
-    .topbar-actions form {
-      margin: 0;
-    }
-
-    .topbar-logout {
-      border: none;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.18);
-      color: var(--topbar-text);
-      padding: 0.55rem 1.25rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s ease, transform 0.2s ease;
-    }
-
-    .topbar-logout:hover,
-    .topbar-logout:focus {
-      background: rgba(255, 255, 255, 0.28);
-      transform: translateY(-1px);
-    }
-
-    .dashboard-shell {
-      width: min(1080px, calc(100% - 3rem));
-      background: var(--surface);
-      border-radius: 24px;
-      padding: clamp(1.85rem, 4vw, 3rem);
-      box-shadow: var(--shadow-card);
-      display: grid;
-      gap: clamp(1.4rem, 3vw, 2.4rem);
-      margin: clamp(-3.5rem, -6vw, -2.75rem) auto 3rem;
-      position: relative;
-      z-index: 1;
-    }
-
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      flex-wrap: wrap;
-      gap: 1.25rem;
-    }
-
-    .eyebrow {
-      text-transform: uppercase;
-      font-weight: 600;
-      letter-spacing: 0.14em;
-      font-size: 0.75rem;
-      color: var(--primary-strong);
-      margin: 0 0 0.45rem;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: clamp(1.7rem, 3vw, 2.3rem);
-      font-weight: 700;
-    }
-
-    .subhead {
-      margin: 0;
-      font-size: 0.95rem;
-      color: var(--muted);
-    }
-
-    .status-banner {
-      border-radius: 1.25rem;
-      padding: 1rem 1.2rem;
-      background: var(--primary-soft);
-      border: 1px solid rgba(15, 157, 141, 0.24);
-      color: var(--primary-strong);
-      font-size: 0.95rem;
-    }
-
-    .status-banner[data-tone="error"] {
-      background: rgba(220, 38, 38, 0.08);
-      color: #b91c1c;
-      border-color: rgba(220, 38, 38, 0.22);
-    }
-
-    .status-banner[data-tone="success"] {
-      background: rgba(22, 163, 74, 0.12);
-      border-color: rgba(22, 163, 74, 0.22);
-      color: #15803d;
-    }
-
-    .panel {
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: clamp(1.4rem, 2.6vw, 2rem);
-      background: var(--surface-subtle);
-      display: grid;
-      gap: 1rem;
-    }
-
-    .panel h2 {
-      margin: 0;
-      font-size: 1.15rem;
-      font-weight: 600;
-    }
-
-    .panel .lead {
-      margin: 0;
-      font-size: 0.95rem;
-      color: var(--muted);
-    }
-
-    .metric-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-      gap: 1rem;
-    }
-
-    .metric-card {
-      background: #ffffff;
-      border-radius: 18px;
-      padding: 1rem 1.1rem;
-      border: 1px solid rgba(15, 157, 141, 0.22);
-      box-shadow: 0 16px 28px -24px rgba(15, 157, 141, 0.35);
-    }
-
-    .metric-label {
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      font-size: 0.75rem;
-      color: rgba(15, 23, 42, 0.55);
-      margin: 0 0 0.3rem;
-    }
-
-    .metric-value {
-      margin: 0;
-      font-size: 1.55rem;
-      font-weight: 700;
-      color: #0f172a;
-    }
-
-    .metric-helper {
-      margin: 0.35rem 0 0;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .timeline-list, .task-list, .pipeline-list, .resource-grid {
-      display: grid;
-      gap: 0.75rem;
-    }
-
-    .timeline-row, .task-row, .pipeline-row, .resource-card, .reward-card {
-      background: #ffffff;
-      border-radius: 18px;
-      border: 1px solid var(--border);
-      padding: 0.85rem 1rem;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem 1rem;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .timeline-label {
-      font-weight: 600;
-      margin: 0;
-      color: #0f172a;
-    }
-
-    .timeline-date, .timeline-status, .task-status, .lead-meta {
-      margin: 0;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .pipeline-row {
-      gap: 0.5rem 1rem;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .lead-name {
-      font-weight: 600;
-      color: #0f172a;
-      margin: 0;
-    }
-
-    .lead-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      border-radius: 999px;
-      padding: 0.3rem 0.75rem;
-      font-size: 0.78rem;
-      font-weight: 600;
-      background: rgba(15, 157, 141, 0.16);
-      color: var(--primary-strong);
-    }
-
-    .reward-card {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.6rem;
-      min-height: 160px;
-    }
-
-    .progress-track {
-      width: 100%;
-      height: 10px;
-      border-radius: 999px;
-      background: rgba(15, 23, 42, 0.08);
-      overflow: hidden;
-    }
-
-    .progress-fill {
-      height: 100%;
-      border-radius: inherit;
-      background: linear-gradient(120deg, #0f9d8d, #14b8a6);
-    }
-
-    .resource-grid {
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    }
-
-    .resource-card {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.6rem;
-      min-height: 160px;
-    }
-
-    .resource-card h3 {
-      margin: 0;
-      font-weight: 600;
-      color: #0f172a;
-    }
-
-    .resource-actions {
-      margin-top: auto;
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-    }
-
-    .resource-actions a {
-      font-weight: 600;
-      font-size: 0.9rem;
-      color: var(--primary-strong);
-      text-decoration: none;
-    }
-
-    .resource-actions a:hover,
-    .resource-actions a:focus {
-      text-decoration: underline;
-    }
-
-    .details-grid {
-      display: grid;
-      gap: 0.75rem;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    }
-
-    .details-grid span {
-      display: block;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .details-grid strong {
-      display: block;
-      font-weight: 600;
-      margin-bottom: 0.2rem;
-      color: #0f172a;
-    }
-
-    .empty {
-      margin: 0;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    @media (max-width: 900px) {
-      .dashboard-shell {
-        width: calc(100% - 2rem);
-        margin: -2.75rem auto 2.5rem;
-      }
-    }
-
-    @media (max-width: 720px) {
-      .dashboard-topbar {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .topbar-actions {
-        width: 100%;
-        justify-content: space-between;
-      }
-
-      .dashboard-shell {
-        border-radius: 20px;
-        margin: -2.25rem auto 1.5rem;
-        padding: 1.5rem;
-      }
-    }
-  </style>
+
+  <link rel="stylesheet" href="dashboard-modern.css" />
+  <style></style>
 </head>
 <body data-role="referrer">
   <div class="dashboard-app">
@@ -528,129 +82,400 @@ $accountId = $userRecord['id'] ?? '—';
       </div>
     </header>
     <main class="dashboard-shell">
-      <header class="page-header">
-        <div>
-          <p class="eyebrow">Referral partner portal</p>
-          <h1>Hello, <?= htmlspecialchars($displayName); ?></h1>
-          <p class="subhead">
-            Track your leads, payouts, and programme updates in one place.
-            <?php if ($lastLogin): ?>
-              Last sign-in <?= htmlspecialchars($lastLogin); ?>.
-            <?php endif; ?>
+      <div class="dashboard-layout">
+        <aside class="dashboard-sidebar" aria-label="Referral navigation">
+          <div class="sidebar-header">
+            <span class="sidebar-label">Navigation</span>
+            <p class="sidebar-title">Growth pipeline</p>
+          </div>
+          <nav class="sidebar-nav">
+            <a class="sidebar-link" href="#programme-overview" aria-current="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 5h18" />
+                <path d="M3 12h18" />
+                <path d="M3 19h18" />
+              </svg>
+              Programme snapshot
+            </a>
+            <a class="sidebar-link" href="#referrer-metrics">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M5 12.5l4-4 4 4 6-6" />
+                <path d="M5 19h14" />
+              </svg>
+              Performance metrics
+            </a>
+            <a class="sidebar-link" href="#referrer-analytics">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v6l3 3" />
+              </svg>
+              Analytics &amp; charts
+            </a>
+            <a class="sidebar-link" href="#follow-ups">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="4" />
+                <path d="M16 2v4" />
+                <path d="M8 2v4" />
+                <path d="M3 10h18" />
+              </svg>
+              Follow-ups
+            </a>
+            <a class="sidebar-link" href="#referrer-tasks">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 6h9" />
+                <path d="M4 12h9" />
+                <path d="M4 18h9" />
+                <path d="m16 6 2 2 3-3" />
+              </svg>
+              Action checklist
+            </a>
+            <a class="sidebar-link" href="#pipeline">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 4h16v6H4z" />
+                <path d="M2 14h20" />
+                <path d="M7 20h10" />
+              </svg>
+              Lead pipeline
+            </a>
+            <a class="sidebar-link" href="#rewards">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 2v7" />
+                <circle cx="12" cy="14" r="8" />
+                <path d="m9 14 2 2 4-4" />
+              </svg>
+              Rewards progress
+            </a>
+            <a class="sidebar-link" href="#toolkit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 19.5V5a2 2 0 0 1 2-2h9" />
+                <path d="M20 7v12.5a1.5 1.5 0 0 1-1.5 1.5H6" />
+                <path d="M9 3v5h5" />
+              </svg>
+              Marketing toolkit
+            </a>
+            <a class="sidebar-link" href="#referrer-profile">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="7" r="4" />
+                <path d="M5.5 21a7.5 7.5 0 0 1 13 0" />
+              </svg>
+              Account details
+            </a>
+          </nav>
+          <p class="sidebar-footnote">
+            Convert faster with live analytics, reminders, and ready-to-share marketing assets tailored for partners.
           </p>
-        </div>
-      </header>
-
-      <div class="status-banner" data-dashboard-status hidden></div>
-
-      <section class="panel">
-        <h2>Programme snapshot</h2>
-        <p class="lead" data-dashboard-headline>Loading overview…</p>
-      </section>
-
-      <section class="panel">
-        <h2>Key metrics</h2>
-        <div class="metric-grid" data-metrics></div>
-      </section>
-
-      <section class="panel">
-        <h2>Upcoming follow-ups</h2>
-        <div class="timeline-list" data-timeline></div>
-      </section>
-
-      <section class="panel">
-        <h2>Action checklist</h2>
-        <div class="task-list" data-tasks></div>
-      </section>
-
-      <section class="panel">
-        <h2>Lead pipeline</h2>
-        <div class="pipeline-list">
-          <article class="pipeline-row">
-            <p class="lead-name">RF-882 · Manoj Sinha</p>
-            <p class="lead-meta">3 kW rooftop · Ranchi</p>
-            <span class="lead-badge">Follow-up today</span>
-          </article>
-          <article class="pipeline-row">
-            <p class="lead-name">RF-876 · Kavya Industries</p>
-            <p class="lead-meta">25 kW factory · Bokaro</p>
-            <span class="lead-badge">Site visit pending</span>
-          </article>
-          <article class="pipeline-row">
-            <p class="lead-name">RF-901 · Sneha Residency</p>
-            <p class="lead-meta">8 kW apartment · Jamshedpur</p>
-            <span class="lead-badge">Proposal shared</span>
-          </article>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Rewards progress</h2>
-        <article class="reward-card">
-          <p class="lead-name">This quarter's bonus target</p>
-          <p class="lead-meta">Close 6 qualified deals to unlock the additional ₹10,000 payout.</p>
-          <div class="progress-track" aria-hidden="true">
-            <div class="progress-fill" style="width: 66%"></div>
-          </div>
-          <p class="lead-meta">You have closed <strong>4 of 6</strong> required conversions.</p>
-        </article>
-      </section>
-
-      <section class="panel">
-        <h2>Marketing toolkit</h2>
-        <div class="resource-grid">
-          <article class="resource-card">
-            <h3>Referral pitch deck</h3>
-            <p class="lead-meta">Updated slides with October pricing and financing calculators.</p>
-            <div class="resource-actions">
-              <a href="#">Download PPT</a>
-              <a href="#">Share link</a>
+        </aside>
+        <div class="dashboard-main">
+          <header class="page-header">
+            <div class="page-header__content">
+              <p class="eyebrow">Referral partner portal</p>
+              <h1>Hello, <?= htmlspecialchars($displayName); ?></h1>
+              <p class="subhead">
+                Track your leads, payouts, and programme updates in one place.
+                <?php if ($lastLogin): ?>
+                  Last sign-in <?= htmlspecialchars($lastLogin); ?>.
+                <?php endif; ?>
+              </p>
             </div>
-          </article>
-          <article class="resource-card">
-            <h3>Social media pack</h3>
-            <p class="lead-meta">Canva templates for Instagram, WhatsApp, and LinkedIn outreach.</p>
-            <div class="resource-actions">
-              <a href="#">Open Canva</a>
-              <a href="#">Request custom post</a>
+            <div class="hero-cards">
+              <article class="hero-card">
+                <span class="hero-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 2v4" />
+                    <path d="M16 2v4" />
+                    <rect x="3" y="5" width="18" height="18" rx="2" />
+                    <path d="M3 10h18" />
+                  </svg>
+                </span>
+                <p class="hero-card__title">New leads this week</p>
+                <p class="hero-card__value">4</p>
+                <p class="hero-card__note">Two prospects already scheduled for site visits.</p>
+              </article>
+              <article class="hero-card">
+                <span class="hero-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 1v4" />
+                    <path d="m4.93 4.93 3.54 3.54" />
+                    <path d="M2 12h4" />
+                    <path d="m4.93 19.07 3.54-3.54" />
+                    <path d="M12 15v8" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </span>
+                <p class="hero-card__title">Rewards in queue</p>
+                <p class="hero-card__value">₹36,500</p>
+                <p class="hero-card__note">Next payout hits your bank on 20 Oct.</p>
+              </article>
+              <article class="hero-card">
+                <span class="hero-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M13 2H6a2 2 0 0 0-2 2v16l5-3 5 3V4" />
+                    <path d="M17 7h4" />
+                    <path d="M19 5v4" />
+                  </svg>
+                </span>
+                <p class="hero-card__title">Conversion streak</p>
+                <p class="hero-card__value">3 wins</p>
+                <p class="hero-card__note">Three consecutive deals closed in the last 10 days.</p>
+              </article>
             </div>
-          </article>
-          <article class="resource-card">
-            <h3>Payment status</h3>
-            <p class="lead-meta">Next reward payout: 20 Oct · Bank account ending 5526.</p>
-            <div class="resource-actions">
-              <a href="#">View ledger</a>
-              <a href="#">Update bank</a>
-            </div>
-          </article>
-        </div>
-      </section>
+          </header>
 
-      <section class="panel">
-        <h2>Your contact details</h2>
-        <div class="details-grid">
-          <div>
-            <strong>User ID</strong>
-            <span><?= htmlspecialchars($accountId); ?></span>
-          </div>
-          <div>
-            <strong>Role</strong>
-            <span><?= htmlspecialchars($roleLabel); ?></span>
-          </div>
-          <div>
-            <strong>Phone</strong>
-            <span><?= htmlspecialchars($userPhone === '' ? '—' : $userPhone); ?></span>
-          </div>
-          <div>
-            <strong>Email</strong>
-            <span><?= htmlspecialchars($userEmail); ?></span>
-          </div>
+          <div class="status-banner" data-dashboard-status hidden></div>
+
+          <section class="panel" id="programme-overview">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Overview</span>
+                <h2>Programme snapshot</h2>
+                <p>Overview of lead health and payouts for the current quarter.</p>
+              </div>
+            </div>
+            <p class="panel-intro" data-dashboard-headline>Loading overview…</p>
+          </section>
+
+          <section class="panel" id="referrer-metrics">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Live KPIs</span>
+                <h2>Key metrics</h2>
+                <p>Conversions, earnings, and performance targets in real time.</p>
+              </div>
+            </div>
+            <div class="metric-grid" data-metrics></div>
+          </section>
+
+          <section class="panel" id="referrer-analytics">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Insight</span>
+                <h2>Performance analytics</h2>
+                <p>See how your funnel is moving and how rewards are trending.</p>
+              </div>
+            </div>
+            <div class="charts-grid">
+              <article class="chart-card">
+                <h3>Lead conversion journey</h3>
+                <canvas id="referrer-funnel-chart" aria-label="Lead conversion chart"></canvas>
+                <ul class="chart-legend">
+                  <li><span style="background:#0ea5e9"></span>Leads</li>
+                  <li><span style="background:#38bdf8"></span>Qualified</li>
+                  <li><span style="background:#94a3b8"></span>Proposal</li>
+                  <li><span style="background:#22c55e"></span>Closed</li>
+                </ul>
+              </article>
+              <article class="chart-card">
+                <h3>Payout velocity</h3>
+                <canvas id="referrer-payout-chart" aria-label="Payout timeline chart"></canvas>
+                <ul class="chart-legend">
+                  <li><span style="background:#0ea5e9"></span>Reward earnings</li>
+                </ul>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" id="follow-ups">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Schedule</span>
+                <h2>Upcoming follow-ups</h2>
+                <p>Prioritise conversations and make sure every lead hears from you.</p>
+              </div>
+            </div>
+            <div class="timeline-list" data-timeline></div>
+          </section>
+
+          <section class="panel" id="referrer-tasks">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Momentum</span>
+                <h2>Action checklist</h2>
+                <p>Complete these items to unlock faster conversions and payouts.</p>
+              </div>
+            </div>
+            <div class="task-list" data-tasks></div>
+          </section>
+
+          <section class="panel" id="pipeline">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Pipeline</span>
+                <h2>Lead pipeline</h2>
+                <p>Snapshot of your hottest prospects and the next promised action.</p>
+              </div>
+            </div>
+            <div class="pipeline-list">
+              <article class="pipeline-row">
+                <p class="lead-name">RF-882 · Manoj Sinha</p>
+                <p class="lead-meta">3 kW rooftop · Ranchi</p>
+                <span class="lead-badge">Follow-up today</span>
+              </article>
+              <article class="pipeline-row">
+                <p class="lead-name">RF-876 · Kavya Industries</p>
+                <p class="lead-meta">25 kW factory · Bokaro</p>
+                <span class="lead-badge">Site visit pending</span>
+              </article>
+              <article class="pipeline-row">
+                <p class="lead-name">RF-901 · Sneha Residency</p>
+                <p class="lead-meta">8 kW apartment · Jamshedpur</p>
+                <span class="lead-badge">Proposal shared</span>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" id="rewards">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Rewards</span>
+                <h2>Rewards progress</h2>
+                <p>Hit your quarter target to unlock the bonus payout.</p>
+              </div>
+            </div>
+            <article class="reward-card">
+              <p class="lead-name">This quarter's bonus target</p>
+              <p class="lead-meta">Close 6 qualified deals to unlock the additional ₹10,000 payout.</p>
+              <div class="progress-track" aria-hidden="true">
+                <div class="progress-fill" style="width: 66%"></div>
+              </div>
+              <p class="lead-meta">You have closed <strong>4 of 6</strong> required conversions.</p>
+            </article>
+          </section>
+
+          <section class="panel" id="toolkit">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Resources</span>
+                <h2>Marketing toolkit</h2>
+                <p>Share resources instantly with your prospects.</p>
+              </div>
+            </div>
+            <div class="resource-grid">
+              <article class="resource-card">
+                <h3>Referral pitch deck</h3>
+                <p class="lead-meta">Updated slides with October pricing and financing calculators.</p>
+                <div class="resource-actions">
+                  <a href="#">Download PPT</a>
+                  <a href="#">Share link</a>
+                </div>
+              </article>
+              <article class="resource-card">
+                <h3>Social media pack</h3>
+                <p class="lead-meta">Canva templates for Instagram, WhatsApp, and LinkedIn outreach.</p>
+                <div class="resource-actions">
+                  <a href="#">Open Canva</a>
+                  <a href="#">Request custom post</a>
+                </div>
+              </article>
+              <article class="resource-card">
+                <h3>Payment status</h3>
+                <p class="lead-meta">Next reward payout: 20 Oct · Bank account ending 5526.</p>
+                <div class="resource-actions">
+                  <a href="#">View ledger</a>
+                  <a href="#">Update bank</a>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" id="referrer-profile">
+            <div class="panel-header">
+              <div>
+                <span class="panel-header__meta">Profile</span>
+                <h2>Your contact details</h2>
+                <p>Update information so the Dakshayani team can reach you quickly.</p>
+              </div>
+            </div>
+            <div class="details-grid">
+              <div>
+                <strong>User ID</strong>
+                <span><?= htmlspecialchars($accountId); ?></span>
+              </div>
+              <div>
+                <strong>Role</strong>
+                <span><?= htmlspecialchars($roleLabel); ?></span>
+              </div>
+              <div>
+                <strong>Phone</strong>
+                <span><?= htmlspecialchars($userPhone === '' ? '—' : $userPhone); ?></span>
+              </div>
+              <div>
+                <strong>Email</strong>
+                <span><?= htmlspecialchars($userEmail); ?></span>
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
     </main>
   </div>
 
   <script src="portal-demo-data.js"></script>
   <script src="dashboard-auth.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      if (!window.Chart) {
+        return;
+      }
+
+      const funnelCtx = document.getElementById('referrer-funnel-chart');
+      if (funnelCtx) {
+        new Chart(funnelCtx, {
+          type: 'bar',
+          data: {
+            labels: ['Leads', 'Qualified', 'Proposal', 'Closed'],
+            datasets: [
+              {
+                data: [14, 9, 6, 4],
+                backgroundColor: ['#0ea5e9', '#38bdf8', '#94a3b8', '#22c55e'],
+                borderRadius: 12,
+                maxBarThickness: 52
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#64748b' }, grid: { display: false } },
+              y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(148, 163, 184, 0.2)', drawBorder: false }, beginAtZero: true }
+            }
+          }
+        });
+      }
+
+      const payoutCtx = document.getElementById('referrer-payout-chart');
+      if (payoutCtx) {
+        new Chart(payoutCtx, {
+          type: 'line',
+          data: {
+            labels: ['Jun', 'Jul', 'Aug', 'Sep', 'Oct'],
+            datasets: [
+              {
+                label: 'Payouts',
+                data: [18000, 22000, 26500, 32000, 36500],
+                borderColor: '#0ea5e9',
+                backgroundColor: 'rgba(14, 165, 233, 0.18)',
+                tension: 0.4,
+                fill: true,
+                pointRadius: 3,
+                pointBackgroundColor: '#0ea5e9'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#64748b' }, grid: { display: false } },
+              y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(148, 163, 184, 0.2)', drawBorder: false } }
+            }
+          }
+        });
+      }
+    });
+  </script>
 </body>
 </html>

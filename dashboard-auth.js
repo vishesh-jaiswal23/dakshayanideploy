@@ -552,6 +552,7 @@
         <p class="metric-label">${metric.label}</p>
         <p class="metric-value">${metric.value}</p>
         <p class="metric-helper">${metric.helper || ''}</p>
+        <span class="metric-card__spark" aria-hidden="true"></span>
       `;
       metricList.appendChild(card);
     });

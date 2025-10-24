@@ -73,6 +73,16 @@ $employeeViews = [
   'profile' => 'Profile & preferences',
 ];
 
+$employeeSidebarIcons = [
+  'overview' => '<path d="M3 6h18M3 12h18M3 18h18" />',
+  'customers' => '<path d="M4 4h16v6H4z" /><path d="M2 14h20" /><path d="M7 20h10" />',
+  'approvals' => '<path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />',
+  'content' => '<path d="M4 4h16v16H4z" /><path d="M9 9h6" /><path d="M9 15h6" />',
+  'design' => '<path d="m4 19.5 6.5-6.5" /><path d="M3 7h18" /><path d="m14 2 7 7" /><path d="M8 21h8" />',
+  'complaints' => '<path d="M12 9v4" /><path d="M12 17h.01" /><circle cx="12" cy="12" r="10" />',
+  'profile' => '<circle cx="12" cy="7" r="4" /><path d="M5.5 21a7.5 7.5 0 0 1 13 0" />',
+];
+
 $requestedView = $_GET['view'] ?? EMPLOYEE_DEFAULT_VIEW;
 if (!is_string($requestedView)) {
   $requestedView = EMPLOYEE_DEFAULT_VIEW;
@@ -881,743 +891,9 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
   <link rel="icon" href="images/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      color-scheme: light;
-      --page-bg: #eef2f9;
-      --topbar-bg: linear-gradient(135deg, #0b1f3a, #123262);
-      --topbar-text: #f8fafc;
-      --surface: #ffffff;
-      --surface-subtle: #f7f9fd;
-      --border: rgba(15, 23, 42, 0.08);
-      --border-strong: rgba(99, 102, 241, 0.18);
-      --primary: #6366f1;
-      --primary-soft: rgba(99, 102, 241, 0.14);
-      --primary-strong: #4f46e5;
-      --muted: rgba(15, 23, 42, 0.6);
-      --success: #16a34a;
-      --warning: #f97316;
-      --danger: #dc2626;
-      --shadow-card: 0 38px 70px -48px rgba(15, 23, 42, 0.55);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--page-bg);
-      color: #0f172a;
-    }
-
-    .dashboard-app {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      background: linear-gradient(180deg, rgba(15, 23, 42, 0.06), transparent 30%) no-repeat;
-    }
-
-    .dashboard-topbar {
-      background: var(--topbar-bg);
-      color: var(--topbar-text);
-      padding: 1.2rem clamp(1.5rem, 5vw, 2.75rem);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1.5rem;
-      flex-wrap: wrap;
-      box-shadow: 0 24px 48px -32px rgba(11, 31, 58, 0.65);
-      position: relative;
-      z-index: 2;
-    }
-
-    .topbar-brand {
-      display: flex;
-      align-items: center;
-      gap: 0.85rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .brand-mark {
-      width: 44px;
-      height: 44px;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.18);
-      display: grid;
-      place-items: center;
-      font-size: 1.25rem;
-    }
-
-    .brand-text {
-      display: flex;
-      flex-direction: column;
-      line-height: 1.1;
-    }
-
-    .brand-name {
-      font-size: 1rem;
-      letter-spacing: 0.05em;
-    }
-
-    .brand-tagline {
-      font-size: 0.75rem;
-      font-weight: 500;
-      text-transform: none;
-      opacity: 0.75;
-    }
-
-    .topbar-actions {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
-
-    .role-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      padding: 0.35rem 0.85rem;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.16);
-      font-size: 0.75rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-    }
-
-    .user-pill {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.45rem 0.85rem 0.45rem 0.45rem;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.1);
-    }
-
-    .user-avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.18);
-      display: grid;
-      place-items: center;
-      font-weight: 600;
-      font-size: 1rem;
-      letter-spacing: 0.02em;
-    }
-
-    .user-meta {
-      display: flex;
-      flex-direction: column;
-      line-height: 1.2;
-    }
-
-    .user-name {
-      font-weight: 600;
-      font-size: 0.9rem;
-      color: var(--topbar-text);
-    }
-
-    .user-email {
-      font-size: 0.75rem;
-      opacity: 0.75;
-      color: var(--topbar-text);
-    }
-
-    .topbar-actions form {
-      margin: 0;
-    }
-
-    .topbar-logout {
-      border: none;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.18);
-      color: var(--topbar-text);
-      padding: 0.55rem 1.25rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s ease, transform 0.2s ease;
-    }
-
-    .topbar-logout:hover,
-    .topbar-logout:focus {
-      background: rgba(255, 255, 255, 0.28);
-      transform: translateY(-1px);
-    }
-
-    .dashboard-shell {
-      width: min(1100px, calc(100% - 3rem));
-      background: var(--surface);
-      border-radius: 24px;
-      padding: clamp(1.85rem, 4vw, 3rem);
-      box-shadow: var(--shadow-card);
-      display: grid;
-      gap: clamp(1.4rem, 3vw, 2.4rem);
-      margin: clamp(-3.5rem, -6vw, -2.75rem) auto 3rem;
-      position: relative;
-      z-index: 1;
-    }
-
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      flex-wrap: wrap;
-      gap: 1.25rem;
-    }
-
-    .eyebrow {
-      text-transform: uppercase;
-      font-weight: 600;
-      letter-spacing: 0.16em;
-      font-size: 0.75rem;
-      color: var(--primary-strong);
-      margin: 0 0 0.5rem;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: clamp(1.75rem, 3vw, 2.35rem);
-      font-weight: 700;
-    }
-
-    .subhead {
-      margin: 0;
-      font-size: 0.95rem;
-      color: var(--muted);
-    }
-
-    .view-nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.6rem;
-    }
-
-    .view-link {
-      display: inline-flex;
-      align-items: center;
-      padding: 0.45rem 0.95rem;
-      border-radius: 999px;
-      border: 1px solid rgba(99, 102, 241, 0.22);
-      color: var(--muted);
-      font-weight: 600;
-      font-size: 0.9rem;
-      text-decoration: none;
-      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .view-link.is-active {
-      background: var(--primary);
-      border-color: var(--primary);
-      color: #f8fafc;
-      box-shadow: 0 14px 32px -24px rgba(99, 102, 241, 0.8);
-    }
-
-    .view-link:not(.is-active):hover,
-    .view-link:not(.is-active):focus {
-      background: rgba(99, 102, 241, 0.12);
-      border-color: rgba(99, 102, 241, 0.32);
-      color: #3730a3;
-    }
-
-    .status-banner {
-      border-radius: 1.25rem;
-      padding: 1rem 1.2rem;
-      background: var(--primary-soft);
-      border: 1px solid rgba(99, 102, 241, 0.24);
-      color: #4338ca;
-      font-size: 0.95rem;
-    }
-
-    .status-banner[data-tone="error"] {
-      background: #fee2e2;
-      color: #b91c1c;
-      border-color: #fecaca;
-    }
-
-    .panel {
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: clamp(1.4rem, 2.6vw, 2rem);
-      background: var(--surface-subtle);
-      display: grid;
-      gap: 1rem;
-    }
-
-    .panel h2 {
-      margin: 0;
-      font-size: 1.15rem;
-      font-weight: 600;
-    }
-
-    .panel .lead {
-      margin: 0;
-      font-size: 0.95rem;
-      color: var(--muted);
-    }
-
-    .table-wrapper {
-      overflow-x: auto;
-    }
-
-    .customer-table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 640px;
-    }
-
-    .customer-table th,
-    .customer-table td {
-      padding: 0.6rem 0.75rem;
-      border-bottom: 1px solid var(--border);
-      text-align: left;
-      font-size: 0.9rem;
-    }
-
-    .customer-table th {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: rgba(15, 23, 42, 0.55);
-    }
-
-    .request-block {
-      border: 1px solid var(--border);
-      border-radius: 1rem;
-      background: #ffffff;
-      padding: 0.9rem 1rem;
-    }
-
-    .request-block + .request-block {
-      margin-top: 0.75rem;
-    }
-
-    .request-block summary {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 0.75rem;
-      cursor: pointer;
-      font-weight: 600;
-      color: #0f172a;
-    }
-
-    .request-block summary::-webkit-details-marker {
-      display: none;
-    }
-
-    .request-block[open] summary {
-      margin-bottom: 0.75rem;
-    }
-
-    .request-form {
-      display: grid;
-      gap: 1rem;
-    }
-
-    .form-divider {
-      height: 1px;
-      background: rgba(15, 23, 42, 0.08);
-      margin: 1rem 0;
-    }
-
-    .form-span {
-      grid-column: 1 / -1;
-    }
-
-    .metric-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 1rem;
-    }
-
-    .metric-card {
-      background: #ffffff;
-      border-radius: 1.2rem;
-      padding: 1rem 1.2rem;
-      border: 1px solid rgba(99, 102, 241, 0.18);
-    }
-
-    .metric-label {
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      font-size: 0.75rem;
-      color: rgba(15, 23, 42, 0.55);
-      margin: 0 0 0.3rem;
-    }
-
-    .metric-value {
-      margin: 0;
-      font-size: 1.55rem;
-      font-weight: 700;
-      color: #0f172a;
-    }
-
-    .metric-helper {
-      margin: 0.35rem 0 0;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .timeline-list, .task-list, .board-grid, .update-list, .resource-grid {
-      display: grid;
-      gap: 0.75rem;
-    }
-
-    .timeline-row, .task-row, .board-card, .update-card, .resource-card {
-      background: #ffffff;
-      border-radius: 1rem;
-      border: 1px solid var(--border);
-      padding: 0.85rem 1rem;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem 1rem;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .timeline-label {
-      font-weight: 600;
-      margin: 0;
-      color: #0f172a;
-    }
-
-    .timeline-date, .timeline-status, .task-status, .update-meta {
-      margin: 0;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .board-grid {
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-
-    .board-card {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.6rem;
-      min-height: 150px;
-    }
-
-    .board-card[data-tone="warning"] {
-      border-color: rgba(249, 115, 22, 0.3);
-      box-shadow: 0 16px 28px -22px rgba(249, 115, 22, 0.55);
-    }
-
-    .board-card[data-tone="success"] {
-      border-color: rgba(34, 197, 94, 0.3);
-    }
-
-    .board-title {
-      margin: 0;
-      font-weight: 600;
-      color: #0f172a;
-    }
-
-    .board-value {
-      margin: 0;
-      font-size: 1.7rem;
-      font-weight: 700;
-      color: #0f172a;
-    }
-
-    .board-helper {
-      margin: 0;
-      font-size: 0.9rem;
-      color: var(--muted);
-    }
-
-    .update-card {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.4rem;
-    }
-
-    .update-card strong {
-      color: #0f172a;
-    }
-
-    .resource-grid {
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    }
-
-    .resource-card {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.6rem;
-      min-height: 160px;
-    }
-
-    .resource-card h3 {
-      margin: 0;
-      font-weight: 600;
-      color: #0f172a;
-    }
-
-    .resource-actions {
-      margin-top: auto;
-      display: flex;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-    }
-
-    .resource-actions a {
-      font-weight: 600;
-      font-size: 0.9rem;
-      color: var(--primary);
-      text-decoration: none;
-    }
-
-    .resource-actions a:hover,
-    .resource-actions a:focus {
-      text-decoration: underline;
-    }
-
-    .pipeline-grid,
-    .sentiment-list,
-    .approval-list,
-    .history-list {
-      display: grid;
-      gap: 0.75rem;
-    }
-
-    .pipeline-grid {
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-
-    .pipeline-card,
-    .sentiment-card,
-    .approval-card,
-    .history-item {
-      background: #ffffff;
-      border: 1px solid var(--border);
-      border-radius: 1rem;
-      padding: 1rem;
-      display: grid;
-      gap: 0.5rem;
-    }
-
-    .pipeline-stage,
-    .approval-title {
-      margin: 0;
-      font-weight: 600;
-      color: #0f172a;
-    }
-
-    .pipeline-count {
-      margin: 0;
-      font-size: 1.6rem;
-      font-weight: 700;
-      color: #0f172a;
-    }
-
-    .pipeline-note,
-    .approval-meta,
-    .approval-details {
-      margin: 0;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .sentiment-card strong {
-      color: #0f172a;
-    }
-
-    .sentiment-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-    }
-
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      padding: 0.25rem 0.65rem;
-      background: rgba(99, 102, 241, 0.12);
-      color: #4338ca;
-    }
-
-    .status-pill[data-tone="warning"] {
-      background: rgba(249, 115, 22, 0.12);
-      color: #c2410c;
-    }
-
-    .status-pill[data-tone="success"] {
-      background: rgba(34, 197, 94, 0.12);
-      color: #15803d;
-    }
-
-    .status-pill[data-tone="error"] {
-      background: rgba(239, 68, 68, 0.12);
-      color: #b91c1c;
-    }
-
-    .approval-header {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .history-item {
-      border-style: dashed;
-    }
-
-    .panel h3 {
-      margin: 0.5rem 0 0;
-      font-size: 1rem;
-      font-weight: 600;
-    }
-
-    form {
-      margin: 0;
-    }
-
-    .form-grid {
-      display: grid;
-      gap: 1rem;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-
-    .form-group {
-      display: grid;
-      gap: 0.35rem;
-    }
-
-    .form-group label {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: #0f172a;
-    }
-
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-      width: 100%;
-      border-radius: 0.75rem;
-      border: 1px solid rgba(15, 23, 42, 0.12);
-      background: #ffffff;
-      padding: 0.6rem 0.75rem;
-      font-size: 0.95rem;
-      font-family: inherit;
-      color: #0f172a;
-    }
-
-    .form-group textarea {
-      min-height: 96px;
-      resize: vertical;
-    }
-
-    .form-note {
-      margin: 0.25rem 0 0;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .form-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      align-items: center;
-      margin-top: 1rem;
-    }
-
-    .primary-btn {
-      border: none;
-      background: var(--primary);
-      color: #f8fafc;
-      padding: 0.6rem 1.3rem;
-      border-radius: 999px;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 16px 32px -28px rgba(99, 102, 241, 0.8);
-    }
-
-    .primary-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .form-feedback {
-      font-size: 0.85rem;
-      margin: 0.5rem 0 0;
-      color: var(--muted);
-    }
-
-    .form-feedback[data-tone="success"] {
-      color: #15803d;
-    }
-
-    .form-feedback[data-tone="error"] {
-      color: #b91c1c;
-    }
-
-    .form-feedback[data-tone="info"] {
-      color: #4338ca;
-    }
-
-    .details-grid {
-      display: grid;
-      gap: 0.75rem;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    }
-
-    .details-grid span {
-      display: block;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .details-grid strong {
-      display: block;
-      font-weight: 600;
-      margin-bottom: 0.2rem;
-      color: #0f172a;
-    }
-
-    .empty {
-      margin: 0;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    @media (max-width: 900px) {
-      .dashboard-shell {
-        width: calc(100% - 2rem);
-        margin: -2.75rem auto 2.5rem;
-      }
-    }
-
-    @media (max-width: 720px) {
-      .dashboard-topbar {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .topbar-actions {
-        width: 100%;
-        justify-content: space-between;
-      }
-
-      .dashboard-shell {
-        border-radius: 20px;
-        margin: -2.25rem auto 1.5rem;
-        padding: 1.5rem;
-      }
-    }
-  </style>
+
+  <link rel="stylesheet" href="dashboard-modern.css" />
+  <style></style>
 </head>
 <body data-role="employee" data-view="<?= htmlspecialchars($currentView); ?>">
   <div class="dashboard-app">
@@ -1644,25 +920,80 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
       </div>
     </header>
     <main class="dashboard-shell">
-      <header class="page-header">
-        <div>
-          <p class="eyebrow">Employee portal</p>
-          <h1>Hi, <?= htmlspecialchars($displayName); ?></h1>
-          <p class="subhead">
-            Coordinate leads, service tickets, and approvals with the admin team.
-            <?php if ($lastLogin): ?>
-              Last sign-in <?= htmlspecialchars($lastLogin); ?>.
-            <?php endif; ?>
+      <div class="dashboard-layout">
+        <aside class="dashboard-sidebar" aria-label="Employee navigation">
+          <div class="sidebar-header">
+            <span class="sidebar-label">Navigation</span>
+            <p class="sidebar-title">Workspace hub</p>
+          </div>
+          <nav class="sidebar-nav">
+            <?php foreach ($employeeViews as $viewKey => $label): ?>
+              <?php
+                $href = $viewKey === EMPLOYEE_DEFAULT_VIEW ? 'employee-dashboard.php' : 'employee-dashboard.php?view=' . urlencode($viewKey);
+                $isActive = $viewKey === $currentView;
+                $iconMarkup = $employeeSidebarIcons[$viewKey] ?? $employeeSidebarIcons['overview'];
+              ?>
+              <a class="sidebar-link<?= $isActive ? ' is-active' : ''; ?>" href="<?= htmlspecialchars($href); ?>"<?= $isActive ? ' aria-current="true"' : ''; ?>>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <?= $iconMarkup; ?>
+                </svg>
+                <?= htmlspecialchars($label); ?>
+              </a>
+            <?php endforeach; ?>
+          </nav>
+          <p class="sidebar-footnote">
+            Switch between workspace views, manage tickets, publish updates, and keep customer sentiment in check without leaving this dashboard.
           </p>
-        </div>
-      </header>
-
-      <nav class="view-nav" aria-label="Employee dashboard sections">
-      <?php foreach ($employeeViews as $viewKey => $label): ?>
-        <?php $href = $viewKey === EMPLOYEE_DEFAULT_VIEW ? 'employee-dashboard.php' : 'employee-dashboard.php?view=' . urlencode($viewKey); ?>
-        <a class="view-link <?= $viewKey === $currentView ? 'is-active' : ''; ?>" href="<?= htmlspecialchars($href); ?>"><?= htmlspecialchars($label); ?></a>
-      <?php endforeach; ?>
-    </nav>
+        </aside>
+        <div class="dashboard-main">
+          <header class="page-header">
+            <div class="page-header__content">
+              <p class="eyebrow">Employee portal</p>
+              <h1>Hi, <?= htmlspecialchars($displayName); ?></h1>
+              <p class="subhead">
+                Coordinate leads, service tickets, and approvals with the admin team.
+                <?php if ($lastLogin): ?>
+                  Last sign-in <?= htmlspecialchars($lastLogin); ?>.
+                <?php endif; ?>
+              </p>
+            </div>
+            <div class="hero-cards">
+              <article class="hero-card">
+                <span class="hero-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 6v6l3 3" />
+                  </svg>
+                </span>
+                <p class="hero-card__title">Active tickets</p>
+                <p class="hero-card__value"><?= htmlspecialchars((string) ($employeeTicketInsights['open'] ?? 0)); ?></p>
+                <p class="hero-card__note">Requires updates today across priority queues.</p>
+              </article>
+              <article class="hero-card">
+                <span class="hero-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 11l3 3L22 4" />
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                  </svg>
+                </span>
+                <p class="hero-card__title">Approvals pending</p>
+                <p class="hero-card__value"><?= htmlspecialchars((string) count($pendingApprovals)); ?></p>
+                <p class="hero-card__note">Share context with admin for faster turnaround.</p>
+              </article>
+              <article class="hero-card">
+                <span class="hero-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 6H4" />
+                    <path d="M20 12H8" />
+                    <path d="M20 18H12" />
+                  </svg>
+                </span>
+                <p class="hero-card__title">Team sentiment</p>
+                <p class="hero-card__value">4.7 / 5</p>
+                <p class="hero-card__note">Customer CSAT averaged over the last 30 days.</p>
+              </article>
+            </div>
+          </header>
 
     <?php foreach ($flashMessages['success'] as $message): ?>
       <div class="status-banner"><?= htmlspecialchars($message); ?></div>
@@ -1673,25 +1004,83 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
     <?php endforeach; ?>
 
     <?php if ($currentView === 'overview'): ?>
+      <?php
+        $pipelineDataset = array_values(array_map(static function (array $entry): array {
+          return [
+            'label' => $entry['label'] ?? '',
+            'count' => (int) ($entry['count'] ?? 0)
+          ];
+        }, $customerSegmentStats));
+        $pipelineJson = htmlspecialchars(json_encode($pipelineDataset, JSON_UNESCAPED_UNICODE) ?: '[]');
+        $sentimentSummary = [
+          ['label' => 'At risk', 'count' => 1],
+          ['label' => 'Recovering', 'count' => 1],
+          ['label' => 'Monitor', 'count' => 1],
+        ];
+        $sentimentJson = htmlspecialchars(json_encode($sentimentSummary, JSON_UNESCAPED_UNICODE) ?: '[]');
+        $paletteColours = ['#0ea5e9', '#38bdf8', '#94a3b8', '#22d3ee'];
+      ?>
       <section class="panel" id="pipeline-overview">
-        <h2>Customer pipeline overview</h2>
-        <p class="lead">Monitor every stage of the customer lifecycle. Your updates are routed for admin approval before they publish.</p>
+        <div class="panel-header">
+          <div>
+            <span class="panel-header__meta">Overview</span>
+            <h2>Customer pipeline overview</h2>
+            <p>Monitor every stage of the customer lifecycle. Your updates are routed for admin approval before they publish.</p>
+          </div>
+        </div>
         <div class="metric-grid">
-          <?php foreach ($customerSegmentStats as $stat): ?>
-            <div class="metric-card">
+          <?php foreach ($customerSegmentStats as $index => $stat): ?>
+            <article class="metric-card">
               <p class="metric-label"><?= htmlspecialchars($stat['label']); ?></p>
               <p class="metric-value"><?= htmlspecialchars((string) $stat['count']); ?></p>
-              <p class="metric-helper">records tracked</p>
-            </div>
+              <p class="metric-helper">Records tracked</p>
+            </article>
           <?php endforeach; ?>
         </div>
       </section>
 
+      <section class="panel" id="employee-analytics">
+        <div class="panel-header">
+          <div>
+            <span class="panel-header__meta">Insight</span>
+            <h2>Experience analytics</h2>
+            <p>Visualise pipeline momentum and track sentiment across your assigned customers.</p>
+          </div>
+        </div>
+        <div class="charts-grid">
+          <article class="chart-card">
+            <h3>Pipeline stages</h3>
+            <canvas id="employee-pipeline-chart" data-pipeline='<?= $pipelineJson; ?>' aria-label="Pipeline chart"></canvas>
+            <ul class="chart-legend">
+              <?php $colorIndex = 0; ?>
+              <?php foreach ($customerSegmentStats as $stat): ?>
+                <?php $color = $paletteColours[$colorIndex % count($paletteColours)]; $colorIndex++; ?>
+                <li><span style="background:<?= htmlspecialchars($color); ?>"></span><?= htmlspecialchars($stat['label']); ?></li>
+              <?php endforeach; ?>
+            </ul>
+          </article>
+          <article class="chart-card">
+            <h3>Sentiment spotlight</h3>
+            <canvas id="employee-sentiment-chart" data-sentiment='<?= $sentimentJson; ?>' aria-label="Sentiment chart"></canvas>
+            <ul class="chart-legend">
+              <li><span style="background:#ef4444"></span>At risk</li>
+              <li><span style="background:#22c55e"></span>Recovering</li>
+              <li><span style="background:#f59e0b"></span>Monitor</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
       <section class="panel" id="recent-complaints">
-        <h3>Recent service complaints</h3>
-        <p class="lead">Open complaints awaiting action: <?= htmlspecialchars((string) $openComplaintsCount); ?>.</p>
+        <div class="panel-header">
+          <div>
+            <span class="panel-header__meta">Support</span>
+            <h2>Recent service complaints</h2>
+            <p>Open complaints awaiting action: <?= htmlspecialchars((string) $openComplaintsCount); ?>.</p>
+          </div>
+        </div>
         <?php if (empty($recentComplaints)): ?>
-          <p>No complaints have been logged yet.</p>
+          <p class="empty">No complaints have been logged yet.</p>
         <?php else: ?>
           <div class="history-list">
             <?php foreach ($recentComplaints as $complaint): ?>
@@ -2405,8 +1794,95 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
         </form>
       </section>
     <?php endif; ?>
+        </div>
+      </div>
     </main>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      if (!window.Chart) {
+        return;
+      }
+
+      const pipelineCanvas = document.getElementById('employee-pipeline-chart');
+      if (pipelineCanvas) {
+        let points = [];
+        try {
+          points = JSON.parse(pipelineCanvas.dataset.pipeline || '[]');
+        } catch (error) {
+          points = [];
+        }
+        if (points.length) {
+          const labels = points.map((entry) => entry.label || '');
+          const values = points.map((entry) => entry.count || 0);
+          const colors = ['#0ea5e9', '#38bdf8', '#94a3b8', '#22d3ee'];
+          new Chart(pipelineCanvas, {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                data: values,
+                backgroundColor: labels.map((_, index) => colors[index % colors.length]),
+                borderRadius: 12,
+                maxBarThickness: 52
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: '#64748b' }, grid: { display: false } },
+                y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(148, 163, 184, 0.2)', drawBorder: false }, beginAtZero: true }
+              }
+            }
+          });
+        }
+      }
+
+      const sentimentCanvas = document.getElementById('employee-sentiment-chart');
+      if (sentimentCanvas) {
+        let sentiment = [];
+        try {
+          sentiment = JSON.parse(sentimentCanvas.dataset.sentiment || '[]');
+        } catch (error) {
+          sentiment = [];
+        }
+        if (sentiment.length) {
+          new Chart(sentimentCanvas, {
+            type: 'doughnut',
+            data: {
+              labels: sentiment.map((entry) => entry.label || ''),
+              datasets: [{
+                data: sentiment.map((entry) => entry.count || 0),
+                backgroundColor: ['#ef4444', '#22c55e', '#f59e0b'],
+                borderWidth: 0
+              }]
+            },
+            options: {
+              responsive: true,
+              cutout: '62%',
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: function (context) {
+                      const values = context.dataset.data;
+                      const total = values.reduce((sum, value) => sum + value, 0) || 1;
+                      const value = context.parsed;
+                      const percentage = Math.round((value / total) * 100);
+                      return context.label + ': ' + value + ' (' + percentage + '%)';
+                    }
+                  }
+                }
+              }
+            }
+          });
+        }
+      }
+    });
+  </script>
 </body>
 </html>
