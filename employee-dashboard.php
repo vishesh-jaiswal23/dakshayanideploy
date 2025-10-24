@@ -4,7 +4,7 @@ declare(strict_types=1);
 session_start();
 
 const EMPLOYEE_DEFAULT_VIEW = 'overview';
-const EMPLOYEE_TICKETS_FILE = __DIR__ . '/server/data/tickets.json';
+const EMPLOYEE_TICKETS_FILE = 'server/data/tickets.json';
 
 if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'employee') {
   header('Location: login.php');
@@ -176,6 +176,7 @@ function employee_parse_newline_list(string $value): array
 
 function employee_read_tickets(): array
 {
+  clearstatcache();
   if (!file_exists(EMPLOYEE_TICKETS_FILE)) {
     return [];
   }
