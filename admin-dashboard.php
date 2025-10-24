@@ -364,6 +364,19 @@ $viewLabels = [
     'activity' => 'Activity log',
 ];
 
+$adminSidebarIcons = [
+    'overview' => '<path d="M3 6h18M3 12h18M3 18h18" />',
+    'accounts' => '<circle cx="9" cy="7" r="4" /><path d="M17 11v6" /><path d="M21 11v6" /><path d="M7 22a4 4 0 0 1 4-4" />',
+    'customers' => '<path d="M4 4h16v6H4z" /><path d="M2 14h20" /><path d="M7 20h10" />',
+    'approvals' => '<path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />',
+    'projects' => '<path d="M4 4h16v12H4z" /><path d="M4 16l4-4 3 3 5-5 4 4" />',
+    'tasks' => '<path d="M4 6h9" /><path d="M4 12h9" /><path d="M4 18h9" /><path d="m16 6 2 2 3-3" />',
+    'complaints' => '<circle cx="12" cy="12" r="10" /><path d="M12 8v4" /><path d="M12 16h.01" />',
+    'content' => '<path d="M4 4h16v16H4z" /><path d="M8 8h8" /><path d="M8 12h6" /><path d="M8 16h8" />',
+    'settings' => '<circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01A1.65 1.65 0 0 0 21 10h.09a2 2 0 1 1 0 4H21a1.65 1.65 0 0 0-1.51 1Z" />',
+    'activity' => '<path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" />',
+];
+
 $currentView = $_GET['view'] ?? 'overview';
 if (!array_key_exists($currentView, $viewLabels)) {
     $currentView = 'overview';
@@ -2829,6 +2842,12 @@ $footerBackground = $themePalette['footer']['background'] ?? '#111827';
 $footerText = $themePalette['footer']['text'] ?? '#E2E8F0';
 $borderColor = admin_mix_color($surfaceText, $surfaceBackground, 0.85);
 $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
+$displayName = $_SESSION['display_name'] ?? 'Administrator';
+$initialCharacter = mb_substr($displayName, 0, 1, 'UTF-8');
+if ($initialCharacter === false || $initialCharacter === '') {
+    $initialCharacter = substr((string) $displayName, 0, 1);
+}
+$displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -2840,934 +2859,126 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
   <link rel="icon" href="images/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      color-scheme: light;
-      --bg: <?= htmlspecialchars($heroBackground); ?>;
-      --surface: <?= htmlspecialchars($surfaceBackground); ?>;
-      --muted: <?= htmlspecialchars($surfaceMuted); ?>;
-      --border: <?= htmlspecialchars($borderColor); ?>;
-      --primary: <?= htmlspecialchars($accentColor); ?>;
-      --primary-strong: <?= htmlspecialchars($accentStrong); ?>;
-      --success: #16a34a;
-      --danger: #dc2626;
-      --warning: #f97316;
-      --primary-light: <?= htmlspecialchars($accentLight); ?>;
-      --theme-page-background: <?= htmlspecialchars($pageBackground); ?>;
-      --theme-page-text: <?= htmlspecialchars($pageText); ?>;
-      --theme-page-muted: <?= htmlspecialchars($pageMuted); ?>;
-      --theme-section-background: <?= htmlspecialchars($sectionBackground); ?>;
-      --theme-section-text: <?= htmlspecialchars($sectionText); ?>;
-      --theme-section-muted: <?= htmlspecialchars($sectionMuted); ?>;
-      --theme-surface-background: <?= htmlspecialchars($surfaceBackground); ?>;
-      --theme-surface-text: <?= htmlspecialchars($surfaceText); ?>;
-      --theme-callout-background: <?= htmlspecialchars($calloutBackground); ?>;
-      --theme-callout-text: <?= htmlspecialchars($calloutText); ?>;
-      --theme-footer-background: <?= htmlspecialchars($footerBackground); ?>;
-      --theme-footer-text: <?= htmlspecialchars($footerText); ?>;
-      --hero-text: <?= htmlspecialchars($heroText); ?>;
-      --accent-text: <?= htmlspecialchars($accentText); ?>;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: radial-gradient(circle at top, rgba(37, 99, 235, 0.25), transparent 55%), var(--bg);
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      padding: clamp(2rem, 4vw, 3rem) 1.5rem;
-      color: var(--theme-surface-text);
-      overflow-x: hidden;
-    }
-
-    main.dashboard-shell {
-      width: min(1200px, 100%);
-      background: var(--surface);
-      border-radius: 1.75rem;
-      box-shadow: 0 40px 70px -45px rgba(15, 23, 42, 0.65);
-      display: grid;
-      gap: clamp(1.5rem, 3vw, 2.5rem);
-      padding: clamp(2rem, 4vw, 3rem);
-    }
-
-    header.dashboard-header {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 1.5rem;
-    }
-
-    .eyebrow {
-      text-transform: uppercase;
-      letter-spacing: 0.18em;
-      font-size: 0.75rem;
-      font-weight: 600;
-      margin: 0 0 0.35rem;
-      color: var(--primary);
-    }
-
-    h1 {
-      margin: 0;
-      font-size: clamp(1.8rem, 3vw, 2.4rem);
-      font-weight: 700;
-    }
-
-    .subhead {
-      margin: 0.25rem 0 0;
-      color: var(--muted);
-      font-size: 0.95rem;
-      line-height: 1.5;
-    }
-
-    .dashboard-header__actions {
-      display: flex;
-      gap: 0.75rem;
-      align-items: center;
-    }
-
-    .logout-btn {
-      border: none;
-      border-radius: 999px;
-      padding: 0.65rem 1.35rem;
-      font-weight: 600;
-      background: rgba(37, 99, 235, 0.12);
-      color: var(--primary-strong);
-      cursor: pointer;
-      transition: background 0.2s ease, transform 0.2s ease;
-    }
-
-    .logout-btn:hover,
-    .logout-btn:focus {
-      background: rgba(37, 99, 235, 0.2);
-      transform: translateY(-1px);
-    }
-
-    .view-nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.6rem;
-      padding: 0.25rem 0 0.5rem;
-      overflow-x: auto;
-      scrollbar-width: thin;
-      scroll-snap-type: x proximity;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .view-nav::-webkit-scrollbar {
-      height: 6px;
-    }
-
-    .view-nav::-webkit-scrollbar-thumb {
-      background: rgba(148, 163, 184, 0.45);
-      border-radius: 999px;
-    }
-
-    .view-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.55rem 1rem;
-      border-radius: 999px;
-      border: 1px solid rgba(37, 99, 235, 0.18);
-      color: var(--muted);
-      font-weight: 600;
-      font-size: 0.9rem;
-      text-decoration: none;
-      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-      white-space: nowrap;
-      scroll-snap-align: start;
-    }
-
-    .view-link.is-active {
-      background: var(--primary);
-      border-color: var(--primary);
-      color: var(--accent-text);
-    }
-
-    .view-link:not(.is-active):hover,
-    .view-link:not(.is-active):focus {
-      background: rgba(37, 99, 235, 0.1);
-      border-color: rgba(37, 99, 235, 0.25);
-      color: var(--primary-strong);
-    }
-
-    .flash-list {
-      display: grid;
-      gap: 0.75rem;
-    }
-
-    .flash-message {
-      border-radius: 1rem;
-      padding: 0.75rem 1rem;
-      font-weight: 500;
-      font-size: 0.95rem;
-      border: 1px solid transparent;
-    }
-
-    .flash-message[data-tone="success"] {
-      background: rgba(22, 163, 74, 0.12);
-      border-color: rgba(22, 163, 74, 0.28);
-      color: #166534;
-    }
-
-    .flash-message[data-tone="error"] {
-      background: rgba(220, 38, 38, 0.12);
-      border-color: rgba(220, 38, 38, 0.28);
-      color: #991b1b;
-    }
-
-    section.panel {
-      border: 1px solid var(--border);
-      border-radius: 1.5rem;
-      padding: clamp(1.5rem, 3vw, 2rem);
-      background: var(--theme-section-background);
-      color: var(--theme-section-text);
-      display: grid;
-      gap: 1rem;
-    }
-
-    section.panel h2 {
-      margin: 0;
-      font-size: 1.2rem;
-      font-weight: 600;
-    }
-
-    .lead {
-      margin: 0;
-      color: var(--muted);
-      font-size: 0.95rem;
-    }
-
-    .metric-grid {
-      display: grid;
-      gap: 1rem;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    }
-
-    .metric-card {
-      background: var(--theme-surface-background);
-      border-radius: 1.1rem;
-      padding: 1rem 1.1rem;
-      border: 1px solid var(--border);
-      display: grid;
-      gap: 0.4rem;
-    }
-
-    .metric-label {
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      margin: 0;
-    }
-
-    .metric-value {
-      margin: 0;
-      font-size: 1.6rem;
-      font-weight: 700;
-    }
-
-    .metric-helper {
-      margin: 0;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .summary-grid {
-      display: grid;
-      gap: 1rem;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    }
-
-    .summary-card {
-      background: #ffffff;
-      border-radius: 1.25rem;
-      border: 1px solid rgba(148, 163, 184, 0.25);
-      padding: 1.1rem 1.2rem;
-      display: grid;
-      gap: 0.7rem;
-    }
-
-    .summary-card h3 {
-      margin: 0;
-      font-size: 1.05rem;
-      font-weight: 600;
-    }
-
-    .summary-list {
-      margin: 0;
-      padding-left: 1.1rem;
-      color: var(--muted);
-      font-size: 0.95rem;
-      display: grid;
-      gap: 0.35rem;
-    }
-
-    .panel-head {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 1rem;
-      margin-bottom: 1.2rem;
-    }
-
-    .panel-head h2 {
-      margin-bottom: 0.25rem;
-    }
-
-    .panel-head .lead {
-      max-width: 48ch;
-    }
-
-    .overview-grid {
-      display: grid;
-      gap: 1.5rem;
-      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-      align-items: start;
-    }
-
-    .overview-grid__primary {
-      display: grid;
-      gap: 1rem;
-    }
-
-    .overview-grid__secondary {
-      background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(99, 102, 241, 0.08));
-      border-radius: 1.1rem;
-      padding: 1.25rem;
-      border: 1px solid rgba(37, 99, 235, 0.18);
-      display: grid;
-      gap: 1rem;
-    }
-
-    .quick-link-list {
-      display: grid;
-      gap: 0.75rem;
-    }
-
-    .overview-grid__secondary h3 {
-      margin: 0;
-      font-size: 1.05rem;
-      font-weight: 600;
-    }
-
-    .quick-link {
-      display: grid;
-      gap: 0.2rem;
-      padding: 0.85rem;
-      border-radius: 0.95rem;
-      border: 1px solid rgba(37, 99, 235, 0.22);
-      background: rgba(255, 255, 255, 0.65);
-      text-decoration: none;
-      color: inherit;
-      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .quick-link:hover,
-    .quick-link:focus {
-      transform: translateY(-2px);
-      border-color: rgba(37, 99, 235, 0.4);
-      box-shadow: 0 12px 20px -16px rgba(37, 99, 235, 0.6);
-    }
-
-    .quick-link__title {
-      font-weight: 600;
-      font-size: 0.95rem;
-    }
-
-    .quick-link__subtitle {
-      font-size: 0.85rem;
-      color: var(--muted);
-      line-height: 1.4;
-    }
-
-    .role-grid {
-      display: grid;
-      gap: 1.1rem;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    }
-
-    .role-card {
-      background: #ffffff;
-      border-radius: 1.25rem;
-      border: 1px solid rgba(148, 163, 184, 0.25);
-      padding: 1.1rem 1.2rem;
-      display: grid;
-      gap: 1rem;
-    }
-
-    .role-card__header {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-
-    .role-card__meta {
-      margin: 0;
-      color: var(--muted);
-      font-size: 0.9rem;
-      line-height: 1.45;
-    }
-
-    .role-card__link {
-      font-weight: 600;
-      font-size: 0.9rem;
-      text-decoration: none;
-      color: var(--primary-strong);
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-    }
-
-    .role-card__stats {
-      display: grid;
-      gap: 0.75rem;
-      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-    }
-
-    .role-card__stat {
-      display: grid;
-      gap: 0.15rem;
-    }
-
-    .role-card__stat dt {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-    }
-
-    .role-card__stat dd {
-      margin: 0;
-      font-size: 1.25rem;
-      font-weight: 700;
-    }
-
-    .role-card__list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: grid;
-      gap: 0.6rem;
-    }
-
-    .role-card__person {
-      display: grid;
-      gap: 0.2rem;
-    }
-
-    .role-card__person-name {
-      font-weight: 600;
-      font-size: 0.95rem;
-    }
-
-    .role-card__person-contact {
-      font-size: 0.8rem;
-      color: var(--muted);
-    }
-
-    .role-card__empty {
-      margin: 0;
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-
-    .link-button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.4rem;
-      border-radius: 999px;
-      padding: 0.55rem 1.05rem;
-      font-weight: 600;
-      text-decoration: none;
-      background: rgba(37, 99, 235, 0.12);
-      color: var(--primary-strong);
-      border: 1px solid rgba(37, 99, 235, 0.25);
-      transition: background 0.2s ease, color 0.2s ease;
-      width: fit-content;
-    }
-
-    .link-button:hover,
-    .link-button:focus {
-      background: rgba(37, 99, 235, 0.2);
-      color: var(--primary-strong);
-    }
-
-    .activity-list {
-      display: grid;
-      gap: 0.6rem;
-    }
-
-    .activity-item {
-      background: #ffffff;
-      border-radius: 1rem;
-      border: 1px solid var(--border);
-      padding: 0.75rem 1rem;
-      display: grid;
-      gap: 0.25rem;
-    }
-
-    .activity-item small {
-      color: var(--muted);
-    }
-
-    .workspace-grid {
-      display: grid;
-      gap: 1.5rem;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
-      align-items: start;
-    }
-
-    .workspace-grid > * {
-      min-width: 0;
-    }
-
-    .table-wrapper {
-      width: 100%;
-      background: #ffffff;
-      border-radius: 1.2rem;
-      border: 1px solid rgba(148, 163, 184, 0.25);
-      overflow-x: auto;
-      max-width: 100%;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 720px;
-    }
-
-    table thead {
-      background: rgba(37, 99, 235, 0.08);
-    }
-
-    table th,
-    table td {
-      padding: 0.8rem 1rem;
-      text-align: left;
-      font-size: 0.95rem;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-      word-break: break-word;
-    }
-
-    table tbody tr:last-child td {
-      border-bottom: none;
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-      background: rgba(37, 99, 235, 0.12);
-      color: var(--primary-strong);
-      border-radius: 999px;
-      padding: 0.2rem 0.65rem;
-      font-size: 0.8rem;
-      font-weight: 600;
-    }
-
-    .status-chip {
-      display: inline-flex;
-      align-items: center;
-      padding: 0.25rem 0.7rem;
-      border-radius: 999px;
-      font-weight: 600;
-      font-size: 0.85rem;
-      text-transform: capitalize;
-    }
-
-    .status-chip[data-status="active"],
-    .status-chip[data-status="on-track"],
-    .status-chip[data-status="Pending"] {
-      background: rgba(34, 197, 94, 0.18);
-      color: #166534;
-    }
-
-    .status-chip[data-status="pending"],
-    .status-chip[data-status="planning"] {
-      background: rgba(59, 130, 246, 0.18);
-      color: #1d4ed8;
-    }
-
-    .status-chip[data-status="onboarding"],
-    .status-chip[data-status="In progress"] {
-      background: rgba(249, 115, 22, 0.18);
-      color: #c2410c;
-    }
-
-    .status-chip[data-status="suspended"],
-    .status-chip[data-status="at-risk"],
-    .status-chip[data-status="Blocked"] {
-      background: rgba(248, 113, 113, 0.2);
-      color: #b91c1c;
-    }
-
-    .status-chip[data-status="disabled"],
-    .status-chip[data-status="delayed"],
-    .status-chip[data-status="Completed"],
-    .status-chip[data-status="completed"] {
-      background: rgba(37, 99, 235, 0.18);
-      color: #1d4ed8;
-    }
-
-    details.manage {
-      display: block;
-    }
-
-    details.manage summary {
-      cursor: pointer;
-      font-weight: 600;
-      color: var(--primary-strong);
-      outline: none;
-      list-style: none;
-    }
-
-    details.manage summary::-webkit-details-marker {
-      display: none;
-    }
-
-    details.manage[open] summary {
-      margin-bottom: 0.6rem;
-    }
-
-    .manage-forms {
-      display: grid;
-      gap: 0.75rem;
-      padding: 0.6rem 0.75rem;
-      background: rgba(37, 99, 235, 0.05);
-      border-radius: 0.9rem;
-    }
-
-    form {
-      display: grid;
-      gap: 0.75rem;
-    }
-
-    .form-grid {
-      display: grid;
-      gap: 0.75rem;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-
-    label {
-      font-size: 0.85rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      display: block;
-    }
-
-    input,
-    select,
-    textarea {
-      border-radius: 0.85rem;
-      border: 1px solid var(--border);
-      padding: 0.6rem 0.75rem;
-      font-size: 0.95rem;
-      font-family: inherit;
-      width: 100%;
-      background: var(--theme-surface-background);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .palette-grid {
-      display: grid;
-      gap: 1rem;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-    }
-
-    .palette-card {
-      background: var(--theme-surface-background);
-      border: 1px dashed var(--border);
-      border-radius: 1rem;
-      padding: 0.75rem 1rem;
-      display: grid;
-      gap: 0.5rem;
-    }
-
-    .palette-card__preview {
-      border-radius: 0.75rem;
-      padding: 0.6rem 0.75rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-      font-size: 0.85rem;
-      border: 1px solid rgba(255, 255, 255, 0.25);
-    }
-
-    .palette-card__preview span {
-      font-weight: 600;
-    }
-
-    .palette-card__text {
-      font-size: 0.8rem;
-      opacity: 0.85;
-    }
-
-    .palette-card input[type="color"] {
-      width: 100%;
-      border: none;
-      background: transparent;
-      height: 2.5rem;
-      padding: 0;
-    }
-
-    textarea {
-      min-height: 96px;
-      resize: vertical;
-    }
-
-    input:focus,
-    select:focus,
-    textarea:focus {
-      border-color: rgba(37, 99, 235, 0.8);
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
-      outline: none;
-    }
-
-    .btn-primary,
-    .btn-secondary,
-    .btn-ghost,
-    .btn-destructive {
-      border: none;
-      border-radius: 999px;
-      padding: 0.55rem 1.15rem;
-      font-weight: 600;
-      font-size: 0.95rem;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.4rem;
-      transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
-    }
-
-    .btn-primary {
-      background: var(--primary);
-      color: var(--accent-text);
-    }
-
-    .btn-primary:hover,
-    .btn-primary:focus {
-      background: var(--primary-strong);
-      transform: translateY(-1px);
-    }
-
-    .btn-secondary {
-      background: rgba(37, 99, 235, 0.12);
-      color: var(--primary-strong);
-    }
-
-    .btn-secondary:hover,
-    .btn-secondary:focus {
-      background: rgba(37, 99, 235, 0.2);
-    }
-
-    .btn-ghost {
-      background: transparent;
-      color: var(--muted);
-    }
-
-    .btn-ghost:hover,
-    .btn-ghost:focus {
-      color: var(--primary-strong);
-    }
-
-    .btn-destructive {
-      background: rgba(220, 38, 38, 0.12);
-      color: #b91c1c;
-    }
-
-    .btn-destructive:hover,
-    .btn-destructive:focus {
-      background: rgba(220, 38, 38, 0.2);
-    }
-
-    .form-actions {
-      margin-top: 1rem;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      align-items: center;
-    }
-
-    .reset-theme {
-      margin-top: 1rem;
-      display: grid;
-      gap: 0.4rem;
-    }
-
-    .reset-theme button {
-      justify-self: start;
-    }
-
-    .form-helper {
-      font-size: 0.85rem;
-      color: var(--muted);
-      margin: -0.25rem 0 0;
-    }
-
-    .workspace-aside {
-      background: #ffffff;
-      border-radius: 1.2rem;
-      border: 1px solid rgba(148, 163, 184, 0.25);
-      padding: 1.1rem 1.2rem;
-      display: grid;
-      gap: 0.9rem;
-    }
-
-    .workspace-aside h3 {
-      margin: 0;
-      font-size: 1.05rem;
-      font-weight: 600;
-    }
-
-    .pill-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .pill-list li {
-      border-radius: 999px;
-      padding: 0.35rem 0.8rem;
-      background: rgba(37, 99, 235, 0.1);
-      color: var(--primary-strong);
-      font-size: 0.85rem;
-      font-weight: 600;
-    }
-
-    .field-list {
-      margin: 0.5rem 0 1rem;
-      padding-left: 1.2rem;
-      color: var(--muted);
-    }
-
-    .field-list li {
-      margin-bottom: 0.3rem;
-    }
-
-    .two-column {
-      display: grid;
-      gap: 1.2rem;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    }
-
-    @media (max-width: 960px) {
-      .workspace-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .overview-grid {
-        grid-template-columns: 1fr;
-      }
-
-      table {
-        min-width: unset;
-      }
-    }
-
-    @media (max-width: 720px) {
-      body {
-        padding: 1.5rem;
-      }
-
-      main.dashboard-shell {
-        border-radius: 1.5rem;
-        padding: 1.75rem;
-      }
-
-      .view-nav {
-        gap: 0.4rem;
-      }
-
-      .view-link {
-        font-size: 0.85rem;
-        padding: 0.45rem 0.85rem;
-      }
-
-      .metric-grid,
-      .summary-grid,
-      .form-grid,
-      .two-column,
-      .palette-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .overview-grid__secondary {
-        padding: 1rem;
-      }
-
-      .quick-link {
-        padding: 0.75rem 0.85rem;
-      }
-
-      .metric-card,
-      .summary-card,
-      .workspace-aside,
-      .palette-card,
-      .table-wrapper {
-        width: 100%;
-      }
-    }
-  </style>
+
+  <link rel="stylesheet" href="dashboard-modern.css" />
+  <style></style>
 </head>
 <body data-view="<?= htmlspecialchars($currentView); ?>">
-  <main class="dashboard-shell">
-    <header class="dashboard-header">
-      <div>
-        <p class="eyebrow">Admin portal</p>
-        <h1>Welcome back, <?= htmlspecialchars($_SESSION['display_name'] ?? 'Administrator'); ?></h1>
-        <p class="subhead">
-          Signed in as <?= htmlspecialchars(OWNER_EMAIL); ?>
-          <?php if ($lastAdminLogin): ?>
-            · Last login <?= htmlspecialchars($lastAdminLogin); ?>
-          <?php endif; ?>
-        </p>
+  <div class="dashboard-app">
+    <header class="dashboard-topbar">
+      <div class="topbar-brand">
+        <span class="brand-mark" aria-hidden="true">D</span>
+        <span class="brand-text">
+          <span class="brand-name">Dakshayani</span>
+          <span class="brand-tagline">Admin workspace</span>
+        </span>
       </div>
-      <div class="dashboard-header__actions">
+      <div class="topbar-actions">
+        <span class="role-chip">Administrator</span>
+        <div class="user-pill">
+          <span class="user-avatar" aria-hidden="true"><?= htmlspecialchars($displayInitial); ?></span>
+          <div class="user-meta">
+            <span class="user-name"><?= htmlspecialchars($displayName); ?></span>
+            <span class="user-email"><?= htmlspecialchars(OWNER_EMAIL); ?></span>
+          </div>
+        </div>
         <form method="post" action="logout.php">
-          <button class="logout-btn" type="submit">Log out</button>
+          <button class="topbar-logout" type="submit">Log out</button>
         </form>
       </div>
     </header>
+    <main class="dashboard-shell">
+      <div class="dashboard-layout">
+        <aside class="dashboard-sidebar" aria-label="Admin navigation">
+          <div class="sidebar-header">
+            <span class="sidebar-label">Navigation</span>
+            <p class="sidebar-title">Control centre</p>
+          </div>
+          <nav class="sidebar-nav">
+            <?php foreach ($viewLabels as $viewKey => $label): ?>
+              <?php
+                $href = $viewKey === 'overview' ? 'admin-dashboard.php' : 'admin-dashboard.php?view=' . urlencode($viewKey);
+                $isActive = $viewKey === $currentView;
+                $iconMarkup = $adminSidebarIcons[$viewKey] ?? $adminSidebarIcons['overview'];
+              ?>
+              <a class="sidebar-link<?= $isActive ? ' is-active' : ''; ?>" href="<?= htmlspecialchars($href); ?>"<?= $isActive ? ' aria-current="true"' : ''; ?>>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <?= $iconMarkup; ?>
+                </svg>
+                <?= htmlspecialchars($label); ?>
+              </a>
+            <?php endforeach; ?>
+          </nav>
+          <p class="sidebar-footnote">
+            Navigate between operations, customer records, approvals, and publishing workflows without leaving the modern admin shell.
+          </p>
+        </aside>
+        <div class="dashboard-main">
+          <header class="page-header">
+            <div class="page-header__content">
+              <p class="eyebrow">Admin portal</p>
+              <h1>Welcome back, <?= htmlspecialchars($displayName); ?></h1>
+              <p class="subhead">
+                Signed in as <?= htmlspecialchars(OWNER_EMAIL); ?>
+                <?php if ($lastAdminLogin): ?>
+                  · Last login <?= htmlspecialchars($lastAdminLogin); ?>
+                <?php endif; ?>
+              </p>
+            </div>
+            <div class="hero-cards">
+              <article class="hero-card">
+                <span class="hero-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4h16v6H4z" />
+                    <path d="M2 14h20" />
+                    <path d="M7 20h10" />
+                  </svg>
+                </span>
+                <p class="hero-card__title">Active users</p>
+                <p class="hero-card__value"><?= htmlspecialchars((string) ($userStatusCounts['active'] ?? 0)); ?></p>
+                <p class="hero-card__note">Across customers, installers, employees, and referrers.</p>
+              </article>
+              <article class="hero-card">
+                <span class="hero-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 11l3 3L22 4" />
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                  </svg>
+                </span>
+                <p class="hero-card__title">Open admin tasks</p>
+                <p class="hero-card__value"><?= htmlspecialchars((string) $openTasksCount); ?></p>
+                <p class="hero-card__note">Keep an eye on leadership follow-ups and escalations.</p>
+              </article>
+              <article class="hero-card">
+                <span class="hero-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 6v6l3 3" />
+                  </svg>
+                </span>
+                <p class="hero-card__title">Data freshness</p>
+                <p class="hero-card__value"><?= htmlspecialchars($lastUpdatedLabel !== '' ? $lastUpdatedLabel : 'Just now'); ?></p>
+                <p class="hero-card__note">Automatic sync after every portal update.</p>
+              </article>
+            </div>
+          </header>
 
-    <nav class="view-nav" aria-label="Dashboard sections">
-      <?php foreach ($viewLabels as $viewKey => $label): ?>
-        <?php $href = $viewKey === 'overview' ? 'admin-dashboard.php' : 'admin-dashboard.php?view=' . urlencode($viewKey); ?>
-        <a class="view-link <?= $viewKey === $currentView ? 'is-active' : ''; ?>" href="<?= htmlspecialchars($href); ?>"><?= htmlspecialchars($label); ?></a>
-      <?php endforeach; ?>
-    </nav>
-
-    <?php if (!empty($flashMessages['success']) || !empty($flashMessages['error'])): ?>
-      <div class="flash-list" role="status">
-        <?php foreach ($flashMessages['success'] as $message): ?>
-          <div class="flash-message" data-tone="success"><?= htmlspecialchars($message); ?></div>
-        <?php endforeach; ?>
-        <?php foreach ($flashMessages['error'] as $message): ?>
-          <div class="flash-message" data-tone="error"><?= htmlspecialchars($message); ?></div>
-        <?php endforeach; ?>
-      </div>
-    <?php endif; ?>
+      <?php if (!empty($flashMessages['success']) || !empty($flashMessages['error'])): ?>
+        <div class="flash-list" role="status">
+          <?php foreach ($flashMessages['success'] as $message): ?>
+            <div class="flash-message" data-tone="success"><?= htmlspecialchars($message); ?></div>
+          <?php endforeach; ?>
+          <?php foreach ($flashMessages['error'] as $message): ?>
+            <div class="flash-message" data-tone="error"><?= htmlspecialchars($message); ?></div>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
 
     <?php if ($currentView === 'overview'): ?>
       <section class="panel">
-        <div class="panel-head">
+        <div class="panel-header">
           <div>
+            <span class="panel-header__meta">Overview</span>
             <h2>Operations pulse</h2>
             <p class="lead">One consolidated view of activity across teams, customers, and service operations.</p>
           </div>
@@ -3821,9 +3032,63 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
         </div>
       </section>
 
+      <?php
+        $roleChartData = [];
+        foreach ($userRoleCounts as $roleKey => $count) {
+          if ($roleKey === 'admin') {
+            continue;
+          }
+          $roleChartData[] = [
+            'label' => $roleLabels[$roleKey] ?? ucfirst($roleKey),
+            'count' => (int) $count
+          ];
+        }
+        $roleChartJson = htmlspecialchars(json_encode($roleChartData, JSON_UNESCAPED_UNICODE) ?: '[]');
+        $priorityCounts = $ticketInsights['priorityCounts'] ?? [];
+        $priorityData = [];
+        foreach (['high', 'medium', 'low'] as $priorityKey) {
+          $priorityData[] = [
+            'label' => ucfirst($priorityKey),
+            'count' => (int) ($priorityCounts[$priorityKey] ?? 0)
+          ];
+        }
+        $priorityChartJson = htmlspecialchars(json_encode($priorityData, JSON_UNESCAPED_UNICODE) ?: '[]');
+      ?>
       <section class="panel">
-        <div class="panel-head">
+        <div class="panel-header">
           <div>
+            <span class="panel-header__meta">Insight</span>
+            <h2>Operational analytics</h2>
+            <p>Live charts to monitor role distribution and service workload.</p>
+          </div>
+        </div>
+        <div class="charts-grid">
+          <article class="chart-card">
+            <h3>Accounts by role</h3>
+            <canvas id="admin-role-chart" data-roles='<?= $roleChartJson; ?>' aria-label="Accounts by role chart"></canvas>
+            <ul class="chart-legend">
+              <?php foreach ($roleChartData as $index => $roleEntry): ?>
+                <?php $roleColors = ['#0ea5e9', '#38bdf8', '#94a3b8', '#22c55e', '#0284c7']; ?>
+                <li><span style="background:<?= htmlspecialchars($roleColors[$index % count($roleColors)]); ?>"></span><?= htmlspecialchars($roleEntry['label']); ?></li>
+              <?php endforeach; ?>
+            </ul>
+          </article>
+          <article class="chart-card">
+            <h3>Ticket priorities</h3>
+            <canvas id="admin-ticket-chart" data-tickets='<?= $priorityChartJson; ?>' aria-label="Ticket priorities chart"></canvas>
+            <ul class="chart-legend">
+              <li><span style="background:#ef4444"></span>High</li>
+              <li><span style="background:#f97316"></span>Medium</li>
+              <li><span style="background:#22c55e"></span>Low</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <span class="panel-header__meta">Teams</span>
             <h2>People &amp; partners</h2>
             <p class="lead">Stay ahead of employee, installer, referrer, and customer activity at a glance.</p>
           </div>
@@ -3889,8 +3154,9 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       </section>
 
       <section class="panel">
-        <div class="panel-head">
+        <div class="panel-header">
           <div>
+            <span class="panel-header__meta">Highlights</span>
             <h2>Highlights</h2>
             <p class="lead">Quick insights with links to the detailed workspaces.</p>
           </div>
@@ -3962,8 +3228,9 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       </section>
 
       <section class="panel">
-        <div class="panel-head">
+        <div class="panel-header">
           <div>
+            <span class="panel-header__meta">Support</span>
             <h2>Latest service complaints</h2>
             <p class="lead">Complaints submitted through the website are captured here for admin and employee follow-up.</p>
           </div>
@@ -4019,8 +3286,9 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
       </section>
 
       <section class="panel">
-        <div class="panel-head">
+        <div class="panel-header">
           <div>
+            <span class="panel-header__meta">Audit</span>
             <h2>Recent activity</h2>
             <p class="lead">Automatic log of important actions across the portal.</p>
           </div>
@@ -5915,7 +5183,84 @@ $accentText = $themePalette['accent']['text'] ?? '#FFFFFF';
         <?php endif; ?>
       </section>
     <?php endif; ?>
-  </main>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      if (!window.Chart) {
+        return;
+      }
+
+      const roleCanvas = document.getElementById('admin-role-chart');
+      if (roleCanvas) {
+        let roleDataset = [];
+        try {
+          roleDataset = JSON.parse(roleCanvas.dataset.roles || '[]');
+        } catch (error) {
+          roleDataset = [];
+        }
+        if (roleDataset.length) {
+          const labels = roleDataset.map((entry) => entry.label || '');
+          const values = roleDataset.map((entry) => entry.count || 0);
+          const colors = ['#0ea5e9', '#38bdf8', '#94a3b8', '#22c55e', '#0284c7'];
+          new Chart(roleCanvas, {
+            type: 'doughnut',
+            data: {
+              labels,
+              datasets: [{
+                data: values,
+                backgroundColor: labels.map((_, index) => colors[index % colors.length]),
+                borderWidth: 0
+              }]
+            },
+            options: {
+              responsive: true,
+              cutout: '60%',
+              plugins: { legend: { display: false } }
+            }
+          });
+        }
+      }
+
+      const ticketCanvas = document.getElementById('admin-ticket-chart');
+      if (ticketCanvas) {
+        let ticketDataset = [];
+        try {
+          ticketDataset = JSON.parse(ticketCanvas.dataset.tickets || '[]');
+        } catch (error) {
+          ticketDataset = [];
+        }
+        if (ticketDataset.length) {
+          const labels = ticketDataset.map((entry) => entry.label || '');
+          const values = ticketDataset.map((entry) => entry.count || 0);
+          new Chart(ticketCanvas, {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [{
+                data: values,
+                backgroundColor: ['#ef4444', '#f97316', '#22c55e'],
+                borderRadius: 12,
+                maxBarThickness: 48
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: '#64748b' }, grid: { display: false } },
+                y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(148, 163, 184, 0.2)', drawBorder: false }, beginAtZero: true }
+              }
+            }
+          });
+        }
+      }
+    });
+  </script>
   <script>
     (function () {
       function hexToRgb(hex) {
