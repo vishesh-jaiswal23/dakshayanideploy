@@ -1,0 +1,40 @@
+{
+  "Global": {
+    "company_name": "Dakshayani Enterprises",
+    "support_email": "support@dakshayani.in",
+    "support_phone": "+91-00000-00000",
+    "address": "Hyderabad, Telangana"
+  },
+  "Homepage": {
+    "hero_title": "Transforming Clean Energy Projects",
+    "hero_subtitle": "Integrated EPC, RESCO, and Solar Rooftop solutions",
+    "cta_text": "Book a Consultation",
+    "cta_link": "#contact"
+  },
+  "Blog Defaults": {
+    "default_author": "Dakshayani Team",
+    "default_category": "Announcements",
+    "reading_time": "5 min"
+  },
+  "Case Study Defaults": {
+    "default_industry": "Renewable Energy",
+    "highlight_metric": "Energy Savings",
+    "cta_label": "Start Your Project"
+  },
+  "Testimonial Defaults": {
+    "headline": "Trusted by forward-looking organisations",
+    "display_count": 3
+  },
+  "Theme": {
+    "mode": "light",
+    "primary_color": "#2563eb",
+    "accent_color": "#f59e0b",
+    "border_radius": "0.75rem"
+  },
+  "AI Settings": {
+    "provider": "OpenAI",
+    "model": "gpt-4o-mini",
+    "temperature": 0.3,
+    "system_prompt": "You are Dakshayani Enterprises concierge bot."
+  }
+}
