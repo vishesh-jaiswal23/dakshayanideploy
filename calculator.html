@@ -666,12 +666,12 @@
                             aiFootnote.style.display = 'block';
                         } else if (status === 'error') {
                             const baseMessage = errorMessage !== ''
-                                ? `Gemini advisory unavailable: ${errorMessage}`
-                                : 'Gemini advisory temporarily unavailable. Showing static guidance.';
+                                ? `Sharing Dakshayani\'s standard advisory playbook while Gemini reconnects (${errorMessage}).`
+                                : "Sharing Dakshayani's standard advisory playbook while Gemini reconnects.";
                             aiFootnote.textContent = calculatorAiModelName
-                                ? `${baseMessage} (Model: ${calculatorAiModelName})`
+                                ? `${baseMessage} Planned model: ${calculatorAiModelName}.`
                                 : baseMessage;
-                            aiFootnote.classList.add('error');
+                            aiFootnote.classList.remove('error');
                             aiFootnote.style.display = 'block';
                         } else {
                             aiFootnote.style.display = 'none';
@@ -687,10 +687,10 @@
                     }
                     if (aiFootnote) {
                         const fallbackNote = calculatorAiModelName
-                            ? `Gemini advisory (${calculatorAiModelName}) temporarily unavailable. Showing static guidance.`
-                            : 'Gemini advisory temporarily unavailable. Showing static guidance.';
+                            ? `Sharing Dakshayani\'s standard advisory playbook while we reconnect to ${calculatorAiModelName}.`
+                            : 'Sharing Dakshayani\'s standard advisory playbook while we reconnect to our live AI.';
                         aiFootnote.textContent = fallbackNote;
-                        aiFootnote.classList.add('error');
+                        aiFootnote.classList.remove('error');
                         aiFootnote.style.display = 'block';
                     }
                 })
