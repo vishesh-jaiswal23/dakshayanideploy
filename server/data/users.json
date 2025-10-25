@@ -1,0 +1,14 @@
+[
+  {
+    "id": "admin-root",
+    "name": "Dakshayani Admin",
+    "email": "admin@dakshayani.in",
+    "role": "admin",
+    "status": "active",
+    "password_hash": "$2y$12$lm.E2tiMHt2cbr1VaaA/w.U0yp.b1SGVUyLfg4xpocqzTVwEi80hO",
+    "force_reset": true,
+    "created_at": "2024-01-01T00:00:00+05:30",
+    "updated_at": "2024-01-01T00:00:00+05:30",
+    "last_login": null
+  }
+]

@@ -1,0 +1,56 @@
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/server/helpers.php';
+
+$token = $_GET['token'] ?? '';
+$file = $_GET['file'] ?? '';
+
+if (!verify_csrf_token(is_string($token) ? $token : null)) {
+    http_response_code(403);
+    echo 'Access denied.';
+    exit;
+}
+
+if (!is_string($file) || trim($file) === '') {
+    http_response_code(404);
+    echo 'File not specified.';
+    exit;
+}
+
+$clean = basename($file);
+$fullPath = realpath(UPLOAD_PATH . '/' . $clean);
+$uploadsRoot = realpath(UPLOAD_PATH);
+
+if ($fullPath === false || $uploadsRoot === false || strpos($fullPath, $uploadsRoot) !== 0 || !is_file($fullPath)) {
+    http_response_code(404);
+    echo 'File not found.';
+    exit;
+}
+
+$finfo = new finfo(FILEINFO_MIME_TYPE);
+$mime = $finfo->file($fullPath) ?: 'application/octet-stream';
+$downloadName = $_GET['name'] ?? $clean;
+
+header('Content-Description: File Transfer');
+header('Content-Type: ' . $mime);
+header('Content-Disposition: attachment; filename="' . basename($downloadName) . '"');
+header('Content-Length: ' . filesize($fullPath));
+header('X-Content-Type-Options: nosniff');
+header('Cache-Control: private, max-age=60');
+
+$handle = fopen($fullPath, 'rb');
+if ($handle === false) {
+    http_response_code(500);
+    echo 'Unable to open file.';
+    exit;
+}
+
+while (!feof($handle)) {
+    echo fread($handle, 8192);
+    flush();
+}
+
+fclose($handle);
+exit;
