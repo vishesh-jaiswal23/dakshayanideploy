@@ -1662,6 +1662,10 @@ body[data-role]::before {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .workspace-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .page-header__actions {
     justify-content: flex-start;
   }
