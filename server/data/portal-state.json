@@ -1,5 +1,5 @@
 {
-    "last_updated": "2025-10-25T12:21:35+05:30",
+    "last_updated": "2025-10-25T12:29:12+05:30",
     "site_settings": {
         "company_focus": "Utility-scale and rooftop solar EPC projects, O&M, and financing assistance across Jharkhand and Bihar.",
         "primary_contact": "Deepak Entranchi",
@@ -90,7 +90,7 @@
             "background_style": "section",
             "display_order": 100,
             "status": "draft",
-            "updated_at": "2025-10-25T12:21:35+05:30"
+            "updated_at": "2025-10-25T12:29:12+05:30"
         }
     ],
     "home_offers": [],
@@ -330,7 +330,7 @@
                 "region": "Ranchi & Khunti",
                 "speciality": "MNRE certified lead installer",
                 "notes": "Handles high-capacity rooftop commissioning and safety audits.",
-                "updated_at": "2025-10-25T12:21:35+05:30"
+                "updated_at": "2025-10-25T12:29:12+05:30"
             }
         ],
         "referrers": [
@@ -342,7 +342,7 @@
                 "region": "Jamshedpur industrial belt",
                 "speciality": "MSME partnerships and subsidy awareness",
                 "notes": "Tracks MSME cluster leads and organises awareness drives.",
-                "updated_at": "2025-10-25T12:21:35+05:30"
+                "updated_at": "2025-10-25T12:29:12+05:30"
             }
         ],
         "employees": [
@@ -354,7 +354,7 @@
                 "region": "Operations HQ",
                 "speciality": "Customer success & subsidy cell",
                 "notes": "Coordinates DISCOM submissions, GST invoices, and billing queries.",
-                "updated_at": "2025-10-25T12:21:35+05:30"
+                "updated_at": "2025-10-25T12:29:12+05:30"
             }
         ]
     },
