@@ -166,7 +166,8 @@ switch (true) {
         }
 
         $systemConfigurationInput = $body['systemConfiguration'] ?? $body['system_configuration'] ?? '';
-        $systemConfiguration = strtolower(api_trim_string((string) $systemConfigurationInput));
+        $systemConfigurationRaw = api_trim_string((string) $systemConfigurationInput);
+        $systemConfiguration = strtolower($systemConfigurationRaw);
         $validConfigurations = ['ongrid', 'hybrid', 'offgrid'];
         if (!in_array($systemConfiguration, $validConfigurations, true)) {
             $systemConfiguration = api_normalise_system_configuration($systemConfiguration);
@@ -280,7 +281,7 @@ switch (true) {
                 'schemeLabel' => $schemeLabel,
                 'systemConfiguration' => $systemConfiguration,
                 'systemConfigurationLabel' => $systemConfigurationLabel,
-                'systemConfigurationRaw' => api_trim_string((string) $systemConfigurationInput),
+                'systemConfigurationRaw' => $systemConfigurationRaw,
             ],
         ];
 
