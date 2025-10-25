@@ -1,0 +1,42 @@
+{
+  "users": [
+    {
+      "id": "installer-001",
+      "role": "installer",
+      "name": "Arjun Patel",
+      "email": "installer@example.com",
+      "status": "active",
+      "password_hash": "$2y$12$cnqud2atAKwNNDOoWOroq.bMB80ApFNgsvXDlNHk1mWzdOSKpHeTi",
+      "last_login": null
+    },
+    {
+      "id": "customer-001",
+      "role": "customer",
+      "name": "Saanvi Rao",
+      "email": "customer@example.com",
+      "status": "active",
+      "password_hash": "$2y$12$zSqdGsTObuGxene.eYXrIOQk0Z14v6NibAnM2K3pz3D3zt3KM7p5q",
+      "last_login": null
+    },
+    {
+      "id": "employee-001",
+      "role": "employee",
+      "name": "Rahul Sharma",
+      "email": "employee@example.com",
+      "status": "active",
+      "password_hash": "$2y$12$2RWe38Fvc/dEtii5.9L7o.lQQu9/KSix7Jro.pfmoV3sxMKbh/eom",
+      "last_login": null
+    },
+    {
+      "id": "referrer-001",
+      "role": "referrer",
+      "name": "Aditi Kapoor",
+      "email": "referrer@example.com",
+      "status": "active",
+      "password_hash": "$2y$12$lO7TeNhJN7JZ08zYbstmYOkLaACkjCOCm0xa/NuaKbVdSAQ5krcNq",
+      "last_login": null
+    }
+  ],
+  "activity_log": [],
+  "updated_at": null
+}
