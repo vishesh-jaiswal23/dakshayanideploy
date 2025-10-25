@@ -236,7 +236,7 @@ const INLINE_PARTIALS = {
             Mail
           </a>
           <a
-            href="https://www.facebook.com/dakshayani.co.in"
+            href="https://www.facebook.com/d.entranchi"
             class="quick-access-link"
             target="_blank"
             rel="noopener"
@@ -246,7 +246,7 @@ const INLINE_PARTIALS = {
             Facebook
           </a>
           <a
-            href="https://www.instagram.com/dakshayani.co.in"
+            href="https://www.instagram.com/d.entranchi"
             class="quick-access-link"
             target="_blank"
             rel="noopener"
