@@ -8,7 +8,7 @@ ensure_session();
 server_bootstrap();
 
 if (is_authenticated() && (get_authenticated_user()['role'] ?? '') === 'admin') {
-    header('Location: /admin/settings.php');
+    header('Location: /admin/index.php');
     exit;
 }
 
@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === null) {
 
                 log_activity('admin_login_success', ['entry' => 'admin'], $matchedUser['email'] ?? 'admin');
 
-                header('Location: /admin/settings.php');
+                header('Location: /admin/index.php');
                 exit;
             }
         }

@@ -21,11 +21,11 @@ $authUser = get_authenticated_user();
 $actorEmail = $authUser['email'] ?? ($_SESSION['user_email'] ?? 'admin');
 log_activity(
     'legacy_admin_dashboard_redirect',
-    ['from' => 'admin-dashboard.php', 'to' => '/admin/index.php?view=settings'],
+    ['from' => 'admin-dashboard.php', 'to' => '/admin/index.php'],
     $actorEmail
 );
 
-header('Location: /admin/index.php?view=settings', true, 302);
+header('Location: /admin/index.php', true, 302);
 exit;
 
 portal_admin_bootstrap_files(PORTAL_ADMIN_EMAIL, PORTAL_ADMIN_PASSWORD_HASH);
