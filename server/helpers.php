@@ -6,11 +6,19 @@ const SERVER_BASE_PATH = __DIR__;
 const DATA_PATH = SERVER_BASE_PATH . '/data';
 const LOG_PATH = SERVER_BASE_PATH . '/logs';
 const UPLOAD_PATH = SERVER_BASE_PATH . '/uploads';
+const MODELS_REGISTRY_FILE = DATA_PATH . '/models.json';
+const BLOG_POSTS_FILE = DATA_PATH . '/blog_posts.json';
+const AI_IMAGES_FILE = DATA_PATH . '/ai_images.json';
+const AI_TTS_FILE = DATA_PATH . '/ai_tts.json';
+const POTENTIAL_CUSTOMERS_FILE = DATA_PATH . '/potential_customers.json';
+const REFERRERS_FILE = DATA_PATH . '/referrers.json';
 const ACTIVITY_LOG_FILE = DATA_PATH . '/activity_log.json';
 const SYSTEM_ERROR_FILE = LOG_PATH . '/system_errors.log';
 const LOGIN_ATTEMPTS_FILE = DATA_PATH . '/login_attempts.json';
 const RATE_LIMIT_FILE = DATA_PATH . '/rate_limits.json';
 const SITE_SETTINGS_FILE = DATA_PATH . '/site_settings.json';
+const AI_IMAGE_UPLOAD_PATH = UPLOAD_PATH . '/ai_images';
+const AI_AUDIO_UPLOAD_PATH = UPLOAD_PATH . '/ai_audio';
 
 function server_bootstrap(): void
 {
@@ -20,7 +28,7 @@ function server_bootstrap(): void
     }
     $booted = true;
 
-    foreach ([DATA_PATH, LOG_PATH, UPLOAD_PATH] as $directory) {
+    foreach ([DATA_PATH, LOG_PATH, UPLOAD_PATH, AI_IMAGE_UPLOAD_PATH, AI_AUDIO_UPLOAD_PATH] as $directory) {
         if (!is_dir($directory)) {
             mkdir($directory, 0775, true);
         }
@@ -53,20 +61,18 @@ function server_bootstrap(): void
             ],
         ],
         DATA_PATH . '/customers.json' => [],
-        DATA_PATH . '/leads.json' => [],
+        POTENTIAL_CUSTOMERS_FILE => [],
         DATA_PATH . '/tickets.json' => [],
         DATA_PATH . '/tasks.json' => [],
         DATA_PATH . '/approvals.json' => [],
-        DATA_PATH . '/models.json' => [
-            'default' => 'gpt-4o-mini',
-            'available' => [
-                'gpt-4o-mini',
-                'gpt-4o',
-                'o1-mini',
-                'gemini-1.5-flash',
-                'claude-3-5-sonnet',
-            ],
+        MODELS_REGISTRY_FILE => [
+            'default_model' => null,
+            'models' => [],
         ],
+        BLOG_POSTS_FILE => [],
+        AI_IMAGES_FILE => [],
+        AI_TTS_FILE => [],
+        REFERRERS_FILE => [],
         DATA_PATH . '/settings.json' => [],
         SITE_SETTINGS_FILE => default_site_settings(),
     ];
@@ -82,6 +88,62 @@ function server_bootstrap(): void
         if (!file_exists($path)) {
             json_write($path, $default);
         }
+    }
+
+    $legacyLeadsPath = DATA_PATH . '/leads.json';
+    if (file_exists($legacyLeadsPath) && is_readable($legacyLeadsPath)) {
+        $currentLeads = json_read(POTENTIAL_CUSTOMERS_FILE, []);
+        if ($currentLeads === [] && ($legacy = json_read($legacyLeadsPath, []))) {
+            $converted = [];
+            foreach ($legacy as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $converted[] = [
+                    'id' => $entry['id'] ?? uuid('lead'),
+                    'full_name' => trim((string) ($entry['name'] ?? ($entry['full_name'] ?? 'Prospect'))),
+                    'email' => $entry['email'] ?? null,
+                    'phone' => $entry['phone'] ?? null,
+                    'state' => $entry['state'] ?? ($entry['location'] ?? null),
+                    'source' => $entry['source'] ?? 'legacy',
+                    'status' => $entry['status'] ?? 'new',
+                    'budget' => $entry['budget'] ?? null,
+                    'notes' => $entry['notes'] ?? '',
+                    'assigned_to' => $entry['owner'] ?? null,
+                    'created_at' => $entry['created_at'] ?? now_ist(),
+                    'updated_at' => $entry['updated_at'] ?? now_ist(),
+                ];
+            }
+            if ($converted) {
+                json_write(POTENTIAL_CUSTOMERS_FILE, $converted);
+            }
+        }
+    }
+
+    $registry = json_read(MODELS_REGISTRY_FILE, []);
+    if (!isset($registry['models'])) {
+        $converted = [
+            'default_model' => $registry['default'] ?? null,
+            'models' => [],
+        ];
+        $available = $registry['available'] ?? [];
+        if (is_array($available)) {
+            foreach ($available as $code) {
+                $converted['models'][] = [
+                    'id' => uuid('model'),
+                    'nickname' => is_string($code) ? $code : 'model',
+                    'type' => 'Text',
+                    'model_code' => $code,
+                    'status' => 'inactive',
+                    'last_tested' => null,
+                    'api_key' => null,
+                    'params' => new stdClass(),
+                    'created_at' => now_ist(),
+                    'updated_at' => now_ist(),
+                ];
+            }
+        }
+        json_write(MODELS_REGISTRY_FILE, $converted);
     }
 
     if (!file_exists(SYSTEM_ERROR_FILE)) {
@@ -260,6 +322,112 @@ function json_write(string $path, $data): bool
     }
 
     return true;
+}
+
+function dataset_path(string $filename): string
+{
+    return DATA_PATH . '/' . ltrim($filename, '/');
+}
+
+function dataset_read(string $filename, $default = [])
+{
+    return json_read(dataset_path($filename), $default);
+}
+
+function dataset_write(string $filename, $data): bool
+{
+    return json_write(dataset_path($filename), $data);
+}
+
+function ensure_directory(string $path): void
+{
+    if (!is_dir($path)) {
+        mkdir($path, 0775, true);
+    }
+}
+
+function sanitize_string($value, int $maxLength = 255, bool $allowEmpty = false): ?string
+{
+    if (!is_string($value)) {
+        return $allowEmpty ? '' : null;
+    }
+    $trimmed = trim($value);
+    if ($trimmed === '' && !$allowEmpty) {
+        return null;
+    }
+    return mb_substr($trimmed, 0, $maxLength);
+}
+
+function mask_sensitive(?string $value): ?string
+{
+    if ($value === null || $value === '') {
+        return $value;
+    }
+    $length = mb_strlen($value);
+    if ($length <= 4) {
+        return str_repeat('*', $length);
+    }
+    return str_repeat('*', max(0, $length - 4)) . mb_substr($value, -4);
+}
+
+function normalize_bool($value): bool
+{
+    if (is_bool($value)) {
+        return $value;
+    }
+    if (is_string($value)) {
+        $value = strtolower($value);
+        return in_array($value, ['1', 'true', 'yes', 'y'], true);
+    }
+    if (is_numeric($value)) {
+        return (int) $value === 1;
+    }
+    return false;
+}
+
+function csv_decode(string $csv): array
+{
+    $rows = [];
+    $lines = preg_split('/\r\n|\n|\r/', trim($csv));
+    if (!$lines || count($lines) === 0) {
+        return $rows;
+    }
+    $headers = str_getcsv(array_shift($lines));
+    foreach ($lines as $line) {
+        if (trim($line) === '') {
+            continue;
+        }
+        $values = str_getcsv($line);
+        $row = [];
+        foreach ($headers as $index => $header) {
+            $row[$header] = $values[$index] ?? '';
+        }
+        $rows[] = $row;
+    }
+    return $rows;
+}
+
+function csv_encode(array $rows, array $headers = []): string
+{
+    if (empty($rows) && empty($headers)) {
+        return '';
+    }
+    if (empty($headers)) {
+        $headers = array_keys(reset($rows));
+    }
+    $fh = fopen('php://temp', 'r+');
+    fputcsv($fh, $headers);
+    foreach ($rows as $row) {
+        $line = [];
+        foreach ($headers as $header) {
+            $line[] = $row[$header] ?? '';
+        }
+        fputcsv($fh, $line);
+    }
+    rewind($fh);
+    $csv = stream_get_contents($fh) ?: '';
+    fclose($fh);
+    return $csv;
 }
 
 function log_activity(string $action, string $details, string $actor = 'system'): void
