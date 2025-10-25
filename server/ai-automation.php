@@ -158,13 +158,6 @@ final class GeminiClient
     {
         $candidate = is_string($apiKey) ? trim($apiKey) : '';
         if ($candidate === '') {
-            $candidate = trim((string) (getenv('GEMINI_API_KEY')
-                ?: getenv('GOOGLE_GEMINI_API_KEY')
-                ?: getenv('GOOGLE_AI_STUDIO_KEY')
-                ?: ''));
-        }
-
-        if ($candidate === '') {
             $file = dirname(__DIR__) . '/api.txt';
             if (is_readable($file)) {
                 $fileKey = trim((string) file_get_contents($file));
@@ -172,6 +165,13 @@ final class GeminiClient
                     $candidate = $fileKey;
                 }
             }
+        }
+
+        if ($candidate === '') {
+            $candidate = trim((string) (getenv('GEMINI_API_KEY')
+                ?: getenv('GOOGLE_GEMINI_API_KEY')
+                ?: getenv('GOOGLE_AI_STUDIO_KEY')
+                ?: ''));
         }
 
         if ($candidate === '') {

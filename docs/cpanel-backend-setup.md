@@ -84,8 +84,10 @@ runtime or Application Manager setup is required.
 Gemini handles the daily news digest, thrice-weekly blog briefing, and the
 operations review. To keep those jobs running on cPanel:
 
-1. Open **Cron Jobs** and add an environment variable named `GEMINI_API_KEY`
-   with your Gemini key. cPanel will export it to every cron invocation.
+1. Upload an `api.txt` file (project root) that contains your Gemini key. The
+   automation runner and admin dashboard read from this file automatically. If
+   you prefer environment variables, set `GEMINI_API_KEY` via **Cron Jobs →
+   Environment Variables** or `.htaccess`.
 2. Create the following cron entries (adjust the PHP binary path if needed):
    ```cron
    0 6 * * * /usr/bin/php /home/USER/public_html/server/ai-gemini.php --task=news >> /home/USER/logs/gemini.log 2>&1

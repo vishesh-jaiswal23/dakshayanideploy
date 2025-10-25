@@ -37,9 +37,13 @@ additional runtimes.
    ```bash
    php -S 127.0.0.1:8000
    ```
-3. Visit `http://127.0.0.1:8000/login.php` and sign in with the admin
+3. Create an `api.txt` file in the project root that contains your Gemini API
+   key. The admin dashboard, CLI helpers, and AI playground will read the key
+   from this file automatically (environment variables are still supported if
+   you prefer them).
+4. Visit `http://127.0.0.1:8000/login.php` and sign in with the admin
    credentials defined in `login.php`.
-4. Explore the dashboards for each role. All API requests are served by
+5. Explore the dashboards for each role. All API requests are served by
    `api/index.php` and use the same session as the web pages.
 
 ### Gemini automation tasks
