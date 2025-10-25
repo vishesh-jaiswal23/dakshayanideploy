@@ -39,6 +39,16 @@ if ($ttsModel === '' && isset($fileConfig['models']['tts'])) {
     $ttsModel = (string) $fileConfig['models']['tts'];
 }
 
+$viaanModel = (string) ($settings['viaan_chat_model'] ?? '');
+if ($viaanModel === '' && isset($fileConfig['models']['viaan_chat'])) {
+    $viaanModel = (string) $fileConfig['models']['viaan_chat'];
+}
+
+$calculatorModel = (string) ($settings['calculator_advisory_model'] ?? '');
+if ($calculatorModel === '' && isset($fileConfig['models']['calculator_advisory'])) {
+    $calculatorModel = (string) $fileConfig['models']['calculator_advisory'];
+}
+
 $response = [
     'provider' => 'gemini',
     'apiKey' => $apiKey,
@@ -46,6 +56,8 @@ $response = [
         'text' => $textModel,
         'image' => $imageModel,
         'tts' => $ttsModel,
+        'viaan_chat' => $viaanModel,
+        'calculator_advisory' => $calculatorModel,
     ],
 ];
 

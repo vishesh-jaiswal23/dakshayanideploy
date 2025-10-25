@@ -404,13 +404,16 @@
             const apiKey = typeof config.apiKey === 'string' ? config.apiKey.trim() : '';
             const models = config.models && typeof config.models === 'object' ? config.models : {};
             const textModel = typeof models.text === 'string' ? models.text.trim() : '';
+            const calculatorModel = typeof models.calculator_advisory === 'string' ? models.calculator_advisory.trim() : '';
 
-            return { apiKey, textModel };
+            return { apiKey, textModel, calculatorModel };
         }
 
         function applyCalculatorAiConfig(config) {
             const normalized = normaliseCalculatorAiConfig(config);
-            if (normalized.textModel) {
+            if (normalized.calculatorModel) {
+                calculatorAiModelName = normalized.calculatorModel;
+            } else if (normalized.textModel) {
                 calculatorAiModelName = normalized.textModel;
             }
             return normalized;

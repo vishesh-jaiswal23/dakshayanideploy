@@ -59,6 +59,8 @@ function gemini_load_portal_configuration(?array $state = null): array
     $textModel = trim((string) ($gemini['text_model'] ?? ''));
     $imageModel = trim((string) ($gemini['image_model'] ?? ''));
     $ttsModel = trim((string) ($gemini['tts_model'] ?? ''));
+    $viaanModel = trim((string) ($gemini['viaan_chat_model'] ?? ''));
+    $calculatorModel = trim((string) ($gemini['calculator_advisory_model'] ?? ''));
 
     $models = [];
     if ($textModel !== '') {
@@ -72,6 +74,12 @@ function gemini_load_portal_configuration(?array $state = null): array
     }
     if ($ttsModel !== '') {
         $models['tts'] = $ttsModel;
+    }
+    if ($viaanModel !== '') {
+        $models['viaan_chat'] = $viaanModel;
+    }
+    if ($calculatorModel !== '') {
+        $models['calculator_advisory'] = $calculatorModel;
     }
 
     $config = [
@@ -695,10 +703,10 @@ final class GeminiClient
             'operations' => 'operations_watch',
             'ops' => 'operations_watch',
             'operations_watch' => 'operations_watch',
-            'calculator' => 'text',
-            'calculator_advisory' => 'text',
-            'viaan' => 'text',
-            'viaan_chat' => 'text',
+            'calculator' => 'calculator_advisory',
+            'calculator_advisory' => 'calculator_advisory',
+            'viaan' => 'viaan_chat',
+            'viaan_chat' => 'viaan_chat',
         ];
 
         $normalized = strtolower(trim($task));

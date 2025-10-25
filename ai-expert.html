@@ -298,7 +298,7 @@
             const payload = {
                 message,
                 history: historyPayload,
-                model: viaanAiConfig?.textModel || ''
+                model: viaanAiConfig?.viaanModel || viaanAiConfig?.textModel || ''
             };
 
             const response = await fetch(VIAAN_CHAT_ENDPOINT, {
@@ -357,8 +357,9 @@
             const apiKey = typeof config.apiKey === 'string' ? config.apiKey.trim() : '';
             const models = config.models && typeof config.models === 'object' ? config.models : {};
             const textModel = typeof models.text === 'string' ? models.text.trim() : '';
+            const viaanModel = typeof models.viaan_chat === 'string' ? models.viaan_chat.trim() : '';
 
-            return { apiKey, textModel };
+            return { apiKey, textModel, viaanModel };
         }
 
         function applyAiConfig(config) {
