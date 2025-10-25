@@ -44,11 +44,12 @@ const INLINE_PARTIALS = {
             </button>
             <div class="nav-dropdown-menu" role="menu">
               <a href="knowledge-hub.html" class="nav-link" role="menuitem">Knowledge Hub</a>
-              <a href="innovation-tech.html" class="nav-link" role="menuitem">Innovation &amp; Tech</a>
-              <a href="blog.html" class="nav-link" role="menuitem">Blog &amp; Insights</a>
-              <a href="calculator.html" class="nav-link" role="menuitem">Solar Calculator</a>
-              <a href="ai-expert.html" class="nav-link" role="menuitem">Viaan AI Expert</a>
-              <a href="policies.html" class="nav-link" role="menuitem">Policies &amp; Compliance</a>
+          <a href="innovation-tech.html" class="nav-link" role="menuitem">Innovation &amp; Tech</a>
+          <a href="blog.html" class="nav-link" role="menuitem">Blog &amp; Insights</a>
+          <a href="news.html" class="nav-link" role="menuitem">AI Newsroom</a>
+          <a href="calculator.html" class="nav-link" role="menuitem">Solar Calculator</a>
+          <a href="ai-expert.html" class="nav-link" role="menuitem">Viaan AI Expert</a>
+          <a href="policies.html" class="nav-link" role="menuitem">Policies &amp; Compliance</a>
             </div>
           </div>
         </nav>
@@ -91,12 +92,13 @@ const INLINE_PARTIALS = {
         <div class="nav-mobile-divider" role="presentation"></div>
         <div class="nav-mobile-section" aria-label="Knowledge Hub">
           <p class="nav-mobile-label">Knowledge Hub</p>
-          <a href="knowledge-hub.html">Knowledge Hub</a>
-          <a href="innovation-tech.html">Innovation &amp; Tech</a>
-          <a href="blog.html">Blog &amp; Insights</a>
-          <a href="calculator.html">Solar Calculator</a>
-          <a href="ai-expert.html">Viaan AI Expert</a>
-          <a href="policies.html">Policies &amp; Compliance</a>
+      <a href="knowledge-hub.html">Knowledge Hub</a>
+      <a href="innovation-tech.html">Innovation &amp; Tech</a>
+      <a href="blog.html">Blog &amp; Insights</a>
+      <a href="news.html">AI Newsroom</a>
+      <a href="calculator.html">Solar Calculator</a>
+      <a href="ai-expert.html">Viaan AI Expert</a>
+      <a href="policies.html">Policies &amp; Compliance</a>
         </div>
         <div class="nav-mobile-divider" role="presentation"></div>
         <div class="nav-mobile-section" aria-label="Quick actions">
@@ -174,6 +176,7 @@ const INLINE_PARTIALS = {
     <ul class="footer-links">
       <li><a href="about.html">About Dakshayani Enterprises</a></li>
       <li><a href="meera-gh2.html">Meera GH2 (Hydrogen)</a></li>
+      <li><a href="news.html">AI Newsroom</a></li>
       <li><a href="blog.html">Blog &amp; News</a></li>
       <li><a href="policies.html#terms">T&amp;C / Warranty</a></li>
       <li><a href="contact.html">Contact &amp; Support</a></li>
@@ -291,6 +294,80 @@ const INLINE_PARTIALS = {
 </div>
   `.trim(),
 };
+
+const AI_CONFIG_ENDPOINT = 'server/ai-config.php';
+
+(function initialiseGlobalAiConfig() {
+  const globalObject = window;
+  let cachedPromise = null;
+
+  const normaliseConfig = (config) => {
+    if (!config || typeof config !== 'object') {
+      throw new Error('Gemini configuration missing.');
+    }
+
+    const apiKey = typeof config.apiKey === 'string' ? config.apiKey.trim() : '';
+    const models = config.models && typeof config.models === 'object' ? config.models : {};
+
+    return {
+      provider: config.provider || 'gemini',
+      apiKey,
+      models: {
+        text: typeof models.text === 'string' ? models.text.trim() : '',
+        image: typeof models.image === 'string' ? models.image.trim() : '',
+        tts: typeof models.tts === 'string' ? models.tts.trim() : '',
+      },
+    };
+  };
+
+  const fetchConfig = () => {
+    return fetch(AI_CONFIG_ENDPOINT, { cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Unable to load Gemini configuration.');
+        }
+        return response.json();
+      })
+      .then(normaliseConfig);
+  };
+
+  const ensurePromise = (forceRefresh = false) => {
+    if (!cachedPromise || forceRefresh) {
+      cachedPromise = fetchConfig();
+    }
+
+    return cachedPromise;
+  };
+
+  const emit = (name, detail) => {
+    try {
+      globalObject.dispatchEvent(new CustomEvent(name, { detail }));
+    } catch (error) {
+      // Ignore CustomEvent failures in legacy browsers.
+    }
+  };
+
+  globalObject.dakshayaniAIConfig = {
+    getConfig(forceRefresh = false) {
+      return ensurePromise(forceRefresh);
+    },
+    refresh() {
+      return ensurePromise(true);
+    },
+  };
+
+  const warmConfig = () => {
+    ensurePromise()
+      .then((config) => emit('dakshayani:ai-config-ready', config))
+      .catch((error) => emit('dakshayani:ai-config-error', error));
+  };
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    warmConfig();
+  } else {
+    document.addEventListener('DOMContentLoaded', warmConfig, { once: true });
+  }
+})();
 
 const LANGUAGE_STORAGE_KEY = 'dakshayaniLanguagePreference';
 const SITE_SEARCH_ENDPOINT = '/api/public/search';
