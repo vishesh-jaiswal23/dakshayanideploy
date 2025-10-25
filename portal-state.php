@@ -338,6 +338,44 @@ function portal_default_state(): array
             'history' => [],
             'counter' => 1100,
         ],
+        'ai_automation' => [
+            'news_digest' => [
+                'enabled' => true,
+                'schedule' => [
+                    'timezone' => 'Asia/Kolkata',
+                    'time' => '06:00',
+                    'daysOfWeek' => [],
+                ],
+                'history' => [],
+                'last_run_at' => null,
+                'last_error' => null,
+                'last_digest' => null,
+            ],
+            'blog_research' => [
+                'enabled' => true,
+                'schedule' => [
+                    'timezone' => 'Asia/Kolkata',
+                    'time' => '06:00',
+                    'daysOfWeek' => [1, 3, 5],
+                ],
+                'history' => [],
+                'last_run_at' => null,
+                'last_error' => null,
+                'last_blog' => null,
+            ],
+            'operations_watch' => [
+                'enabled' => true,
+                'schedule' => [
+                    'timezone' => 'Asia/Kolkata',
+                    'time' => '06:00',
+                    'daysOfWeek' => [],
+                ],
+                'history' => [],
+                'last_run_at' => null,
+                'last_error' => null,
+                'last_report' => null,
+            ],
+        ],
     ];
 }
 
@@ -872,6 +910,8 @@ function portal_load_state(): array
 
     portal_ensure_employee_approvals($state);
 
+    $state['ai_automation'] = portal_normalize_ai_automation($state['ai_automation'] ?? [], $default['ai_automation']);
+
     $state['activity_log'] = array_values(array_filter($state['activity_log'], static function ($entry) {
         return is_array($entry) && isset($entry['event'], $entry['timestamp']);
     }));
@@ -909,6 +949,129 @@ function portal_record_activity(array &$state, string $event, string $actor = 'S
     ]);
 
     $state['activity_log'] = array_slice($state['activity_log'], 0, 50);
+}
+
+function portal_normalize_ai_automation(array $input, ?array $defaults = null): array
+{
+    if ($defaults === null) {
+        $defaults = portal_default_state()['ai_automation'];
+    }
+
+    $normalized = [];
+
+    foreach ($defaults as $key => $defaultNode) {
+        $incoming = isset($input[$key]) && is_array($input[$key]) ? $input[$key] : [];
+        $normalized[$key] = portal_normalize_ai_automation_node($incoming, $defaultNode);
+    }
+
+    foreach ($input as $key => $value) {
+        if (isset($normalized[$key]) || !is_array($value)) {
+            continue;
+        }
+
+        $normalized[$key] = portal_normalize_ai_automation_node($value, [
+            'enabled' => true,
+            'schedule' => [
+                'timezone' => 'Asia/Kolkata',
+                'time' => '06:00',
+                'daysOfWeek' => [],
+            ],
+            'history' => [],
+            'last_run_at' => null,
+            'last_error' => null,
+        ]);
+    }
+
+    return $normalized;
+}
+
+function portal_normalize_ai_automation_node(array $node, array $defaults): array
+{
+    $normalized = array_merge($defaults, $node);
+
+    $normalized['enabled'] = (bool) ($normalized['enabled'] ?? true);
+    $normalized['schedule'] = portal_normalize_ai_schedule($normalized['schedule'] ?? [], $defaults['schedule'] ?? []);
+
+    $history = $normalized['history'] ?? [];
+    if (!is_array($history)) {
+        $history = [];
+    }
+    $history = array_values(array_filter($history, static fn($entry) => is_array($entry)));
+    $normalized['history'] = array_slice($history, 0, 20);
+
+    $normalized['last_run_at'] = isset($normalized['last_run_at']) && is_string($normalized['last_run_at']) && $normalized['last_run_at'] !== ''
+        ? $normalized['last_run_at']
+        : null;
+
+    if (array_key_exists('last_error', $normalized)) {
+        if (is_array($normalized['last_error'])) {
+            $message = trim((string) ($normalized['last_error']['message'] ?? ''));
+            $occurredAt = isset($normalized['last_error']['occurred_at']) && is_string($normalized['last_error']['occurred_at']) && $normalized['last_error']['occurred_at'] !== ''
+                ? $normalized['last_error']['occurred_at']
+                : null;
+            $normalized['last_error'] = $message === '' && $occurredAt === null
+                ? null
+                : [
+                    'message' => $message,
+                    'occurred_at' => $occurredAt,
+                ];
+        } else {
+            $normalized['last_error'] = null;
+        }
+    }
+
+    foreach (['last_digest', 'last_blog', 'last_report'] as $metaKey) {
+        if (!array_key_exists($metaKey, $defaults)) {
+            unset($normalized[$metaKey]);
+            continue;
+        }
+
+        $normalized[$metaKey] = isset($normalized[$metaKey]) && is_array($normalized[$metaKey]) ? $normalized[$metaKey] : null;
+    }
+
+    return $normalized;
+}
+
+function portal_normalize_ai_schedule(array $schedule, array $defaults): array
+{
+    $timezone = $schedule['timezone'] ?? $defaults['timezone'] ?? 'Asia/Kolkata';
+    try {
+        $timezoneObj = new DateTimeZone((string) $timezone);
+        $timezone = $timezoneObj->getName();
+    } catch (Exception $e) {
+        $timezone = $defaults['timezone'] ?? 'Asia/Kolkata';
+    }
+
+    $time = isset($schedule['time']) && is_string($schedule['time']) ? trim($schedule['time']) : '';
+    if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $time)) {
+        $time = $defaults['time'] ?? '06:00';
+    }
+
+    $days = [];
+    if (isset($schedule['daysOfWeek']) && is_array($schedule['daysOfWeek'])) {
+        foreach ($schedule['daysOfWeek'] as $day) {
+            $dayInt = (int) $day;
+            if ($dayInt >= 1 && $dayInt <= 7) {
+                $days[$dayInt] = true;
+            }
+        }
+    } elseif (isset($defaults['daysOfWeek']) && is_array($defaults['daysOfWeek'])) {
+        foreach ($defaults['daysOfWeek'] as $day) {
+            $dayInt = (int) $day;
+            if ($dayInt >= 1 && $dayInt <= 7) {
+                $days[$dayInt] = true;
+            }
+        }
+    }
+
+    $daysList = array_keys($days);
+    sort($daysList);
+
+    return [
+        'timezone' => $timezone,
+        'time' => $time,
+        'daysOfWeek' => $daysList,
+    ];
 }
 
 function portal_generate_id(string $prefix = 'id_'): string
