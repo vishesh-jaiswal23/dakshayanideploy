@@ -129,6 +129,159 @@ try {
             respond_json(['status' => 'ok']);
             break;
 
+        case 'ai_settings.save':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $apiKey = sanitize_string($input['api_key'] ?? '', 512);
+            if ($apiKey === null || $apiKey === '') {
+                respond_json(['status' => 'error', 'message' => 'API key is required.'], 422);
+            }
+            $modelsPayload = $input['models'] ?? null;
+            if (!is_array($modelsPayload)) {
+                respond_json(['status' => 'error', 'message' => 'Model definitions missing.'], 422);
+            }
+            $models = [];
+            foreach (['text', 'image', 'tts'] as $type) {
+                $value = sanitize_string($modelsPayload[$type] ?? '', 160);
+                if ($value === null || $value === '') {
+                    respond_json(['status' => 'error', 'message' => strtoupper($type) . ' model code required.'], 422);
+                }
+                $models[$type] = $value;
+            }
+            $settings = ai_settings_get();
+            $settings['api_key'] = $apiKey;
+            $settings['models'] = $models;
+            if (!ai_settings_store($settings)) {
+                throw new RuntimeException('Unable to persist AI settings.');
+            }
+            log_activity('ai.settings.save', 'Updated AI settings', $actor);
+            respond_json(['status' => 'ok', 'settings' => ai_settings_public_payload(ai_settings_get())]);
+            break;
+
+        case 'ai_settings.reset_defaults':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $defaults = ai_settings_defaults();
+            if (!ai_settings_store($defaults)) {
+                throw new RuntimeException('Unable to reset AI settings.');
+            }
+            log_activity('ai.settings.reset', 'Reset AI settings to defaults', $actor);
+            respond_json(['status' => 'ok', 'settings' => ai_settings_public_payload(ai_settings_get())]);
+            break;
+
+        case 'ai_settings.test':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $settings = ai_settings_get();
+            $apiKey = $settings['api_key'] ?? '';
+            if ($apiKey === '') {
+                respond_json(['status' => 'error', 'message' => 'Configure the API key before testing.'], 422);
+            }
+            $available = $settings['models'];
+            $requested = $input['models'] ?? null;
+            $targets = [];
+            if (is_array($requested)) {
+                foreach ($requested as $type) {
+                    $type = strtolower((string) $type);
+                    if (isset($available[$type])) {
+                        $targets[$type] = $available[$type];
+                    }
+                }
+            }
+            if (empty($targets)) {
+                $targets = $available;
+            }
+            $results = [];
+            $updated = $settings['last_test_results'] ?? [];
+            foreach ($targets as $type => $modelCode) {
+                $timestamp = now_ist();
+                try {
+                    ai_settings_ping_model($type, $modelCode, $apiKey);
+                    $results[$type] = ['status' => 'pass', 'reason' => 'Connection successful', 'tested_at' => $timestamp];
+                    $updated[$type] = ['status' => 'pass', 'message' => 'Connection successful', 'tested_at' => $timestamp];
+                } catch (Throwable $exception) {
+                    $message = trim($exception->getMessage());
+                    if (mb_strlen($message) > 180) {
+                        $message = mb_substr($message, 0, 180) . '…';
+                    }
+                    log_system_error('AI test failed for ' . $type, ['error' => $message]);
+                    $results[$type] = ['status' => 'fail', 'reason' => $message, 'tested_at' => $timestamp];
+                    $updated[$type] = ['status' => 'fail', 'message' => $message, 'tested_at' => $timestamp];
+                }
+            }
+            $settings['last_test_results'] = $updated;
+            if (!ai_settings_store($settings)) {
+                throw new RuntimeException('Unable to persist test results.');
+            }
+            $summaryParts = [];
+            foreach ($results as $type => $info) {
+                $summaryParts[] = $type . ':' . $info['status'];
+            }
+            log_activity('ai.settings.test', 'AI Test Connection ' . implode(',', $summaryParts), $actor);
+            respond_json(['status' => 'ok', 'results' => $results]);
+            break;
+
+        case 'ai_settings.export':
+            $includeKey = false;
+            if ($method === 'GET') {
+                $includeKey = normalize_bool($_GET['include_key'] ?? false);
+            } else {
+                $includeKey = normalize_bool($input['include_key'] ?? false);
+            }
+            $settings = ai_settings_get();
+            $export = ['models' => $settings['models']];
+            if ($includeKey) {
+                $export['api_key'] = $settings['api_key'];
+            }
+            $encoded = json_encode($export, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            if ($encoded === false) {
+                throw new RuntimeException('Unable to encode export payload.');
+            }
+            log_activity('ai.settings.export', 'Exported AI settings (include key: ' . ($includeKey ? 'yes' : 'no') . ')', $actor);
+            respond_json(['status' => 'ok', 'export' => base64_encode($encoded)]);
+            break;
+
+        case 'ai_settings.import':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $import = $input['settings'] ?? null;
+            if (!is_array($import)) {
+                respond_json(['status' => 'error', 'message' => 'Import payload must be an object.'], 422);
+            }
+            $modelsPayload = $import['models'] ?? null;
+            if (!is_array($modelsPayload)) {
+                respond_json(['status' => 'error', 'message' => 'Import payload missing model codes.'], 422);
+            }
+            $models = [];
+            foreach (['text', 'image', 'tts'] as $type) {
+                $value = sanitize_string($modelsPayload[$type] ?? '', 160);
+                if ($value === null || $value === '') {
+                    respond_json(['status' => 'error', 'message' => strtoupper($type) . ' model code required in import.'], 422);
+                }
+                $models[$type] = $value;
+            }
+            $includeKey = normalize_bool($input['include_key'] ?? false);
+            $settings = ai_settings_get();
+            $settings['models'] = $models;
+            if ($includeKey) {
+                $apiKey = sanitize_string($import['api_key'] ?? '', 512);
+                if ($apiKey === null || $apiKey === '') {
+                    respond_json(['status' => 'error', 'message' => 'Import indicated API key but no value provided.'], 422);
+                }
+                $settings['api_key'] = $apiKey;
+            }
+            $settings['last_test_results'] = [];
+            if (!ai_settings_store($settings)) {
+                throw new RuntimeException('Unable to import AI settings.');
+            }
+            log_activity('ai.settings.import', 'Imported AI settings (include key: ' . ($includeKey ? 'yes' : 'no') . ')', $actor);
+            respond_json(['status' => 'ok', 'settings' => ai_settings_public_payload(ai_settings_get())]);
+            break;
+
         case 'models_list':
             respond_json(['status' => 'ok', 'data' => models_registry_list()]);
             break;

@@ -11,8 +11,118 @@ foreach ($models['models'] ?? [] as $model) {
     ];
 }
 $placeholderBlogImage = htmlspecialchars(blog_placeholder_image(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+$aiSettingsRaw = ai_settings_get();
+$aiDefaults = ai_settings_defaults();
+$aiPanelConfig = [
+    'api_key' => $aiSettingsRaw['api_key'] ?? '',
+    'models' => $aiSettingsRaw['models'] ?? $aiDefaults['models'],
+    'last_test_results' => $aiSettingsRaw['last_test_results'] ?? [],
+    'defaults' => [
+        'api_key' => $aiDefaults['api_key'],
+        'models' => $aiDefaults['models'],
+    ],
+    'masked' => mask_sensitive($aiSettingsRaw['api_key'] ?? ''),
+];
 ?>
 <section class="space-y-6" x-data="aiTools()" x-init="init()">
+  <div class="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow" x-data="aiSettingsPanel(<?= json_encode($aiPanelConfig, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>)" x-init="init()">
+    <header class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <h2 class="text-lg font-semibold text-slate-900">AI Settings</h2>
+        <p class="text-sm text-slate-500">Configure Gemini credentials for text, image, and audio generation.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3 text-xs">
+        <label class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 font-semibold text-slate-600">
+          <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" x-model="includeKeyExport" />
+          Include key on export
+        </label>
+        <label class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 font-semibold text-slate-600">
+          <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" x-model="includeKeyImport" />
+          Import key from file
+        </label>
+        <div class="flex items-center gap-2">
+          <button class="rounded-lg border border-slate-200 px-3 py-1 text-sm font-semibold text-slate-600 hover:bg-slate-50" @click="exportSettings" :disabled="exporting">
+            <span x-show="!exporting">Export JSON</span>
+            <span x-show="exporting" class="flex items-center gap-2"><svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle class="opacity-25" cx="12" cy="12" r="10"></circle><path class="opacity-75" d="M4 12a8 8 0 018-8"></path></svg>Exporting…</span>
+          </button>
+          <button class="rounded-lg border border-slate-200 px-3 py-1 text-sm font-semibold text-slate-600 hover:bg-slate-50" @click="$refs.importInput.click()" :disabled="importing">
+            <span x-show="!importing">Import JSON</span>
+            <span x-show="importing" class="flex items-center gap-2"><svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle class="opacity-25" cx="12" cy="12" r="10"></circle><path class="opacity-75" d="M4 12a8 8 0 018-8"></path></svg>Importing…</span>
+          </button>
+          <input type="file" accept="application/json" class="hidden" x-ref="importInput" @change="handleImport" />
+        </div>
+      </div>
+    </header>
+
+    <div class="mt-6 grid gap-4 lg:grid-cols-2">
+      <div class="lg:col-span-2">
+        <label class="block text-sm font-medium text-slate-700">Gemini API Key
+          <div class="mt-2 flex items-center gap-2">
+            <input :type="showKey ? 'text' : 'password'" class="w-full rounded-2xl border border-slate-200 px-4 py-2 text-sm" x-model="form.api_key" autocomplete="off" />
+            <button type="button" class="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50" @click="toggleKey">
+              <span x-text="showKey ? 'Hide' : 'Reveal'"></span>
+            </button>
+          </div>
+          <p class="mt-1 text-xs text-slate-500">Stored securely, masked as <?= htmlspecialchars($aiPanelConfig['masked'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?>.</p>
+        </label>
+      </div>
+      <label class="block text-sm font-medium text-slate-700">Text model code
+        <input type="text" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2 text-sm" x-model="form.text_model" />
+        <p class="mt-1 text-xs text-slate-500">Used for blog and text generation flows.</p>
+      </label>
+      <label class="block text-sm font-medium text-slate-700">Image model code
+        <input type="text" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2 text-sm" x-model="form.image_model" />
+        <p class="mt-1 text-xs text-slate-500">Used for AI-generated cover images.</p>
+      </label>
+      <label class="block text-sm font-medium text-slate-700">TTS model code
+        <input type="text" class="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-2 text-sm" x-model="form.tts_model" />
+        <p class="mt-1 text-xs text-slate-500">Used for audio narration clips.</p>
+      </label>
+      <div class="space-y-2">
+        <p class="text-sm font-semibold text-slate-700">Test scope</p>
+        <div class="flex flex-wrap gap-2">
+          <label class="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
+            <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" x-model="testTargets.text" /> Text
+          </label>
+          <label class="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
+            <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" x-model="testTargets.image" /> Image
+          </label>
+          <label class="flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600">
+            <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" x-model="testTargets.tts" /> TTS
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 flex flex-wrap gap-3">
+      <button class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500" @click="save" :disabled="saving">
+        <svg x-show="saving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle class="opacity-25" cx="12" cy="12" r="10"></circle><path class="opacity-75" d="M4 12a8 8 0 018-8"></path></svg>
+        <span>Save</span>
+      </button>
+      <button class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50" @click="resetDefaults" :disabled="resetting">
+        <svg x-show="resetting" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle class="opacity-25" cx="12" cy="12" r="10"></circle><path class="opacity-75" d="M4 12a8 8 0 018-8"></path></svg>
+        <span>Reset to Default</span>
+      </button>
+      <button class="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50" @click="test" :disabled="testing">
+        <svg x-show="testing" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle class="opacity-25" cx="12" cy="12" r="10"></circle><path class="opacity-75" d="M4 12a8 8 0 018-8"></path></svg>
+        <span>Test Connection</span>
+      </button>
+    </div>
+
+    <template x-if="testMessage">
+      <p class="mt-4 text-sm" :class="testMessageType === 'error' ? 'text-red-600' : 'text-emerald-600'" x-text="testMessage"></p>
+    </template>
+
+    <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" x-show="Object.keys(lastTestResults).length > 0">
+      <template x-for="(result, key) in lastTestResults" :key="key">
+        <div class="rounded-2xl border p-4" :class="result.status === 'pass' ? 'border-emerald-200 bg-emerald-50/50 text-emerald-700' : 'border-red-200 bg-red-50/50 text-red-700'">
+          <p class="text-sm font-semibold uppercase" x-text="key.toUpperCase()"></p>
+          <p class="mt-1 text-sm" x-text="result.message || (result.status === 'pass' ? 'Connection successful' : 'Check credentials')"></p>
+          <p class="mt-2 text-xs opacity-80" x-text="formatTimestamp(result.tested_at)"></p>
+        </div>
+      </template>
+    </div>
+  </div>
   <div class="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow">
     <header class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
       <div>
@@ -171,6 +281,285 @@ $placeholderBlogImage = htmlspecialchars(blog_placeholder_image(), ENT_QUOTES | 
   </div>
 
   <script>
+    function aiSettingsPanel(initial) {
+      return {
+        form: {
+          api_key: initial.api_key || '',
+          text_model: '',
+          image_model: '',
+          tts_model: '',
+        },
+        defaults: initial.defaults || { api_key: '', models: { text: '', image: '', tts: '' } },
+        showKey: false,
+        saving: false,
+        resetting: false,
+        testing: false,
+        exporting: false,
+        importing: false,
+        includeKeyExport: false,
+        includeKeyImport: false,
+        testTargets: { text: true, image: true, tts: true },
+        lastTestResults: initial.last_test_results || {},
+        testMessage: '',
+        testMessageType: 'info',
+        lastApplied: null,
+        init() {
+          this.applyModels(initial.models || this.defaults.models);
+          this.lastApplied = this.snapshot();
+        },
+        applyModels(models) {
+          const source = models || {};
+          this.form.text_model = source.text || this.defaults.models.text;
+          this.form.image_model = source.image || this.defaults.models.image;
+          this.form.tts_model = source.tts || this.defaults.models.tts;
+        },
+        snapshot() {
+          return {
+            api_key: this.form.api_key,
+            models: {
+              text: this.form.text_model,
+              image: this.form.image_model,
+              tts: this.form.tts_model,
+            },
+          };
+        },
+        hasUnsavedChanges() {
+          if (!this.lastApplied) {
+            return true;
+          }
+          const current = this.snapshot();
+          return (
+            current.api_key !== this.lastApplied.api_key ||
+            current.models.text !== this.lastApplied.models.text ||
+            current.models.image !== this.lastApplied.models.image ||
+            current.models.tts !== this.lastApplied.models.tts
+          );
+        },
+        token() {
+          const meta = document.querySelector('meta[name="csrf-token"]');
+          return meta ? meta.content : '';
+        },
+        toggleKey() {
+          this.showKey = !this.showKey;
+        },
+        validate() {
+          if (!this.form.api_key || this.form.api_key.trim().length === 0) {
+            this.toast('API key is required.', 'error');
+            return false;
+          }
+          if (!this.form.text_model || !this.form.image_model || !this.form.tts_model) {
+            this.toast('Provide all three model codes before saving.', 'error');
+            return false;
+          }
+          return true;
+        },
+        async save(silent = false) {
+          if (!this.validate()) {
+            return false;
+          }
+          this.form.api_key = this.form.api_key.trim();
+          this.form.text_model = this.form.text_model.trim();
+          this.form.image_model = this.form.image_model.trim();
+          this.form.tts_model = this.form.tts_model.trim();
+          this.saving = !silent;
+          try {
+            const response = await fetch('/admin/api.php?action=ai_settings.save', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': this.token(),
+              },
+              body: JSON.stringify({
+                api_key: this.form.api_key,
+                models: {
+                  text: this.form.text_model,
+                  image: this.form.image_model,
+                  tts: this.form.tts_model,
+                },
+              }),
+            });
+            const payload = await response.json();
+            if (payload.status === 'ok') {
+              this.lastApplied = this.snapshot();
+              if (payload.settings && payload.settings.last_test_results) {
+                this.lastTestResults = payload.settings.last_test_results;
+              }
+              if (!silent) {
+                this.toast('AI settings saved', 'success');
+              }
+              return true;
+            }
+            this.toast(payload.message || 'Unable to save AI settings', 'error');
+          } catch (error) {
+            this.toast('Network error while saving AI settings', 'error');
+          } finally {
+            this.saving = false;
+          }
+          return false;
+        },
+        async resetDefaults() {
+          if (!confirm('Reset AI settings to defaults?')) {
+            return;
+          }
+          this.resetting = true;
+          try {
+            const response = await fetch('/admin/api.php?action=ai_settings.reset_defaults', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': this.token(),
+              },
+              body: JSON.stringify({}),
+            });
+            const payload = await response.json();
+            if (payload.status === 'ok') {
+              this.form.api_key = this.defaults.api_key;
+              this.applyModels(this.defaults.models);
+              this.lastApplied = this.snapshot();
+              this.lastTestResults = payload.settings?.last_test_results || {};
+              this.toast('AI settings restored to defaults', 'success');
+            } else {
+              this.toast(payload.message || 'Unable to reset AI settings', 'error');
+            }
+          } catch (error) {
+            this.toast('Network error while resetting AI settings', 'error');
+          } finally {
+            this.resetting = false;
+          }
+        },
+        async test() {
+          if (this.hasUnsavedChanges()) {
+            this.toast('Save settings before running a connection test.', 'error');
+            return;
+          }
+          const selected = this.selectedTypes();
+          if (selected.length === 0) {
+            this.toast('Choose at least one model to test.', 'error');
+            return;
+          }
+          this.testing = true;
+          this.testMessage = '';
+          try {
+            const response = await fetch('/admin/api.php?action=ai_settings.test', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': this.token(),
+              },
+              body: JSON.stringify({ models: selected }),
+            });
+            const payload = await response.json();
+            if (payload.status === 'ok') {
+              this.lastTestResults = Object.assign({}, this.lastTestResults, payload.results || {});
+              const failures = Object.values(payload.results || {}).filter((item) => item.status !== 'pass');
+              if (failures.length > 0) {
+                this.testMessage = 'Connection test completed with issues.';
+                this.testMessageType = 'error';
+              } else {
+                this.testMessage = 'All selected models responded successfully.';
+                this.testMessageType = 'success';
+              }
+              this.toast('AI connection test completed', 'success');
+            } else {
+              this.testMessage = payload.message || 'Unable to run connection test.';
+              this.testMessageType = 'error';
+              this.toast(this.testMessage, 'error');
+            }
+          } catch (error) {
+            this.testMessage = 'Network error during connection test.';
+            this.testMessageType = 'error';
+            this.toast(this.testMessage, 'error');
+          } finally {
+            this.testing = false;
+          }
+        },
+        selectedTypes() {
+          return Object.entries(this.testTargets)
+            .filter(([, enabled]) => enabled)
+            .map(([key]) => key);
+        },
+        async exportSettings() {
+          this.exporting = true;
+          try {
+            const query = this.includeKeyExport ? '&include_key=1' : '';
+            const response = await fetch('/admin/api.php?action=ai_settings.export' + query, {
+              headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const payload = await response.json();
+            if (payload.status === 'ok' && payload.export) {
+              const json = atob(payload.export);
+              const blob = new Blob([json], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = 'ai-settings.json';
+              link.click();
+              URL.revokeObjectURL(url);
+              this.toast('AI settings exported', 'success');
+            } else {
+              this.toast(payload.message || 'Unable to export settings', 'error');
+            }
+          } catch (error) {
+            this.toast('Network error while exporting settings', 'error');
+          } finally {
+            this.exporting = false;
+          }
+        },
+        async handleImport(event) {
+          const file = event.target.files[0];
+          event.target.value = '';
+          if (!file) {
+            return;
+          }
+          this.importing = true;
+          try {
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+            const includeKey = this.includeKeyImport && typeof parsed.api_key === 'string' && parsed.api_key.length > 0;
+            const response = await fetch('/admin/api.php?action=ai_settings.import', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': this.token(),
+              },
+              body: JSON.stringify({ settings: parsed, include_key: includeKey }),
+            });
+            const payload = await response.json();
+            if (payload.status === 'ok') {
+              if (parsed.models) {
+                this.applyModels(parsed.models);
+              }
+              if (includeKey && parsed.api_key) {
+                this.form.api_key = parsed.api_key;
+              }
+              this.lastApplied = this.snapshot();
+              this.lastTestResults = payload.settings?.last_test_results || {};
+              this.toast('AI settings imported', 'success');
+            } else {
+              this.toast(payload.message || 'Unable to import settings', 'error');
+            }
+          } catch (error) {
+            this.toast('Invalid or unreadable JSON file.', 'error');
+          } finally {
+            this.importing = false;
+          }
+        },
+        formatTimestamp(value) {
+          if (!value) {
+            return 'Not tested yet';
+          }
+          const date = new Date(value);
+          if (Number.isNaN(date.getTime())) {
+            return value;
+          }
+          return date.toLocaleString('en-IN', { hour12: true });
+        },
+        toast(message, type = 'info') {
+          window.dispatchEvent(new CustomEvent('toast', { detail: { message, type } }));
+        },
+      };
+    }
+
     function aiTools() {
       return {
         tab: 'registry',
