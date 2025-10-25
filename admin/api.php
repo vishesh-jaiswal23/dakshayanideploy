@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../server/helpers.php';
 require_once __DIR__ . '/../server/modules.php';
+require_once __DIR__ . '/lib.php';
 
 ensure_session();
 server_bootstrap();
@@ -45,6 +46,35 @@ try {
             respond_json(['status' => 'ok', 'settings' => $settings, 'csrf' => issue_csrf_token()]);
             break;
 
+        case 'search':
+            $term = (string) ($_GET['q'] ?? '');
+            $results = admin_search($term);
+            respond_json(['status' => 'ok', 'results' => $results]);
+            break;
+
+        case 'alerts_list':
+            $alerts = management_alerts_list();
+            $summary = [
+                'total' => count($alerts),
+                'unread' => count(array_filter($alerts, static fn($alert) => ($alert['status'] ?? 'open') === 'open')),
+            ];
+            respond_json(['status' => 'ok', 'alerts' => array_map(static function ($alert) {
+                return [
+                    'id' => $alert['id'],
+                    'title' => ucfirst((string) ($alert['type'] ?? 'Alert')),
+                    'message' => $alert['message'] ?? '',
+                    'severity' => $alert['severity'] ?? 'medium',
+                    'time' => $alert['detected_at'] ?? '',
+                    'read' => ($alert['status'] ?? 'open') !== 'open',
+                ];
+            }, $alerts), 'summary' => $summary]);
+            break;
+
+        case 'system_health':
+            $health = admin_system_health();
+            respond_json(['status' => 'ok', 'disk' => $health['disk'], 'errors' => $health['errors'], 'records' => $health['records']]);
+            break;
+
         case 'save_site_settings':
             $section = (string) ($input['section'] ?? '');
             $data = $input['data'] ?? null;
@@ -60,6 +90,30 @@ try {
                 throw new RuntimeException('Unable to persist updated settings.');
             }
             log_activity('settings.save', 'Updated settings section ' . $section, $user['email'] ?? 'admin');
+            respond_json(['status' => 'ok']);
+            break;
+
+        case 'alerts_acknowledge':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $alertId = (string) ($input['id'] ?? ($_GET['id'] ?? ''));
+            if ($alertId === '') {
+                respond_json(['status' => 'error', 'message' => 'Alert id required.'], 422);
+            }
+            management_alerts_update_status($alertId, 'acknowledged', $actor);
+            respond_json(['status' => 'ok']);
+            break;
+
+        case 'alerts_dismiss':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $alertId = (string) ($input['id'] ?? ($_GET['id'] ?? ''));
+            if ($alertId === '') {
+                respond_json(['status' => 'error', 'message' => 'Alert id required.'], 422);
+            }
+            management_alerts_update_status($alertId, 'closed', $actor);
             respond_json(['status' => 'ok']);
             break;
 
