@@ -384,32 +384,6 @@
       const schemeSelect = complaintForm.querySelector('#complaintScheme');
       const systemConfigurationSelect = complaintForm.querySelector('#systemConfiguration');
 
-      const resolveApiUrl = (path) => {
-        const relativePath = (path || '').toString().replace(/^\/+/, '');
-        const base = window.PORTAL_API_BASE || '/api/';
-
-        if (window.PORTAL_API_BASE) {
-          try {
-            return new URL(relativePath, window.PORTAL_API_BASE).toString();
-          } catch (error) {
-            console.warn('Unable to resolve portal API base', error);
-          }
-        }
-
-        const normalisedBase = base.endsWith('/') ? base : `${base}/`;
-        return `${normalisedBase}${relativePath}`;
-      };
-
-      const generateComplaintRequestId = () => {
-        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-          return `cmp-${window.crypto.randomUUID()}`;
-        }
-
-        const timestamp = Date.now().toString(36);
-        const random = Math.random().toString(36).slice(2, 10);
-        return `cmp-${timestamp}-${random}`;
-      };
-
       const SCHEME_LABELS = {
         pmsgby: 'PM Surya Ghar Muft Bijli Yojana',
         other: 'Other installation'
@@ -853,34 +827,8 @@
 
         summaryLines.push('', 'Logged via Dakshayani website');
 
-        const payload = {
-          name,
-          phone,
-          email,
-          installType: installValue,
-          installLabel,
-          schemeType: schemeValue,
-          schemeLabel,
-          systemConfiguration: systemConfigurationValue,
-          systemConfigurationLabel,
-          systemConfigurationRaw,
-          applicationNumber,
-          siteAddress,
-          systemSize,
-          preferredContact,
-          description: uniqueIssue,
-          issues: issueValues,
-          issueLabels,
-          source: 'website-contact',
-        };
-
-        if (!payload.clientRequestId) {
-          payload.clientRequestId = generateComplaintRequestId();
-        }
-
         return {
           summaryText: summaryLines.join('\n'),
-          payload,
         };
       };
 
