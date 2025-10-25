@@ -6,6 +6,7 @@ session_start();
 
 require_once __DIR__ . '/portal-config.php';
 require_once __DIR__ . '/portal-admin.php';
+require_once __DIR__ . '/server/helpers.php';
 
 date_default_timezone_set(PORTAL_TIMEZONE);
 
@@ -13,6 +14,19 @@ if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
     header('Location: login.php');
     exit;
 }
+
+server_bootstrap();
+
+$authUser = get_authenticated_user();
+$actorEmail = $authUser['email'] ?? ($_SESSION['user_email'] ?? 'admin');
+log_activity(
+    'legacy_admin_dashboard_redirect',
+    ['from' => 'admin-dashboard.php', 'to' => '/admin/index.php?view=settings'],
+    $actorEmail
+);
+
+header('Location: /admin/index.php?view=settings', true, 302);
+exit;
 
 portal_admin_bootstrap_files(PORTAL_ADMIN_EMAIL, PORTAL_ADMIN_PASSWORD_HASH);
 
