@@ -884,68 +884,6 @@
         };
       };
 
-      const logComplaint = async (payload) => {
-        if (!payload || !payload.phone) {
-          return { ok: false, reason: 'invalid-payload' };
-        }
-
-        if (!payload.clientRequestId) {
-          payload.clientRequestId = generateComplaintRequestId();
-        }
-
-        const body = {
-          ...payload,
-          loggedAt: new Date().toISOString(),
-        };
-
-        const endpoint = resolveApiUrl('public/complaints');
-        const serialized = JSON.stringify(body);
-
-        let beaconSent = false;
-        if (navigator.sendBeacon) {
-          try {
-            const blob = new Blob([serialized], { type: 'application/json' });
-            if (navigator.sendBeacon(endpoint, blob)) {
-              beaconSent = true;
-            }
-          } catch (error) {
-            console.warn('Beacon transmission failed, falling back to fetch', error);
-          }
-        }
-
-        try {
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: serialized,
-            keepalive: true,
-          });
-
-          if (!response.ok) {
-            let message = `Server responded with ${response.status}`;
-            try {
-              const data = await response.json();
-              if (data && typeof data === 'object' && data.error) {
-                message = data.error;
-              }
-            } catch (parseError) {
-              // Ignore JSON parse errors and use the fallback message
-            }
-
-            throw new Error(message);
-          }
-
-          return { ok: true, via: 'fetch' };
-        } catch (error) {
-          if (beaconSent) {
-            return { ok: true, via: 'beacon' };
-          }
-
-          console.warn('Unable to log complaint to portal API', error);
-          return { ok: false, reason: 'request-failed', error: error?.message || 'Unable to log complaint.' };
-        }
-      };
-
       if (installType) {
         installType.addEventListener('change', () => {
           if (installType.value && installType.value !== 'pmsgby') {
@@ -978,14 +916,7 @@
           const summaryData = buildComplaintSummary();
           if (!summaryData) return;
 
-          const { summaryText, payload } = summaryData;
-          logComplaint({ ...payload, channel: 'whatsapp' })
-            .then((result) => {
-              if (!result.ok) {
-                const errorText = result.error || 'We could not log your complaint automatically.';
-                showError(`${errorText} Please follow up on WhatsApp so our team can register the ticket manually.`);
-              }
-            });
+          const { summaryText } = summaryData;
 
           const encodedSummary = encodeURIComponent(summaryText);
           window.open(`https://wa.me/918102401427?text=${encodedSummary}`, '_blank');
@@ -998,14 +929,7 @@
           const summaryData = buildComplaintSummary();
           if (!summaryData) return;
 
-          const { summaryText, payload } = summaryData;
-          logComplaint({ ...payload, channel: 'email' })
-            .then((result) => {
-              if (!result.ok) {
-                const errorText = result.error || 'We could not log your complaint automatically.';
-                showError(`${errorText} Please send the email so our service desk can log it manually.`);
-              }
-            });
+          const { summaryText } = summaryData;
 
           const subject = encodeURIComponent('Solar service complaint');
           const ccRecipients = ['connect@dakshayani.co.in', 'd.entranchi@gmail.com'];
