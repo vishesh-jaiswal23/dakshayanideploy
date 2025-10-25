@@ -469,18 +469,18 @@ final class GeminiClient
 
     public function __construct(?string $apiKey = null, ?string $model = null, ?string $apiVersion = null)
     {
-    $portalConfig = gemini_load_portal_configuration();
-    $fileConfig = gemini_load_api_configuration();
+        $portalConfig = gemini_load_portal_configuration();
+        $fileConfig = gemini_load_api_configuration();
 
-    $candidate = is_string($apiKey) ? trim($apiKey) : '';
-    if ($candidate === '' && isset($portalConfig['api_key'])) {
-        $candidate = trim((string) $portalConfig['api_key']);
-    }
-    if ($candidate === '' && isset($fileConfig['api_key'])) {
-        $candidate = trim((string) $fileConfig['api_key']);
-    }
+        $candidate = is_string($apiKey) ? trim($apiKey) : '';
+        if ($candidate === '' && isset($portalConfig['api_key'])) {
+            $candidate = trim((string) $portalConfig['api_key']);
+        }
+        if ($candidate === '' && isset($fileConfig['api_key'])) {
+            $candidate = trim((string) $fileConfig['api_key']);
+        }
 
-    if ($candidate === '') {
+        if ($candidate === '') {
             $candidate = trim((string) (getenv('GEMINI_API_KEY')
                 ?: getenv('GOOGLE_GEMINI_API_KEY')
                 ?: getenv('GOOGLE_AI_STUDIO_KEY')
@@ -493,35 +493,36 @@ final class GeminiClient
 
         $this->apiKey = $candidate;
 
-    $this->taskModels = array_map(
-        static fn($value) => trim((string) $value),
-        array_merge($fileConfig['models'] ?? [], $portalConfig['models'] ?? [])
-    );
-    $this->taskVersions = array_map(
-        static fn($value) => trim((string) $value),
-        array_merge($fileConfig['versions'] ?? [], $portalConfig['versions'] ?? [])
-    );
+        $this->taskModels = array_map(
+            static fn($value) => trim((string) $value),
+            array_merge($fileConfig['models'] ?? [], $portalConfig['models'] ?? [])
+        );
+        $this->taskVersions = array_map(
+            static fn($value) => trim((string) $value),
+            array_merge($fileConfig['versions'] ?? [], $portalConfig['versions'] ?? [])
+        );
 
-    $modelCandidate = is_string($model) ? trim($model) : '';
-    if ($modelCandidate === '' && isset($portalConfig['default_model'])) {
-        $modelCandidate = trim((string) $portalConfig['default_model']);
-    }
-    if ($modelCandidate === '' && isset($fileConfig['default_model'])) {
-        $modelCandidate = trim((string) $fileConfig['default_model']);
-    }
+        $modelCandidate = is_string($model) ? trim($model) : '';
+        if ($modelCandidate === '' && isset($portalConfig['default_model'])) {
+            $modelCandidate = trim((string) $portalConfig['default_model']);
+        }
+        if ($modelCandidate === '' && isset($fileConfig['default_model'])) {
+            $modelCandidate = trim((string) $fileConfig['default_model']);
+        }
 
-    if ($modelCandidate === '') {
+        if ($modelCandidate === '') {
             $modelCandidate = trim((string) (getenv('GEMINI_MODEL') ?: 'gemini-1.5-pro-latest'));
         }
 
-    $this->model = $modelCandidate;
-    $versionCandidate = is_string($apiVersion) ? trim($apiVersion) : '';
-    if ($versionCandidate === '' && isset($portalConfig['default_version'])) {
-        $versionCandidate = trim((string) $portalConfig['default_version']);
-    }
-    if ($versionCandidate === '' && isset($fileConfig['default_version'])) {
-        $versionCandidate = trim((string) $fileConfig['default_version']);
-    }
+        $this->model = $modelCandidate;
+
+        $versionCandidate = is_string($apiVersion) ? trim($apiVersion) : '';
+        if ($versionCandidate === '' && isset($portalConfig['default_version'])) {
+            $versionCandidate = trim((string) $portalConfig['default_version']);
+        }
+        if ($versionCandidate === '' && isset($fileConfig['default_version'])) {
+            $versionCandidate = trim((string) $fileConfig['default_version']);
+        }
 
         if ($versionCandidate === '') {
             $versionCandidate = trim((string) (getenv('GEMINI_API_VERSION') ?: 'v1beta'));
@@ -532,6 +533,14 @@ final class GeminiClient
         }
 
         $this->apiVersion = $versionCandidate;
+    }
+
+    /**
+     * @return array{model: string, version: string}
+     */
+    public function describeModel(?string $task = null): array
+    {
+        return $this->resolveModelAndVersion($task);
     }
 
     public function generateJson(array $messages, ?string $systemInstruction = null, array $generationConfig = [], ?string $task = null): array
@@ -600,6 +609,21 @@ final class GeminiClient
 
     private function buildEndpoint(?string $task): string
     {
+        $resolved = $this->resolveModelAndVersion($task);
+
+        return sprintf(
+            'https://generativelanguage.googleapis.com/%s/models/%s:generateContent?key=%s',
+            rawurlencode($resolved['version']),
+            rawurlencode($resolved['model']),
+            rawurlencode($this->apiKey)
+        );
+    }
+
+    /**
+     * @return array{model: string, version: string}
+     */
+    private function resolveModelAndVersion(?string $task): array
+    {
         $model = $this->model;
         $version = $this->apiVersion;
 
@@ -627,12 +651,10 @@ final class GeminiClient
             $version = 'v1beta';
         }
 
-        return sprintf(
-            'https://generativelanguage.googleapis.com/%s/models/%s:generateContent?key=%s',
-            rawurlencode($version),
-            rawurlencode($model),
-            rawurlencode($this->apiKey)
-        );
+        return [
+            'model' => $model,
+            'version' => $version,
+        ];
     }
 
     private function normalizeTaskKey(string $task): string
@@ -769,21 +791,19 @@ final class GeminiClient
 
                 if (isset($part['text'])) {
                     $text = trim((string) $part['text']);
-                    if ($text === '') {
-                        continue;
-                    }
-
-                    $decoded = json_decode($text, true);
-                    if (is_array($decoded)) {
-                        return $decoded;
+                    if ($text !== '') {
+                        $decoded = $this->decodeJsonFromText($text);
+                        if ($decoded !== null) {
+                            return $decoded;
+                        }
                     }
                 }
 
                 if (isset($part['inlineData']['data'])) {
                     $payload = base64_decode((string) $part['inlineData']['data'], true);
                     if ($payload !== false) {
-                        $decoded = json_decode($payload, true);
-                        if (is_array($decoded)) {
+                        $decoded = $this->decodeJsonFromText($payload);
+                        if ($decoded !== null) {
                             return $decoded;
                         }
                     }
@@ -792,6 +812,49 @@ final class GeminiClient
         }
 
         throw new RuntimeException('Gemini response did not include parsable JSON content.');
+    }
+
+    /**
+     * @return array<mixed>|null
+     */
+    private function decodeJsonFromText(string $text): ?array
+    {
+        $attempts = [];
+        $trimmed = trim($text);
+
+        if ($trimmed !== '') {
+            $attempts[] = $trimmed;
+        }
+
+        if (preg_match_all('/```(?:json)?\s*([\s\S]*?)```/i', $text, $matches)) {
+            foreach ($matches[1] as $snippet) {
+                $snippet = trim((string) $snippet);
+                if ($snippet !== '') {
+                    $attempts[] = $snippet;
+                }
+            }
+        }
+
+        $firstBrace = strpos($text, '{');
+        $lastBrace = strrpos($text, '}');
+        if ($firstBrace !== false && $lastBrace !== false && $lastBrace > $firstBrace) {
+            $snippet = substr($text, $firstBrace, $lastBrace - $firstBrace + 1);
+            if (is_string($snippet)) {
+                $snippet = trim($snippet);
+                if ($snippet !== '') {
+                    $attempts[] = $snippet;
+                }
+            }
+        }
+
+        foreach ($attempts as $candidate) {
+            $decoded = json_decode($candidate, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return null;
     }
 }
 

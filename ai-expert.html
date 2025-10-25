@@ -50,6 +50,15 @@
         align-items: center;
         gap: 0.5rem;
     }
+    .chat-header .model-badge {
+        margin-left: auto;
+        font-size: 0.75rem;
+        background: rgba(255, 255, 255, 0.85);
+        color: var(--base-900);
+        padding: 0.15rem 0.6rem;
+        border-radius: 999px;
+        font-weight: 600;
+    }
     .chat-body {
         flex-grow: 1;
         padding: 1.5rem;
@@ -138,6 +147,7 @@
             <div class="chat-header">
                 <i class="fa-solid fa-robot"></i>
                 Dakshayani Viaan Solar Expert
+                <span class="model-badge" id="ai-model-badge" aria-live="polite" hidden></span>
             </div>
             <div class="chat-body" id="chat-messages">
                 <!-- Initial Welcome Message -->
@@ -217,6 +227,7 @@
         const chatMessages = document.getElementById('chat-messages');
         const chatForm = document.getElementById('chat-form');
         const chipButtons = document.querySelectorAll('.chip');
+        const modelBadge = document.getElementById('ai-model-badge');
 
         chatForm.addEventListener('submit', async (event) => {
             event.preventDefault();
@@ -256,39 +267,61 @@
 
         function configureGeminiEndpoints(key, model) {
             API_KEY = key;
+
+            let resolvedModel = GEMINI_TEXT_MODEL;
             if (typeof model === 'string' && model.trim() !== '') {
-                GEMINI_TEXT_MODEL = model.trim();
+                resolvedModel = model.trim();
             }
+
+            GEMINI_TEXT_MODEL = resolvedModel;
+
+            if (modelBadge) {
+                if (resolvedModel) {
+                    modelBadge.textContent = `Model: ${resolvedModel}`;
+                    modelBadge.removeAttribute('hidden');
+                } else {
+                    modelBadge.textContent = '';
+                    modelBadge.setAttribute('hidden', 'hidden');
+                }
+            }
+
             API_URL_TEXT = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_TEXT_MODEL)}:generateContent?key=${encodeURIComponent(API_KEY)}`;
         }
 
         function loadAiConfiguration() {
             if (!apiKeyPromise) {
-                apiKeyPromise = fetch('server/ai-config.php', { cache: 'no-store' })
+                const normalise = (config) => {
+                    const hasApiKey = config && typeof config === 'object' && typeof config.apiKey === 'string';
+                    const apiKey = hasApiKey ? config.apiKey.trim() : '';
+                    const models = config && typeof config === 'object' && config.models && typeof config.models === 'object' ? config.models : {};
+                    const textModel = typeof models.text === 'string' ? models.text.trim() : '';
+
+                    if (!apiKey) {
+                        throw new Error('Gemini API key is missing.');
+                    }
+
+                    configureGeminiEndpoints(apiKey, textModel);
+
+                    return { apiKey, textModel };
+                };
+
+                const loadFromServer = () => fetch('server/ai-config.php', { cache: 'no-store' })
                     .then(response => {
                         if (!response.ok) {
                             throw new Error('Failed to load Gemini configuration.');
                         }
                         return response.json();
                     })
-                    .then(config => {
-                        const hasApiKey = config && typeof config === 'object' && typeof config.apiKey === 'string';
-                        const apiKey = hasApiKey ? config.apiKey.trim() : '';
-                        const models = config && typeof config === 'object' && config.models && typeof config.models === 'object' ? config.models : {};
-                        const textModel = typeof models.text === 'string' ? models.text.trim() : '';
+                    .then(normalise);
 
-                        if (!apiKey) {
-                            throw new Error('Gemini API key is missing.');
-                        }
+                const loadPromise = (window.dakshayaniAIConfig && typeof window.dakshayaniAIConfig.getConfig === 'function')
+                    ? window.dakshayaniAIConfig.getConfig().then(normalise).catch(loadFromServer)
+                    : loadFromServer();
 
-                        configureGeminiEndpoints(apiKey, textModel);
-
-                        return { apiKey, textModel };
-                    })
-                    .catch(error => {
-                        console.error('Gemini configuration failed:', error);
-                        throw error;
-                    });
+                apiKeyPromise = loadPromise.catch(error => {
+                    console.error('Gemini configuration failed:', error);
+                    throw error;
+                });
             }
 
             return apiKeyPromise;

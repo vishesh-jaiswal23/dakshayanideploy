@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+date_default_timezone_set('Asia/Kolkata');
+
 function portal_sanitize_hex_color(?string $value, string $fallback = '#000000'): string
 {
     $candidate = trim((string) $value);
@@ -105,13 +107,23 @@ function portal_parse_datetime(?string $value): ?int
     return $timestamp;
 }
 
-function portal_format_datetime(?int $timestamp, string $format = 'j M Y, g:i A'): string
+function portal_format_datetime(?int $timestamp, string $format = 'j M Y, g:i A', ?string $timezone = 'Asia/Kolkata'): string
 {
     if ($timestamp === null || $timestamp <= 0) {
         return '';
     }
 
-    return date($format, $timestamp);
+    $tzName = $timezone !== null && trim($timezone) !== '' ? $timezone : 'Asia/Kolkata';
+
+    try {
+        $zone = new DateTimeZone($tzName);
+    } catch (Exception $exception) {
+        $zone = new DateTimeZone('Asia/Kolkata');
+    }
+
+    $dateTime = (new DateTimeImmutable('@' . $timestamp))->setTimezone($zone);
+
+    return $dateTime->format($format);
 }
 
 function portal_slugify(string $value): string
