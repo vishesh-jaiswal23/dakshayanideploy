@@ -6,6 +6,7 @@ session_start();
 
 require_once __DIR__ . '/portal-state.php';
 require_once __DIR__ . '/server/ai-automation.php';
+require_once __DIR__ . '/public_html/includes/ai_helpers.php';
 
 if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
     header('Location: login.php');
@@ -519,6 +520,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('success', implode(' ', $successMessages));
             } elseif ($errorMessages === []) {
                 flash('success', 'Automation checked — no updates were required.');
+            }
+
+            redirect_with_flash('ai');
+
+        case 'run_ai_blog_now':
+            try {
+                $result = ai_run_blog_generation();
+            } catch (Throwable $exception) {
+                flash('error', 'AI automation failed to run: ' . $exception->getMessage());
+                redirect_with_flash('ai');
+            }
+
+            try {
+                ai_log_run($result['status'], $result['posts_created'], $result['error_message'], $result['raw_output']);
+            } catch (Throwable $logException) {
+                flash('error', 'Unable to record the AI automation log: ' . $logException->getMessage());
+            }
+
+            if ($result['status'] === 'success') {
+                flash(
+                    'success',
+                    sprintf('AI automation completed successfully. %d post(s) created.', $result['posts_created'])
+                );
+            } elseif ($result['status'] === 'partial') {
+                flash('error', 'AI automation partially completed: ' . ($result['error_message'] ?? 'Check logs for details.'));
+            } else {
+                flash('error', 'AI automation failed: ' . ($result['error_message'] ?? 'Unknown error.'));
             }
 
             redirect_with_flash('ai');
@@ -5376,6 +5404,163 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
           </div>
           <button class="btn-primary" type="submit">Save Gemini settings</button>
         </form>
+      </section>
+
+      <?php
+        $aiLogError = null;
+        $aiLogs = [];
+        $aiLatestLog = null;
+        $aiLastRunLabel = 'Never';
+        $aiStatusValue = '';
+        $aiStatusLabel = 'No runs yet';
+        $aiStatusChip = 'disabled';
+        $aiPostsCreated = 0;
+
+        try {
+          $aiLogs = ai_fetch_recent_logs(10);
+          $aiLatestLog = $aiLogs[0] ?? null;
+        } catch (Throwable $exception) {
+          $aiLogError = $exception->getMessage();
+        }
+
+        if (is_array($aiLatestLog)) {
+          $aiPostsCreated = (int) ($aiLatestLog['posts_created'] ?? 0);
+          $aiStatusValue = strtolower((string) ($aiLatestLog['status'] ?? ''));
+          $aiStatusLabel = ucfirst($aiStatusValue ?: 'Unknown');
+
+          if (!empty($aiLatestLog['run_time'])) {
+            try {
+              $runTime = new DateTimeImmutable((string) $aiLatestLog['run_time'], new DateTimeZone('Asia/Kolkata'));
+              $aiLastRunLabel = $runTime->format('j M Y, g:i A');
+            } catch (Throwable $exception) {
+              $aiLastRunLabel = (string) $aiLatestLog['run_time'];
+            }
+          }
+
+          if ($aiStatusValue === 'success') {
+            $aiStatusChip = 'success';
+          } elseif ($aiStatusValue === 'partial') {
+            $aiStatusChip = 'warning';
+          } elseif ($aiStatusValue === 'failed') {
+            $aiStatusChip = 'error';
+          } else {
+            $aiStatusChip = 'disabled';
+          }
+        }
+      ?>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <span class="panel-header__meta">AI automation</span>
+            <h2>Scheduled Gemini blog posts</h2>
+            <p class="lead">The worker drafts 1–2 Jharkhand solar posts at 06:00 Asia/Kolkata every day. Trigger it manually or inspect the latest runs.</p>
+          </div>
+          <form method="post" class="panel-header__action">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+            <input type="hidden" name="action" value="run_ai_blog_now" />
+            <input type="hidden" name="redirect_view" value="ai" />
+            <button class="btn-primary" type="submit">
+              <span>Run now</span>
+            </button>
+          </form>
+        </div>
+
+        <div class="ai-automation-summary">
+          <dl>
+            <div>
+              <dt>Last run (IST)</dt>
+              <dd><?= htmlspecialchars($aiLastRunLabel); ?></dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>
+                <?php if ($aiStatusValue !== ''): ?>
+                  <span class="status-chip" data-status="<?= htmlspecialchars($aiStatusChip); ?>">
+                    <?= htmlspecialchars($aiStatusLabel); ?>
+                  </span>
+                <?php else: ?>
+                  <span class="status-chip" data-status="<?= htmlspecialchars($aiStatusChip); ?>">Not yet run</span>
+                <?php endif; ?>
+              </dd>
+            </div>
+            <div>
+              <dt>Posts created</dt>
+              <dd><?= htmlspecialchars((string) $aiPostsCreated); ?></dd>
+            </div>
+          </dl>
+
+          <?php if ($aiLatestLog !== null && $aiStatusValue !== '' && $aiStatusValue !== 'success'): ?>
+            <details class="ai-log-details">
+              <summary>Latest error details</summary>
+              <?php $latestError = trim((string) ($aiLatestLog['error_message'] ?? '')); ?>
+              <?php if ($latestError !== ''): ?>
+                <p><?= htmlspecialchars(mb_strimwidth($latestError, 0, 240, '…')); ?></p>
+              <?php else: ?>
+                <p>No error message recorded.</p>
+              <?php endif; ?>
+              <?php if (!empty($aiLatestLog['raw_output'])): ?>
+                <pre class="ai-log-raw"><?= htmlspecialchars(mb_strimwidth((string) $aiLatestLog['raw_output'], 0, 800, '…')); ?></pre>
+              <?php endif; ?>
+            </details>
+          <?php endif; ?>
+        </div>
+
+        <?php if ($aiLogError !== null): ?>
+          <p class="automation-error">Unable to load automation logs: <?= htmlspecialchars($aiLogError); ?></p>
+        <?php elseif ($aiLogs === []): ?>
+          <p class="automation-empty">No AI automation logs recorded yet. The 06:00 IST cron will populate this table after the first run.</p>
+        <?php else: ?>
+          <div class="table-responsive">
+            <table class="ai-log-table">
+              <thead>
+                <tr>
+                  <th scope="col">Run time (IST)</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Posts</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($aiLogs as $log): ?>
+                  <?php
+                    $logStatus = strtolower((string) ($log['status'] ?? ''));
+                    $logChip = 'disabled';
+                    if ($logStatus === 'success') {
+                        $logChip = 'success';
+                    } elseif ($logStatus === 'partial') {
+                        $logChip = 'warning';
+                    } elseif ($logStatus === 'failed') {
+                        $logChip = 'error';
+                    }
+
+                    $logRunTime = trim((string) ($log['run_time'] ?? ''));
+                    $logRunLabel = $logRunTime !== '' ? $logRunTime : '—';
+                    if ($logRunTime !== '') {
+                        try {
+                            $logTime = new DateTimeImmutable($logRunTime, new DateTimeZone('Asia/Kolkata'));
+                            $logRunLabel = $logTime->format('j M Y, g:i A');
+                        } catch (Throwable $exception) {
+                            $logRunLabel = $logRunTime;
+                        }
+                    }
+                  ?>
+                  <tr>
+                    <td><?= htmlspecialchars($logRunLabel); ?></td>
+                    <td>
+                      <span class="status-chip" data-status="<?= htmlspecialchars($logChip); ?>">
+                        <?= htmlspecialchars(ucfirst($logStatus ?: 'Unknown')); ?>
+                      </span>
+                      <?php if (!empty($log['error_message'])): ?>
+                        <span title="<?= htmlspecialchars($log['error_message']); ?>">⚠️</span>
+                      <?php endif; ?>
+                    </td>
+                    <td><?= htmlspecialchars((string) ($log['posts_created'] ?? 0)); ?></td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php endif; ?>
       </section>
       <section class="panel">
         <div class="panel-header">
