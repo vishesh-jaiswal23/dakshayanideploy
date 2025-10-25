@@ -7,6 +7,229 @@ if (!function_exists('portal_default_state')) {
     require_once __DIR__ . '/../portal-state.php';
 }
 
+function gemini_normalize_config_key(string $key): string
+{
+    $withBoundaries = preg_replace('/([a-z\d])([A-Z])/', '$1_$2', $key);
+    if (!is_string($withBoundaries)) {
+        $withBoundaries = $key;
+    }
+
+    $normalized = strtolower((string) $withBoundaries);
+    $normalized = preg_replace('/[^a-z0-9]+/', '_', $normalized ?? '');
+    if (!is_string($normalized)) {
+        $normalized = strtolower((string) $withBoundaries);
+        $normalized = preg_replace('/[^a-z0-9]+/', '_', $normalized ?? '');
+    }
+
+    return trim((string) $normalized, '_');
+}
+
+/**
+ * @return array{
+ *     api_key?: string,
+ *     default_model?: string,
+ *     default_version?: string,
+ *     models?: array<string, string>,
+ *     versions?: array<string, string>
+ * }
+ */
+function gemini_load_api_configuration(?string $path = null): array
+{
+    $path = $path ?? dirname(__DIR__) . '/api.txt';
+
+    $config = [
+        'models' => [],
+        'versions' => [],
+    ];
+
+    if (!is_string($path) || $path === '' || !is_readable($path)) {
+        return $config;
+    }
+
+    $raw = trim((string) file_get_contents($path));
+    if ($raw === '') {
+        return $config;
+    }
+
+    $decoded = json_decode($raw, true);
+    if (is_array($decoded)) {
+        $config = gemini_apply_configuration_array($decoded, $config);
+    } else {
+        $lines = preg_split("/\r\n|\n|\r/", $raw) ?: [];
+        foreach ($lines as $line) {
+            $line = trim((string) $line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+
+            if (strpos($line, '=') === false) {
+                if (!isset($config['api_key'])) {
+                    $config['api_key'] = $line;
+                }
+                continue;
+            }
+
+            [$key, $value] = array_map('trim', explode('=', $line, 2));
+            if ($key === '') {
+                continue;
+            }
+
+            $config = gemini_apply_configuration_pair($config, $key, $value);
+        }
+    }
+
+    return $config;
+}
+
+/**
+ * @param array<string, mixed> $data
+ * @param array{
+ *     api_key?: string,
+ *     default_model?: string,
+ *     default_version?: string,
+ *     models: array<string, string>,
+ *     versions: array<string, string>
+ * } $config
+ * @return array{
+ *     api_key?: string,
+ *     default_model?: string,
+ *     default_version?: string,
+ *     models: array<string, string>,
+ *     versions: array<string, string>
+ * }
+ */
+function gemini_apply_configuration_array(array $data, array $config): array
+{
+    foreach ($data as $key => $value) {
+        if (is_int($key)) {
+            continue;
+        }
+
+        $normalizedKey = gemini_normalize_config_key((string) $key);
+
+        if (is_array($value) && $normalizedKey !== '') {
+            if (in_array($normalizedKey, ['models', 'model_map'], true)) {
+                foreach ($value as $task => $modelValue) {
+                    if (!is_string($task) || !is_string($modelValue)) {
+                        continue;
+                    }
+
+                    $config = gemini_apply_configuration_pair($config, (string) $task . '_model', $modelValue);
+                }
+                continue;
+            }
+
+            if (in_array($normalizedKey, ['versions', 'version_map'], true)) {
+                foreach ($value as $task => $versionValue) {
+                    if (!is_string($task) || !is_string($versionValue)) {
+                        continue;
+                    }
+
+                    $config = gemini_apply_configuration_pair($config, (string) $task . '_version', $versionValue);
+                }
+                continue;
+            }
+        }
+
+        if (is_scalar($value)) {
+            $config = gemini_apply_configuration_pair($config, (string) $key, (string) $value);
+        }
+    }
+
+    return $config;
+}
+
+/**
+ * @param array{
+ *     api_key?: string,
+ *     default_model?: string,
+ *     default_version?: string,
+ *     models: array<string, string>,
+ *     versions: array<string, string>
+ * } $config
+ * @return array{
+ *     api_key?: string,
+ *     default_model?: string,
+ *     default_version?: string,
+ *     models: array<string, string>,
+ *     versions: array<string, string>
+ * }
+ */
+function gemini_apply_configuration_pair(array $config, string $key, string $value): array
+{
+    $normalizedKey = gemini_normalize_config_key($key);
+    $value = trim($value);
+
+    if ($value === '') {
+        return $config;
+    }
+
+    switch ($normalizedKey) {
+        case 'api_key':
+        case 'gemini_api_key':
+        case 'key':
+        case 'token':
+            $config['api_key'] = $value;
+            break;
+
+        case 'model':
+        case 'default_model':
+        case 'gemini_model':
+            $config['default_model'] = $value;
+            break;
+
+        case 'api_version':
+        case 'version':
+        case 'default_version':
+        case 'gemini_api_version':
+            $config['default_version'] = $value;
+            break;
+
+        case 'news_model':
+        case 'model_news':
+        case 'news':
+        case 'news_digest_model':
+            $config['models']['news_digest'] = $value;
+            break;
+
+        case 'blog_model':
+        case 'model_blog':
+        case 'blog':
+        case 'blog_research_model':
+            $config['models']['blog_research'] = $value;
+            break;
+
+        case 'operations_model':
+        case 'ops_model':
+        case 'operations':
+        case 'operations_watch_model':
+        case 'ops_watch_model':
+            $config['models']['operations_watch'] = $value;
+            break;
+
+        case 'news_version':
+        case 'version_news':
+        case 'news_api_version':
+            $config['versions']['news_digest'] = $value;
+            break;
+
+        case 'blog_version':
+        case 'version_blog':
+        case 'blog_api_version':
+            $config['versions']['blog_research'] = $value;
+            break;
+
+        case 'operations_version':
+        case 'ops_version':
+        case 'operations_api_version':
+        case 'ops_api_version':
+            $config['versions']['operations_watch'] = $value;
+            break;
+    }
+
+    return $config;
+}
+
 final class GeminiSchedule
 {
     public static function timezone(array $automation): DateTimeZone
@@ -153,19 +376,18 @@ final class GeminiClient
     private string $apiKey;
     private string $model;
     private string $apiVersion;
-    private string $endpoint;
+    /** @var array<string, string> */
+    private array $taskModels = [];
+    /** @var array<string, string> */
+    private array $taskVersions = [];
 
     public function __construct(?string $apiKey = null, ?string $model = null, ?string $apiVersion = null)
     {
+        $fileConfig = gemini_load_api_configuration();
+
         $candidate = is_string($apiKey) ? trim($apiKey) : '';
-        if ($candidate === '') {
-            $file = dirname(__DIR__) . '/api.txt';
-            if (is_readable($file)) {
-                $fileKey = trim((string) file_get_contents($file));
-                if ($fileKey !== '') {
-                    $candidate = $fileKey;
-                }
-            }
+        if ($candidate === '' && isset($fileConfig['api_key'])) {
+            $candidate = trim((string) $fileConfig['api_key']);
         }
 
         if ($candidate === '') {
@@ -181,13 +403,24 @@ final class GeminiClient
 
         $this->apiKey = $candidate;
 
+        $this->taskModels = array_map(static fn($value) => trim((string) $value), $fileConfig['models'] ?? []);
+        $this->taskVersions = array_map(static fn($value) => trim((string) $value), $fileConfig['versions'] ?? []);
+
         $modelCandidate = is_string($model) ? trim($model) : '';
+        if ($modelCandidate === '' && isset($fileConfig['default_model'])) {
+            $modelCandidate = trim((string) $fileConfig['default_model']);
+        }
+
         if ($modelCandidate === '') {
             $modelCandidate = trim((string) (getenv('GEMINI_MODEL') ?: 'gemini-1.5-pro-latest'));
         }
 
         $this->model = $modelCandidate;
         $versionCandidate = is_string($apiVersion) ? trim($apiVersion) : '';
+        if ($versionCandidate === '' && isset($fileConfig['default_version'])) {
+            $versionCandidate = trim((string) $fileConfig['default_version']);
+        }
+
         if ($versionCandidate === '') {
             $versionCandidate = trim((string) (getenv('GEMINI_API_VERSION') ?: 'v1beta'));
         }
@@ -197,15 +430,9 @@ final class GeminiClient
         }
 
         $this->apiVersion = $versionCandidate;
-        $this->endpoint = sprintf(
-            'https://generativelanguage.googleapis.com/%s/models/%s:generateContent?key=%s',
-            rawurlencode($this->apiVersion),
-            rawurlencode($this->model),
-            rawurlencode($this->apiKey)
-        );
     }
 
-    public function generateJson(array $messages, ?string $systemInstruction = null, array $generationConfig = []): array
+    public function generateJson(array $messages, ?string $systemInstruction = null, array $generationConfig = [], ?string $task = null): array
     {
         $contents = [];
         foreach ($messages as $message) {
@@ -254,7 +481,7 @@ final class GeminiClient
             ];
         }
 
-        $response = $this->postJson($payload);
+        $response = $this->postJson($payload, $this->buildEndpoint($task));
 
         if (!is_array($response)) {
             throw new RuntimeException('Unexpected response from Gemini API.');
@@ -269,7 +496,65 @@ final class GeminiClient
         return $this->extractJson($response);
     }
 
-    private function postJson(array $payload): array
+    private function buildEndpoint(?string $task): string
+    {
+        $model = $this->model;
+        $version = $this->apiVersion;
+
+        if ($task !== null) {
+            $normalizedTask = $this->normalizeTaskKey($task);
+
+            if (isset($this->taskModels[$task]) && $this->taskModels[$task] !== '') {
+                $model = $this->taskModels[$task];
+            } elseif (isset($this->taskModels[$normalizedTask]) && $this->taskModels[$normalizedTask] !== '') {
+                $model = $this->taskModels[$normalizedTask];
+            }
+
+            if (isset($this->taskVersions[$task]) && $this->taskVersions[$task] !== '') {
+                $version = $this->taskVersions[$task];
+            } elseif (isset($this->taskVersions[$normalizedTask]) && $this->taskVersions[$normalizedTask] !== '') {
+                $version = $this->taskVersions[$normalizedTask];
+            }
+        }
+
+        if ($model === '') {
+            $model = 'gemini-1.5-pro-latest';
+        }
+
+        if ($version === '') {
+            $version = 'v1beta';
+        }
+
+        return sprintf(
+            'https://generativelanguage.googleapis.com/%s/models/%s:generateContent?key=%s',
+            rawurlencode($version),
+            rawurlencode($model),
+            rawurlencode($this->apiKey)
+        );
+    }
+
+    private function normalizeTaskKey(string $task): string
+    {
+        if (isset($this->taskModels[$task]) || isset($this->taskVersions[$task])) {
+            return $task;
+        }
+
+        $map = [
+            'news' => 'news_digest',
+            'news_digest' => 'news_digest',
+            'blog' => 'blog_research',
+            'blog_research' => 'blog_research',
+            'operations' => 'operations_watch',
+            'ops' => 'operations_watch',
+            'operations_watch' => 'operations_watch',
+        ];
+
+        $normalized = strtolower(trim($task));
+
+        return $map[$normalized] ?? $task;
+    }
+
+    private function postJson(array $payload, string $endpoint): array
     {
         $json = json_encode($payload);
         if ($json === false) {
@@ -277,7 +562,7 @@ final class GeminiClient
         }
 
         if (function_exists('curl_init')) {
-            $handle = curl_init($this->endpoint);
+            $handle = curl_init($endpoint);
             curl_setopt_array($handle, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_POST => true,
@@ -327,7 +612,7 @@ final class GeminiClient
             ],
         ]);
 
-        $raw = file_get_contents($this->endpoint, false, $context);
+        $raw = file_get_contents($endpoint, false, $context);
         if ($raw === false) {
             throw new RuntimeException('Gemini API request failed.');
         }
@@ -638,7 +923,7 @@ final class GeminiAutomation
 
         $system = "You are an editorial analyst for Dakshayani Enterprises. Source timely solar and renewable energy developments from India and global markets. Focus on insights leaders can act on (policy shifts, financing updates, technology deployments). Return strictly JSON.";
 
-        $response = $this->client->generateJson([$prompt], $system, ['maxOutputTokens' => 768]);
+        $response = $this->client->generateJson([$prompt], $system, ['maxOutputTokens' => 768], 'news_digest');
 
         $items = [];
         foreach ($response['items'] ?? [] as $item) {
@@ -705,7 +990,7 @@ final class GeminiAutomation
 
         $system = "You are the content strategist for Dakshayani Enterprises. Produce policy-aware and data-rich solar blog posts focused on India. Reference Rooftop solar, PM Surya Ghar, hybrid systems, hydrogen pilots, or financing trends as relevant. Return only JSON.";
 
-        $response = $this->client->generateJson($messages, $system, ['maxOutputTokens' => 1400, 'temperature' => 0.5]);
+        $response = $this->client->generateJson($messages, $system, ['maxOutputTokens' => 1400, 'temperature' => 0.5], 'blog_research');
 
         $title = trim((string) ($response['title'] ?? '')); 
         $slug = trim((string) ($response['slug'] ?? ''));
@@ -955,7 +1240,7 @@ final class GeminiAutomation
 
         $system = "You are Dakshayani Enterprises' operations reviewer. Analyse workloads, complaints, and approvals. Highlight risks and concrete actions to improve execution. Return only JSON.";
 
-        $response = $this->client->generateJson($messages, $system, ['maxOutputTokens' => 900, 'temperature' => 0.35]);
+        $response = $this->client->generateJson($messages, $system, ['maxOutputTokens' => 900, 'temperature' => 0.35], 'operations_watch');
 
         $summary = trim((string) ($response['summary'] ?? ''));
         $riskFlags = [];
