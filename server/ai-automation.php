@@ -589,8 +589,10 @@ final class GeminiClient
             ], $generationConfig),
         ];
 
+        $includeSchema = false;
         if ($responseSchema !== null) {
             $payload['responseSchema'] = $responseSchema;
+            $includeSchema = true;
         }
 
         if ($systemInstruction !== null && trim($systemInstruction) !== '') {
@@ -602,7 +604,19 @@ final class GeminiClient
             ];
         }
 
-        $response = $this->postJson($payload, $this->buildEndpoint($task));
+        try {
+            $response = $this->postJson($payload, $this->buildEndpoint($task));
+        } catch (RuntimeException $exception) {
+            if (!$includeSchema || stripos($exception->getMessage(), 'responseschema') === false) {
+                throw $exception;
+            }
+
+            unset($payload['responseSchema']);
+
+            // Retry once without the schema for compatibility with API versions that do not yet
+            // support the field. If this call fails we bubble up the new exception.
+            $response = $this->postJson($payload, $this->buildEndpoint($task));
+        }
 
         if (!is_array($response)) {
             throw new RuntimeException('Unexpected response from Gemini API.');
