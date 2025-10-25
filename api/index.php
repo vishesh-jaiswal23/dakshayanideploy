@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/../server/ai-automation.php';
 
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
@@ -442,12 +443,122 @@ switch (true) {
         $financialPoints = [];
         $financialPoints[] = sprintf('System size: %.1f kWp (%s)', $size, $systemLabel);
         if ($grossCost > 0) {
-            $financialPoints[] = sprintf('Project cost: approx. ₹%s%s', $formatCurrency($grossCost), $subsidy > 0 ? ' with subsidy eligibility near ₹' . $formatCurrency($subsidy) : '');
+            $financialPoints[] = sprintf(
+                'Project cost: approx. ₹%s%s',
+                $formatCurrency($grossCost),
+                $subsidy > 0 ? ' with subsidy eligibility near ₹' . $formatCurrency($subsidy) : ''
+            );
         } else {
             $financialPoints[] = 'Project cost: Covered via subsidy/financing';
         }
-        $financialPoints[] = sprintf('Net investment: %s%s', $netCost > 0 ? '₹' . $formatCurrency($netCost) : 'Covered via subsidy', $paybackYears !== null ? ' · Payback ~' . $paybackYears . ' years' : '');
-        $financialPoints[] = sprintf('Annual savings: about ₹%s · Book a survey to lock paperwork.', $formatCurrency($annualSavings));
+        $financialPoints[] = sprintf(
+            'Net investment: %s%s',
+            $netCost > 0 ? '₹' . $formatCurrency($netCost) : 'Covered via subsidy',
+            $paybackYears !== null ? ' · Payback ~' . $paybackYears . ' years' : ''
+        );
+        $financialPoints[] = sprintf(
+            'Annual savings: about ₹%s · Book a survey to lock paperwork.',
+            $formatCurrency($annualSavings)
+        );
+
+        $aiMeta = [
+            'provider' => 'gemini',
+            'model' => '',
+            'version' => '',
+            'status' => 'skipped',
+        ];
+        $followUp = '';
+
+        try {
+            $state = api_load_state();
+            gemini_set_portal_state($state);
+
+            $client = new GeminiClient();
+            $resolved = $client->describeModel('calculator_advisory');
+
+            $promptPayload = [
+                'company' => 'Dakshayani Enterprises',
+                'region' => 'Jharkhand, India',
+                'systemType' => $systemType,
+                'systemLabel' => $systemLabel,
+                'sizeKw' => $size,
+                'grossCost' => $grossCost,
+                'netCost' => $netCost,
+                'subsidy' => $subsidy,
+                'annualSavings' => $annualSavings,
+                'monthlyConsumption' => $monthlyConsumption,
+                'unitRate' => $unitRate,
+                'paybackYears' => $paybackYears,
+                'fallbackAdvisory' => $advisory,
+                'fallbackFinancialPoints' => $financialPoints,
+            ];
+
+            $systemInstruction = 'You are an experienced solar finance advisor for Dakshayani Enterprises in Jharkhand, India. Use the provided project metrics to craft guidance that is immediately useful for the customer. Return JSON with keys: advisory (string), financialPoints (array of 3-5 concise strings), followUp (string call-to-action). Reference Indian currency, policies, and the Dakshayani team. If data is incomplete, rely on the fallback fields.';
+
+            $responseSchema = [
+                'type' => 'object',
+                'required' => ['advisory'],
+                'properties' => [
+                    'advisory' => ['type' => 'string'],
+                    'financialPoints' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string'],
+                    ],
+                    'followUp' => ['type' => 'string'],
+                ],
+                'additionalProperties' => true,
+            ];
+
+            $aiResponse = $client->generateJson(
+                [[
+                    'role' => 'user',
+                    'parts' => [[
+                        'text' => json_encode($promptPayload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+                    ]],
+                ]],
+                $systemInstruction,
+                [
+                    'temperature' => 0.35,
+                    'maxOutputTokens' => 640,
+                ],
+                'calculator_advisory',
+                $responseSchema
+            );
+
+            $aiAdvisory = isset($aiResponse['advisory']) ? trim((string) $aiResponse['advisory']) : '';
+            if ($aiAdvisory !== '') {
+                $advisory = $aiAdvisory;
+            }
+
+            if (isset($aiResponse['financialPoints']) && is_array($aiResponse['financialPoints'])) {
+                $points = array_values(array_filter(array_map(static function ($point) {
+                    return is_string($point) ? trim($point) : '';
+                }, $aiResponse['financialPoints']), static function ($point) {
+                    return $point !== '';
+                }));
+
+                if ($points !== []) {
+                    $financialPoints = $points;
+                }
+            }
+
+            $followUpCandidate = isset($aiResponse['followUp']) ? trim((string) $aiResponse['followUp']) : '';
+            if ($followUpCandidate !== '') {
+                $followUp = $followUpCandidate;
+            }
+
+            $aiMeta = [
+                'provider' => 'gemini',
+                'model' => $resolved['model'],
+                'version' => $resolved['version'],
+                'status' => 'success',
+            ];
+        } catch (RuntimeException $exception) {
+            $aiMeta['status'] = 'error';
+            $aiMeta['message'] = $exception->getMessage();
+        } finally {
+            gemini_set_portal_state(null);
+        }
 
         api_send_json(200, [
             'advisory' => $advisory,
@@ -455,6 +566,114 @@ switch (true) {
                 'language' => 'English',
                 'points' => $financialPoints,
             ],
+            'ai' => $aiMeta,
+            'followUp' => $followUp,
+        ]);
+        break;
+
+    case $path === '/public/ai/news' && $method === 'GET':
+        $state = api_load_state();
+        $automation = isset($state['ai_automation']['news_digest']) && is_array($state['ai_automation']['news_digest'])
+            ? $state['ai_automation']['news_digest']
+            : [];
+
+        $historyEntries = [];
+        if (isset($automation['history']) && is_array($automation['history'])) {
+            $historyEntries = $automation['history'];
+        }
+
+        $latest = null;
+        if (isset($automation['last_digest']) && is_array($automation['last_digest']) && !empty($automation['last_digest']['items'])) {
+            $latest = $automation['last_digest'];
+        } else {
+            foreach ($historyEntries as $entry) {
+                if (is_array($entry) && !empty($entry['items'])) {
+                    $latest = $entry;
+                    break;
+                }
+            }
+        }
+
+        $normalizeDigest = static function ($entry) {
+            if (!is_array($entry)) {
+                return null;
+            }
+
+            $items = [];
+            foreach ($entry['items'] ?? [] as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $headline = trim((string) ($item['headline'] ?? ''));
+                if ($headline === '') {
+                    continue;
+                }
+
+                $items[] = [
+                    'headline' => $headline,
+                    'region' => trim((string) ($item['region'] ?? '')),
+                    'summary' => trim((string) ($item['summary'] ?? '')),
+                    'recommendedAction' => trim((string) ($item['recommendedAction'] ?? '')),
+                    'sourceHints' => array_values(array_filter(array_map(static function ($hint) {
+                        if (is_array($hint)) {
+                            $label = trim((string) ($hint['label'] ?? ''));
+                            $url = trim((string) ($hint['url'] ?? ''));
+                            if ($label === '' && $url === '') {
+                                return null;
+                            }
+
+                            return ['label' => $label, 'url' => $url];
+                        }
+
+                        $text = trim((string) $hint);
+                        return $text === '' ? null : ['label' => $text, 'url' => ''];
+                    }, $item['sourceHints'] ?? []))),
+                ];
+            }
+
+            if ($items === []) {
+                return null;
+            }
+
+            $generatedAt = isset($entry['generated_at']) ? (string) $entry['generated_at'] : '';
+            $timestamp = portal_parse_datetime($generatedAt);
+            $timezone = trim((string) ($entry['timezone'] ?? 'Asia/Kolkata'));
+
+            return [
+                'id' => (string) ($entry['id'] ?? ''),
+                'summary' => trim((string) ($entry['summary'] ?? '')),
+                'generatedAt' => $generatedAt,
+                'generatedAtEpoch' => $timestamp,
+                'generatedAtLabel' => portal_format_datetime($timestamp),
+                'timezone' => $timezone !== '' ? $timezone : 'Asia/Kolkata',
+                'items' => $items,
+            ];
+        };
+
+        $latestNormalized = $normalizeDigest($latest);
+
+        $historyPayload = [];
+        foreach ($historyEntries as $entry) {
+            $normalized = $normalizeDigest($entry);
+            if ($normalized === null) {
+                continue;
+            }
+
+            if ($latestNormalized !== null && $normalized['id'] !== '' && $normalized['id'] === $latestNormalized['id']) {
+                continue;
+            }
+
+            $historyPayload[] = $normalized;
+
+            if (count($historyPayload) >= 6) {
+                break;
+            }
+        }
+
+        api_send_json(200, [
+            'latest' => $latestNormalized,
+            'history' => $historyPayload,
         ]);
         break;
 

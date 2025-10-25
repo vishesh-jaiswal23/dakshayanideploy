@@ -36,6 +36,9 @@
         .ai-output-box { background: var(--alt-surface); padding: 1.5rem; border-radius: 0.75rem; border: 1px solid var(--base-300); min-height: 100px; }
         .ai-output-box h3 { font-size: 1.25rem; font-weight: 800; margin-bottom: 0.75rem; }
         .ai-output-box ul { list-style: disc; margin-left: 1.5rem; color: var(--base-600); }
+        .ai-footnote { margin-top: 0.75rem; font-size: 0.85rem; color: var(--base-500); }
+        .ai-footnote.error { color: #b91c1c; }
+        .ai-follow-up { margin-top: 1rem; font-weight: 600; color: var(--primary-dark); }
         .loader { display: flex; align-items: center; justify-content: center; gap: 0.5rem; color: var(--base-600); }
         
         .tab-selector button { flex-grow: 1; padding: 0.75rem; border: 1px solid var(--base-300); border-radius: 0.5rem; font-weight: 600; background: var(--alt-surface); transition: all 0.2s ease; cursor: pointer; }
@@ -266,6 +269,8 @@
                             <div id="ai-advisory-output">
                                 <p class="loader"><i class="fa-solid fa-spinner fa-spin"></i> Generating personalized advice...</p>
                             </div>
+                            <div id="ai-advisory-follow-up"></div>
+                            <p class="ai-footnote" id="ai-powered-note" style="display: none;"></p>
                         </div>
 
                         <div class="ai-output-box">
@@ -541,9 +546,19 @@
 
             const aiOutput = document.getElementById('ai-advisory-output');
             const financeOutput = document.getElementById('financial-summary-output');
+            const aiFollowUp = document.getElementById('ai-advisory-follow-up');
+            const aiFootnote = document.getElementById('ai-powered-note');
 
             aiOutput.innerHTML = '<p class="loader"><i class="fa-solid fa-spinner fa-spin"></i> Generating personalised advice...</p>';
             financeOutput.innerHTML = '<p class="loader"><i class="fa-solid fa-spinner fa-spin"></i> Finalising costs...</p>';
+            if (aiFollowUp) {
+                aiFollowUp.innerHTML = '';
+            }
+            if (aiFootnote) {
+                aiFootnote.textContent = '';
+                aiFootnote.style.display = 'none';
+                aiFootnote.classList.remove('error');
+            }
 
             const advisoryPayload = {
                 size: requiredSize,
@@ -576,11 +591,49 @@
                     } else {
                         financeOutput.innerHTML = renderFallbackFinancialSummary(requiredSize, grossCost, subsidy, netCost, annualSavings, type);
                     }
+
+                    if (aiFollowUp) {
+                        const followUpText = typeof data?.followUp === 'string' ? data.followUp.trim() : '';
+                        aiFollowUp.innerHTML = followUpText !== ''
+                            ? `<p class="ai-follow-up">${sanitiseParagraph(followUpText)}</p>`
+                            : '';
+                    }
+
+                    if (aiFootnote) {
+                        const status = typeof data?.ai?.status === 'string' ? data.ai.status.toLowerCase() : '';
+                        const modelName = typeof data?.ai?.model === 'string' ? data.ai.model.trim() : '';
+                        const errorMessage = typeof data?.ai?.message === 'string' ? data.ai.message.trim() : '';
+
+                        aiFootnote.classList.remove('error');
+
+                        if (status === 'success') {
+                            aiFootnote.textContent = modelName
+                                ? `Insights generated with Google Gemini (${modelName}).`
+                                : 'Insights generated with Google Gemini.';
+                            aiFootnote.style.display = 'block';
+                        } else if (status === 'error') {
+                            aiFootnote.textContent = errorMessage !== ''
+                                ? `Gemini advisory unavailable: ${sanitiseParagraph(errorMessage)}`
+                                : 'Gemini advisory temporarily unavailable. Showing static guidance.';
+                            aiFootnote.classList.add('error');
+                            aiFootnote.style.display = 'block';
+                        } else {
+                            aiFootnote.style.display = 'none';
+                        }
+                    }
                 })
                 .catch((error) => {
                     console.error('Solar advisory error:', error);
                     aiOutput.innerHTML = renderFallbackAdvisory(requiredSize, netCost, annualSavings, type);
                     financeOutput.innerHTML = renderFallbackFinancialSummary(requiredSize, grossCost, subsidy, netCost, annualSavings, type);
+                    if (aiFollowUp) {
+                        aiFollowUp.innerHTML = '';
+                    }
+                    if (aiFootnote) {
+                        aiFootnote.textContent = 'Gemini advisory temporarily unavailable. Showing static guidance.';
+                        aiFootnote.classList.add('error');
+                        aiFootnote.style.display = 'block';
+                    }
                 })
                 .finally(() => {
                     loading.style.display = 'none';

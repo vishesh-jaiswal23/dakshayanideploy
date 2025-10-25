@@ -5,6 +5,7 @@ declare(strict_types=1);
 session_start();
 
 require_once __DIR__ . '/portal-state.php';
+require_once __DIR__ . '/server/ai-automation.php';
 
 if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
     header('Location: login.php');
@@ -351,6 +352,7 @@ if (empty($_SESSION['csrf_token'])) {
 }
 
 $state = portal_load_state();
+gemini_set_portal_state($state);
 
 $viewLabels = [
     'overview' => 'Overview',
@@ -360,6 +362,7 @@ $viewLabels = [
     'tasks' => 'Tasks',
     'complaints' => 'Complaint tracking',
     'content' => 'Content manager',
+    'ai' => 'AI automation',
     'settings' => 'Site settings',
     'activity' => 'Activity log',
 ];
@@ -372,6 +375,7 @@ $adminSidebarIcons = [
     'tasks' => '<path d="M4 6h9" /><path d="M4 12h9" /><path d="M4 18h9" /><path d="m16 6 2 2 3-3" />',
     'complaints' => '<circle cx="12" cy="12" r="10" /><path d="M12 8v4" /><path d="M12 16h.01" />',
     'content' => '<path d="M4 4h16v16H4z" /><path d="M8 8h8" /><path d="M8 12h6" /><path d="M8 16h8" />',
+    'ai' => '<path d="M12 3l3 4h5l-3 4 3 4h-5l-3 4-3-4H4l3-4-3-4h5z" />',
     'settings' => '<circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01A1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01A1.65 1.65 0 0 0 21 10h.09a2 2 0 1 1 0 4H21a1.65 1.65 0 0 0-1.51 1Z" />',
     'activity' => '<path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" />',
 ];
@@ -432,6 +436,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             redirect_with_flash('settings');
+
+        case 'update_ai_settings':
+            $apiKey = trim((string) ($_POST['gemini_api_key'] ?? ''));
+            $textModel = trim((string) ($_POST['gemini_text_model'] ?? ''));
+            $imageModel = trim((string) ($_POST['gemini_image_model'] ?? ''));
+            $ttsModel = trim((string) ($_POST['gemini_tts_model'] ?? ''));
+
+            $state['ai_settings']['gemini'] = [
+                'api_key' => $apiKey,
+                'text_model' => $textModel,
+                'image_model' => $imageModel,
+                'tts_model' => $ttsModel,
+            ];
+
+            gemini_set_portal_state($state);
+            portal_record_activity($state, 'Updated Gemini API credentials and models.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Gemini API settings saved.');
+            } else {
+                flash('error', 'Unable to save the Gemini API settings.');
+            }
+
+            redirect_with_flash('ai');
+
+        case 'run_ai_automation':
+            $target = $_POST['automation_target'] ?? '';
+            $force = ($_POST['force_run'] ?? '') === '1';
+            $validTargets = ['news_digest', 'blog_research', 'operations_watch', 'all'];
+
+            if (!in_array($target, $validTargets, true)) {
+                flash('error', 'Unknown automation requested.');
+                redirect_with_flash('ai');
+            }
+
+            try {
+                $client = new GeminiClient();
+            } catch (RuntimeException $exception) {
+                flash('error', 'Gemini configuration error: ' . $exception->getMessage());
+                redirect_with_flash('ai');
+            }
+
+            $automationService = new GeminiAutomation($state, $client);
+            $now = new DateTimeImmutable('now', new DateTimeZone('Asia/Kolkata'));
+            $targets = $target === 'all' ? [] : [$target];
+            $results = $automationService->runDueAutomations($now, $targets, $force);
+
+            $stateChanged = false;
+            $successMessages = [];
+            $errorMessages = [];
+
+            foreach ($results as $result) {
+                if (($result['stateChanged'] ?? false) === true) {
+                    $stateChanged = true;
+                }
+
+                $message = trim((string) ($result['message'] ?? ''));
+
+                if (($result['status'] ?? '') === 'error') {
+                    $errorMessages[] = $message !== '' ? $message : 'Automation failed.';
+                    continue;
+                }
+
+                if ($message !== '') {
+                    $successMessages[] = $message;
+                }
+            }
+
+            if ($stateChanged) {
+                if (!portal_save_state($state)) {
+                    flash('error', 'Automation completed but the portal state could not be saved.');
+                    redirect_with_flash('ai');
+                }
+            }
+
+            if ($errorMessages !== []) {
+                flash('error', implode(' ', $errorMessages));
+            }
+
+            if ($successMessages !== []) {
+                flash('success', implode(' ', $successMessages));
+            } elseif ($errorMessages === []) {
+                flash('success', 'Automation checked — no updates were required.');
+            }
+
+            redirect_with_flash('ai');
 
         case 'update_site_theme':
             $themeName = trim($_POST['active_theme'] ?? 'seasonal');
@@ -2797,6 +2887,69 @@ if ($lastDataRefreshTimestamp === null) {
 
 if ($lastDataRefreshTimestamp !== null) {
     $lastDataRefreshLabel = portal_format_datetime($lastDataRefreshTimestamp);
+}
+
+$aiAutomationState = portal_normalize_ai_automation($state['ai_automation'] ?? []);
+$aiSettings = portal_normalize_ai_settings($state['ai_settings'] ?? []);
+$geminiSettings = $aiSettings['gemini'] ?? portal_default_state()['ai_settings']['gemini'];
+
+$aiAutomationView = [];
+$aiAutomationMap = [
+    'news' => 'news_digest',
+    'blog' => 'blog_research',
+    'operations' => 'operations_watch',
+];
+
+foreach ($aiAutomationMap as $viewKey => $automationKey) {
+    $automation = $aiAutomationState[$automationKey] ?? portal_default_state()['ai_automation'][$automationKey];
+
+    $lastRunTimestamp = portal_parse_datetime($automation['last_run_at'] ?? null);
+    $automationTimezone = GeminiSchedule::timezone($automation)->getName();
+    $displayFormat = 'j M Y, g:i A T';
+    $lastRunLabel = $lastRunTimestamp !== null
+        ? portal_format_datetime($lastRunTimestamp, $displayFormat, $automationTimezone)
+        : 'Never';
+
+    $nextRun = GeminiSchedule::calculateNextRun($automation);
+    $nextRunLabel = $nextRun instanceof DateTimeImmutable
+        ? portal_format_datetime($nextRun->getTimestamp(), $displayFormat, $automationTimezone)
+        : 'Not scheduled';
+
+    $error = $automation['last_error'] ?? null;
+    $errorMessage = '';
+    $errorTimestampLabel = '';
+    if (is_array($error)) {
+        $errorMessage = trim((string) ($error['message'] ?? ''));
+        $errorTimestamp = portal_parse_datetime($error['occurred_at'] ?? null);
+        if ($errorTimestamp !== null) {
+            $errorTimestampLabel = portal_format_datetime($errorTimestamp, $displayFormat, $automationTimezone);
+        }
+    }
+
+    $latestKey = [
+        'news' => 'last_digest',
+        'blog' => 'last_blog',
+        'operations' => 'last_report',
+    ][$viewKey] ?? null;
+
+    $latest = $latestKey !== null && isset($automation[$latestKey]) && is_array($automation[$latestKey])
+        ? $automation[$latestKey]
+        : null;
+
+    $history = isset($automation['history']) && is_array($automation['history'])
+        ? array_slice(array_values(array_filter($automation['history'], static fn($entry) => is_array($entry))), 0, 6)
+        : [];
+
+    $aiAutomationView[$viewKey] = [
+        'enabled' => (bool) ($automation['enabled'] ?? true),
+        'schedule_label' => GeminiSchedule::formatSchedule($automation),
+        'last_run_label' => $lastRunLabel,
+        'next_run_label' => $nextRunLabel,
+        'last_error' => $errorMessage,
+        'last_error_time' => $errorTimestampLabel,
+        'latest' => $latest,
+        'history' => $history,
+    ];
 }
 
 $projectsByTarget = $projects;
@@ -5176,6 +5329,279 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
               <button class="btn-primary" type="submit">Create case study</button>
             </form>
           </aside>
+        </div>
+      </section>
+
+    <?php elseif ($currentView === 'ai'): ?>
+      <?php
+        $newsAutomation = $aiAutomationView['news'] ?? [];
+        $blogAutomation = $aiAutomationView['blog'] ?? [];
+        $opsAutomation = $aiAutomationView['operations'] ?? [];
+      ?>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <span class="panel-header__meta">Gemini configuration</span>
+            <h2>Manage API key and model targets</h2>
+            <p class="lead">Set the shared credentials and preferred Gemini models for text, image, and voice tasks. The same details power automations, the Viaan assistant, and any future AI tools.</p>
+          </div>
+        </div>
+        <form method="post" class="ai-settings-form" autocomplete="off">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+          <input type="hidden" name="action" value="update_ai_settings" />
+          <input type="hidden" name="redirect_view" value="ai" />
+          <div class="form-grid">
+            <div>
+              <label for="gemini-api-key">Gemini API key</label>
+              <input id="gemini-api-key" name="gemini_api_key" type="password" value="<?= htmlspecialchars($geminiSettings['api_key'] ?? ''); ?>" placeholder="AIza..." autocomplete="off" />
+              <p class="form-helper">Stored securely inside the portal state file. This key is shared with dashboards and front-end AI experiences.</p>
+            </div>
+            <div>
+              <label for="gemini-text-model">Text model</label>
+              <input id="gemini-text-model" name="gemini_text_model" type="text" value="<?= htmlspecialchars($geminiSettings['text_model'] ?? ''); ?>" placeholder="gemini-1.5-pro-latest" />
+              <p class="form-helper">Used for the daily news digest, blog briefings, operations summaries, and Viaan chat replies.</p>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div>
+              <label for="gemini-image-model">Image model</label>
+              <input id="gemini-image-model" name="gemini_image_model" type="text" value="<?= htmlspecialchars($geminiSettings['image_model'] ?? ''); ?>" placeholder="imagen-3.0-generate" />
+              <p class="form-helper">Optional. Provide the preferred Gemini model for creative or analytical image generation tasks.</p>
+            </div>
+            <div>
+              <label for="gemini-tts-model">Text-to-speech model</label>
+              <input id="gemini-tts-model" name="gemini_tts_model" type="text" value="<?= htmlspecialchars($geminiSettings['tts_model'] ?? ''); ?>" placeholder="g2-turbo-tts" />
+              <p class="form-helper">Optional. Supply a voice model when you want Gemini to narrate scripts or announcements.</p>
+            </div>
+          </div>
+          <button class="btn-primary" type="submit">Save Gemini settings</button>
+        </form>
+      </section>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <span class="panel-header__meta">Gemini automations</span>
+            <h2>AI-powered publishing and monitoring</h2>
+            <p class="lead">Review schedules, inspect the latest outputs, and trigger Gemini jobs on demand.</p>
+          </div>
+          <form method="post" class="panel-header__action">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+            <input type="hidden" name="action" value="run_ai_automation" />
+            <input type="hidden" name="redirect_view" value="ai" />
+            <input type="hidden" name="automation_target" value="all" />
+            <input type="hidden" name="force_run" value="1" />
+            <button class="btn-primary" type="submit">
+              <span>Run all now</span>
+            </button>
+          </form>
+        </div>
+
+        <div class="automation-grid">
+          <article class="automation-card">
+            <header class="automation-card__header">
+              <div>
+                <h3>Daily solar news digest</h3>
+                <p class="automation-card__meta">Schedule: <?= htmlspecialchars($newsAutomation['schedule_label'] ?? '—'); ?></p>
+              </div>
+              <?php if (($newsAutomation['enabled'] ?? true) === false): ?>
+                <span class="status-chip" data-status="disabled">Paused</span>
+              <?php endif; ?>
+            </header>
+            <dl class="automation-meta">
+              <div>
+                <dt>Last run</dt>
+                <dd><?= htmlspecialchars($newsAutomation['last_run_label'] ?? 'Never'); ?></dd>
+              </div>
+              <div>
+                <dt>Next run</dt>
+                <dd><?= htmlspecialchars($newsAutomation['next_run_label'] ?? 'Not scheduled'); ?></dd>
+              </div>
+            </dl>
+            <?php if (!empty($newsAutomation['last_error'])): ?>
+              <p class="automation-error">
+                Last error: <?= htmlspecialchars($newsAutomation['last_error']); ?>
+                <?php if (!empty($newsAutomation['last_error_time'])): ?>
+                  <br /><span class="automation-error__time">Occurred <?= htmlspecialchars($newsAutomation['last_error_time']); ?></span>
+                <?php endif; ?>
+              </p>
+            <?php endif; ?>
+            <form method="post" class="automation-actions">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="run_ai_automation" />
+              <input type="hidden" name="redirect_view" value="ai" />
+              <input type="hidden" name="automation_target" value="news_digest" />
+              <input type="hidden" name="force_run" value="1" />
+              <button type="submit" class="btn-secondary">Run news digest</button>
+            </form>
+            <?php if (!empty($newsAutomation['latest'])): ?>
+              <?php $latestNews = $newsAutomation['latest']; ?>
+              <div class="automation-latest">
+                <?php if (!empty($latestNews['summary'])): ?>
+                  <p class="automation-summary"><?= htmlspecialchars($latestNews['summary']); ?></p>
+                <?php endif; ?>
+                <?php if (!empty($latestNews['items']) && is_array($latestNews['items'])): ?>
+                  <ul class="automation-list">
+                    <?php foreach (array_slice($latestNews['items'], 0, 4) as $item): ?>
+                      <?php if (!is_array($item)) { continue; }
+                        $headline = trim((string) ($item['headline'] ?? ''));
+                        if ($headline === '') { continue; }
+                        $region = trim((string) ($item['region'] ?? ''));
+                        $summary = trim((string) ($item['summary'] ?? ''));
+                      ?>
+                      <li>
+                        <strong><?= htmlspecialchars($headline); ?></strong>
+                        <?php if ($region !== ''): ?>
+                          <span class="automation-region">(<?= htmlspecialchars($region); ?>)</span>
+                        <?php endif; ?>
+                        <?php if ($summary !== ''): ?>
+                          <p><?= htmlspecialchars($summary); ?></p>
+                        <?php endif; ?>
+                      </li>
+                    <?php endforeach; ?>
+                  </ul>
+                <?php endif; ?>
+              </div>
+            <?php else: ?>
+              <p class="automation-empty">No digest has been generated yet. Trigger Gemini to publish the first update.</p>
+            <?php endif; ?>
+          </article>
+
+          <article class="automation-card">
+            <header class="automation-card__header">
+              <div>
+                <h3>Blog research &amp; publishing</h3>
+                <p class="automation-card__meta">Schedule: <?= htmlspecialchars($blogAutomation['schedule_label'] ?? '—'); ?></p>
+              </div>
+              <?php if (($blogAutomation['enabled'] ?? true) === false): ?>
+                <span class="status-chip" data-status="disabled">Paused</span>
+              <?php endif; ?>
+            </header>
+            <dl class="automation-meta">
+              <div>
+                <dt>Last run</dt>
+                <dd><?= htmlspecialchars($blogAutomation['last_run_label'] ?? 'Never'); ?></dd>
+              </div>
+              <div>
+                <dt>Next run</dt>
+                <dd><?= htmlspecialchars($blogAutomation['next_run_label'] ?? 'Not scheduled'); ?></dd>
+              </div>
+            </dl>
+            <?php if (!empty($blogAutomation['last_error'])): ?>
+              <p class="automation-error">
+                Last error: <?= htmlspecialchars($blogAutomation['last_error']); ?>
+                <?php if (!empty($blogAutomation['last_error_time'])): ?>
+                  <br /><span class="automation-error__time">Occurred <?= htmlspecialchars($blogAutomation['last_error_time']); ?></span>
+                <?php endif; ?>
+              </p>
+            <?php endif; ?>
+            <form method="post" class="automation-actions">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="run_ai_automation" />
+              <input type="hidden" name="redirect_view" value="ai" />
+              <input type="hidden" name="automation_target" value="blog_research" />
+              <input type="hidden" name="force_run" value="1" />
+              <button type="submit" class="btn-secondary">Generate blog post</button>
+            </form>
+            <?php if (!empty($blogAutomation['latest'])): ?>
+              <?php $latestBlog = $blogAutomation['latest']; ?>
+              <div class="automation-latest">
+                <h4><?= htmlspecialchars($latestBlog['title'] ?? 'New blog update'); ?></h4>
+                <?php
+                  $publishedLabel = '';
+                  if (!empty($latestBlog['published_at'])) {
+                      $publishedTime = strtotime((string) $latestBlog['published_at']);
+                      if ($publishedTime !== false) {
+                          $publishedLabel = date('j M Y, g:i A', $publishedTime);
+                      }
+                  }
+                ?>
+                <?php if ($publishedLabel !== ''): ?>
+                  <p class="automation-meta-line">Published <?= htmlspecialchars($publishedLabel); ?></p>
+                <?php endif; ?>
+                <?php if (!empty($latestBlog['excerpt'])): ?>
+                  <p><?= htmlspecialchars($latestBlog['excerpt']); ?></p>
+                <?php endif; ?>
+                <?php if (!empty($latestBlog['tags']) && is_array($latestBlog['tags'])): ?>
+                  <p class="automation-tags">Tags: <?= htmlspecialchars(implode(', ', $latestBlog['tags'])); ?></p>
+                <?php endif; ?>
+              </div>
+            <?php else: ?>
+              <p class="automation-empty">Gemini will draft and publish the next article on the upcoming slot.</p>
+            <?php endif; ?>
+          </article>
+
+          <article class="automation-card">
+            <header class="automation-card__header">
+              <div>
+                <h3>Operations oversight</h3>
+                <p class="automation-card__meta">Schedule: <?= htmlspecialchars($opsAutomation['schedule_label'] ?? '—'); ?></p>
+              </div>
+              <?php if (($opsAutomation['enabled'] ?? true) === false): ?>
+                <span class="status-chip" data-status="disabled">Paused</span>
+              <?php endif; ?>
+            </header>
+            <dl class="automation-meta">
+              <div>
+                <dt>Last run</dt>
+                <dd><?= htmlspecialchars($opsAutomation['last_run_label'] ?? 'Never'); ?></dd>
+              </div>
+              <div>
+                <dt>Next run</dt>
+                <dd><?= htmlspecialchars($opsAutomation['next_run_label'] ?? 'Not scheduled'); ?></dd>
+              </div>
+            </dl>
+            <?php if (!empty($opsAutomation['last_error'])): ?>
+              <p class="automation-error">
+                Last error: <?= htmlspecialchars($opsAutomation['last_error']); ?>
+                <?php if (!empty($opsAutomation['last_error_time'])): ?>
+                  <br /><span class="automation-error__time">Occurred <?= htmlspecialchars($opsAutomation['last_error_time']); ?></span>
+                <?php endif; ?>
+              </p>
+            <?php endif; ?>
+            <form method="post" class="automation-actions">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="run_ai_automation" />
+              <input type="hidden" name="redirect_view" value="ai" />
+              <input type="hidden" name="automation_target" value="operations_watch" />
+              <input type="hidden" name="force_run" value="1" />
+              <button type="submit" class="btn-secondary">Run operations review</button>
+            </form>
+            <?php if (!empty($opsAutomation['latest'])): ?>
+              <?php $latestOps = $opsAutomation['latest']; ?>
+              <div class="automation-latest">
+                <?php if (!empty($latestOps['summary'])): ?>
+                  <p class="automation-summary"><?= htmlspecialchars($latestOps['summary']); ?></p>
+                <?php endif; ?>
+                <?php if (!empty($latestOps['recommendations']) && is_array($latestOps['recommendations'])): ?>
+                  <h4>Top recommendations</h4>
+                  <ul class="automation-list">
+                    <?php foreach (array_slice($latestOps['recommendations'], 0, 3) as $recommendation): ?>
+                      <?php if (!is_array($recommendation)) { continue; }
+                        $area = trim((string) ($recommendation['area'] ?? 'Focus area'));
+                        $urgency = trim((string) ($recommendation['urgency'] ?? ''));
+                      ?>
+                      <li>
+                        <strong><?= htmlspecialchars($area); ?></strong>
+                        <?php if ($urgency !== ''): ?>
+                          <span class="automation-region">(<?= htmlspecialchars(ucfirst($urgency)); ?> priority)</span>
+                        <?php endif; ?>
+                        <?php if (!empty($recommendation['suggestedActions']) && is_array($recommendation['suggestedActions'])): ?>
+                          <ul>
+                            <?php foreach ($recommendation['suggestedActions'] as $action): ?>
+                              <?php $actionText = trim((string) $action); if ($actionText === '') { continue; } ?>
+                              <li><?= htmlspecialchars($actionText); ?></li>
+                            <?php endforeach; ?>
+                          </ul>
+                        <?php endif; ?>
+                      </li>
+                    <?php endforeach; ?>
+                  </ul>
+                <?php endif; ?>
+              </div>
+            <?php else: ?>
+              <p class="automation-empty">Gemini will summarise dashboard activity at the next scheduled run.</p>
+            <?php endif; ?>
+          </article>
         </div>
       </section>
 
