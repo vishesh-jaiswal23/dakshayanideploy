@@ -725,6 +725,202 @@ try {
             respond_json(['status' => 'ok', 'csv' => base64_encode($csv)]);
             break;
 
+        case 'analytics_dashboard':
+            $filters = [
+                'start' => $_GET['start'] ?? ($input['start'] ?? null),
+                'end' => $_GET['end'] ?? ($input['end'] ?? null),
+            ];
+            respond_json(['status' => 'ok', 'analytics' => management_analytics($filters)]);
+            break;
+
+        case 'analytics_export':
+            $filters = [
+                'start' => $_GET['start'] ?? ($input['start'] ?? null),
+                'end' => $_GET['end'] ?? ($input['end'] ?? null),
+            ];
+            $csv = management_analytics_export_csv($filters);
+            respond_json(['status' => 'ok', 'csv' => base64_encode($csv)]);
+            break;
+
+        case 'audit_overview':
+            $filters = [
+                'start' => $_GET['start'] ?? ($input['start'] ?? null),
+                'end' => $_GET['end'] ?? ($input['end'] ?? null),
+            ];
+            respond_json(['status' => 'ok', 'audit' => management_audit_overview($filters)]);
+            break;
+
+        case 'alerts_list':
+            respond_json(['status' => 'ok', 'alerts' => management_alerts_list()]);
+            break;
+
+        case 'alerts_ack':
+        case 'alerts_close':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $alertId = (string) ($input['id'] ?? '');
+            if ($alertId === '') {
+                respond_json(['status' => 'error', 'message' => 'Alert id is required.'], 422);
+            }
+            $status = $action === 'alerts_ack' ? 'acknowledged' : 'closed';
+            $updated = management_alerts_update_status($alertId, $status, $actor, $input['note'] ?? null);
+            respond_json(['status' => 'ok', 'alert' => $updated]);
+            break;
+
+        case 'logs_status':
+            respond_json(['status' => 'ok', 'logs' => management_logs_status()]);
+            break;
+
+        case 'logs_archive':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $name = (string) ($input['name'] ?? '');
+            if ($name === '') {
+                respond_json(['status' => 'error', 'message' => 'Log name required.'], 422);
+            }
+            $archive = management_logs_run_archive($name, $actor);
+            respond_json(['status' => 'ok', 'archive' => $archive]);
+            break;
+
+        case 'logs_export':
+            $name = (string) ($_GET['name'] ?? ($input['name'] ?? ''));
+            if ($name === '') {
+                respond_json(['status' => 'error', 'message' => 'Log name required.'], 422);
+            }
+            $fromArchive = normalize_bool($_GET['archive'] ?? ($input['archive'] ?? false));
+            $payload = management_logs_export($name, $fromArchive);
+            respond_json(['status' => 'ok', 'log' => $payload]);
+            break;
+
+        case 'error_monitor':
+            respond_json(['status' => 'ok', 'dashboard' => management_error_monitor_dashboard()]);
+            break;
+
+        case 'users_list':
+            $filters = [
+                'role' => $_GET['role'] ?? ($input['role'] ?? null),
+                'status' => $_GET['status'] ?? ($input['status'] ?? null),
+                'search' => $_GET['search'] ?? ($input['search'] ?? null),
+            ];
+            respond_json(['status' => 'ok', 'users' => management_users_list($filters)]);
+            break;
+
+        case 'user_create':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $userRecord = management_user_create($input, $actor);
+            respond_json(['status' => 'ok', 'user' => $userRecord]);
+            break;
+
+        case 'user_update':
+            if (!in_array($method, ['POST', 'PUT'], true)) {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $userId = (string) ($input['id'] ?? '');
+            if ($userId === '') {
+                respond_json(['status' => 'error', 'message' => 'User id required.'], 422);
+            }
+            $userRecord = management_user_update($userId, $input, $actor);
+            respond_json(['status' => 'ok', 'user' => $userRecord]);
+            break;
+
+        case 'user_reset_password':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $userId = (string) ($input['id'] ?? '');
+            $password = (string) ($input['password'] ?? '');
+            if ($userId === '' || $password === '') {
+                respond_json(['status' => 'error', 'message' => 'User id and password required.'], 422);
+            }
+            $forceReset = normalize_bool($input['force_reset'] ?? true);
+            $userRecord = management_user_reset_password($userId, $password, $forceReset, $actor);
+            respond_json(['status' => 'ok', 'user' => $userRecord]);
+            break;
+
+        case 'user_delete':
+            if (!in_array($method, ['POST', 'DELETE'], true)) {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $userId = (string) ($input['id'] ?? ($_GET['id'] ?? ''));
+            if ($userId === '') {
+                respond_json(['status' => 'error', 'message' => 'User id required.'], 422);
+            }
+            management_user_delete($userId, $actor);
+            respond_json(['status' => 'ok']);
+            break;
+
+        case 'approvals_list':
+            $statusFilter = $_GET['status'] ?? ($input['status'] ?? null);
+            respond_json(['status' => 'ok', 'approvals' => management_approvals_list($statusFilter)]);
+            break;
+
+        case 'approval_update':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $approvalId = (string) ($input['id'] ?? '');
+            $status = (string) ($input['status'] ?? '');
+            if ($approvalId === '' || $status === '') {
+                respond_json(['status' => 'error', 'message' => 'Approval id and status required.'], 422);
+            }
+            $record = management_approval_update_status($approvalId, $status, $actor, $input['note'] ?? null);
+            respond_json(['status' => 'ok', 'approval' => $record]);
+            break;
+
+        case 'tasks_board':
+            respond_json(['status' => 'ok', 'board' => management_tasks_board()]);
+            break;
+
+        case 'task_create':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $task = management_task_create($input, $actor);
+            respond_json(['status' => 'ok', 'task' => $task]);
+            break;
+
+        case 'task_update':
+            if (!in_array($method, ['POST', 'PUT'], true)) {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $taskId = (string) ($input['id'] ?? '');
+            if ($taskId === '') {
+                respond_json(['status' => 'error', 'message' => 'Task id required.'], 422);
+            }
+            $task = management_task_update($taskId, $input, $actor);
+            respond_json(['status' => 'ok', 'task' => $task]);
+            break;
+
+        case 'task_delete':
+            if (!in_array($method, ['POST', 'DELETE'], true)) {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $taskId = (string) ($input['id'] ?? ($_GET['id'] ?? ''));
+            if ($taskId === '') {
+                respond_json(['status' => 'error', 'message' => 'Task id required.'], 422);
+            }
+            management_task_delete($taskId, $actor);
+            respond_json(['status' => 'ok']);
+            break;
+
+        case 'dashboard_cards':
+            respond_json(['status' => 'ok', 'cards' => management_dashboard_cards()]);
+            break;
+
+        case 'activity_log':
+            $filters = [
+                'actor' => $_GET['actor'] ?? ($input['actor'] ?? null),
+                'action' => $_GET['action'] ?? ($input['action'] ?? null),
+                'from' => $_GET['from'] ?? ($input['from'] ?? null),
+                'to' => $_GET['to'] ?? ($input['to'] ?? null),
+            ];
+            respond_json(['status' => 'ok', 'entries' => management_activity_log_list($filters)]);
+            break;
+
         default:
             respond_json(['status' => 'error', 'message' => 'Unknown action.'], 400);
     }

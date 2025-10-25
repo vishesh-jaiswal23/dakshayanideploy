@@ -3004,3 +3004,1455 @@ function data_quality_merge(array $payload, string $actor): array
     throw new RuntimeException('Merged customer not found after merge.');
 }
 
+/**
+ * Management layer helpers
+ */
+
+function management_users_load(): array
+{
+    $users = json_read(DATA_PATH . '/users.json', []);
+    if (!is_array($users)) {
+        return [];
+    }
+    return array_values(array_filter($users, 'is_array'));
+}
+
+function management_users_save(array $users): void
+{
+    json_write(DATA_PATH . '/users.json', array_values($users));
+}
+
+function management_user_present(array $user): array
+{
+    return [
+        'id' => $user['id'] ?? null,
+        'name' => $user['name'] ?? 'User',
+        'email' => $user['email'] ?? null,
+        'role' => $user['role'] ?? 'employee',
+        'status' => $user['status'] ?? 'active',
+        'force_reset' => (bool) ($user['force_reset'] ?? false),
+        'created_at' => $user['created_at'] ?? null,
+        'updated_at' => $user['updated_at'] ?? null,
+        'last_login' => $user['last_login'] ?? null,
+    ];
+}
+
+function management_users_list(array $filters = []): array
+{
+    $users = management_users_load();
+    $role = strtolower((string) ($filters['role'] ?? ''));
+    $status = strtolower((string) ($filters['status'] ?? ''));
+    $search = strtolower(trim((string) ($filters['search'] ?? '')));
+
+    $filtered = array_filter($users, static function ($user) use ($role, $status, $search) {
+        if ($role !== '' && strtolower((string) ($user['role'] ?? '')) !== $role) {
+            return false;
+        }
+        if ($status !== '' && strtolower((string) ($user['status'] ?? '')) !== $status) {
+            return false;
+        }
+        if ($search !== '') {
+            $haystack = strtolower(($user['name'] ?? '') . ' ' . ($user['email'] ?? ''));
+            if (!str_contains($haystack, $search)) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    usort($filtered, static function ($a, $b) {
+        return strcmp($a['name'] ?? '', $b['name'] ?? '');
+    });
+
+    return array_values(array_map('management_user_present', $filtered));
+}
+
+function management_user_create(array $payload, string $actor): array
+{
+    $name = sanitize_string($payload['name'] ?? '', 160);
+    $email = sanitize_string($payload['email'] ?? '', 160);
+    $role = sanitize_string($payload['role'] ?? 'employee', 40) ?? 'employee';
+    $status = sanitize_string($payload['status'] ?? 'active', 40) ?? 'active';
+    $forceReset = normalize_bool($payload['force_reset'] ?? false);
+    $password = sanitize_string($payload['password'] ?? '', 255, true);
+
+    if ($name === null || $name === '') {
+        throw new InvalidArgumentException('Name is required.');
+    }
+    if ($email === null || $email === '' || !validator_email($email)) {
+        throw new InvalidArgumentException('Valid email is required.');
+    }
+    if ($password === null || $password === '') {
+        throw new InvalidArgumentException('Password is required.');
+    }
+
+    $users = management_users_load();
+    foreach ($users as $existing) {
+        if (strcasecmp($existing['email'] ?? '', $email) === 0) {
+            throw new RuntimeException('A user with this email already exists.');
+        }
+    }
+
+    $now = now_ist();
+    $record = [
+        'id' => uuid('user'),
+        'name' => $name,
+        'email' => $email,
+        'role' => strtolower($role),
+        'status' => strtolower($status),
+        'force_reset' => $forceReset,
+        'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+        'created_at' => $now,
+        'updated_at' => $now,
+        'last_login' => null,
+    ];
+
+    $users[] = $record;
+    management_users_save($users);
+    log_activity('user.create', 'Created user ' . $email, $actor);
+
+    return management_user_present($record);
+}
+
+function management_user_update(string $id, array $payload, string $actor): array
+{
+    $users = management_users_load();
+    foreach ($users as &$user) {
+        if (($user['id'] ?? '') !== $id) {
+            continue;
+        }
+        $name = array_key_exists('name', $payload) ? sanitize_string($payload['name'], 160) : null;
+        $role = array_key_exists('role', $payload) ? sanitize_string($payload['role'], 40) : null;
+        $status = array_key_exists('status', $payload) ? sanitize_string($payload['status'], 40) : null;
+        $forceReset = array_key_exists('force_reset', $payload) ? normalize_bool($payload['force_reset']) : null;
+
+        if ($name !== null) {
+            if ($name === '') {
+                throw new InvalidArgumentException('Name cannot be empty.');
+            }
+            $user['name'] = $name;
+        }
+        if ($role !== null) {
+            $user['role'] = strtolower($role);
+        }
+        if ($status !== null) {
+            $user['status'] = strtolower($status);
+        }
+        if ($forceReset !== null) {
+            $user['force_reset'] = $forceReset;
+        }
+        $user['updated_at'] = now_ist();
+        management_users_save($users);
+        log_activity('user.update', 'Updated user ' . ($user['email'] ?? $id), $actor);
+        return management_user_present($user);
+    }
+    unset($user);
+
+    throw new RuntimeException('User not found.');
+}
+
+function management_user_reset_password(string $id, string $password, bool $forceReset, string $actor): array
+{
+    $password = sanitize_string($password, 255);
+    if ($password === null || $password === '') {
+        throw new InvalidArgumentException('Password cannot be empty.');
+    }
+    $users = management_users_load();
+    foreach ($users as &$user) {
+        if (($user['id'] ?? '') !== $id) {
+            continue;
+        }
+        $user['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+        $user['force_reset'] = $forceReset;
+        $user['updated_at'] = now_ist();
+        management_users_save($users);
+        log_activity('user.reset_password', 'Reset password for ' . ($user['email'] ?? $id), $actor);
+        return management_user_present($user);
+    }
+    unset($user);
+
+    throw new RuntimeException('User not found.');
+}
+
+function management_user_delete(string $id, string $actor): void
+{
+    $users = management_users_load();
+    $count = count($users);
+    $users = array_values(array_filter($users, static function ($user) use ($id) {
+        return ($user['id'] ?? '') !== $id;
+    }));
+    if ($count === count($users)) {
+        throw new RuntimeException('User not found.');
+    }
+    management_users_save($users);
+    log_activity('user.delete', 'Deleted user ' . $id, $actor);
+}
+
+function management_approvals_load(): array
+{
+    $approvals = json_read(DATA_PATH . '/approvals.json', []);
+    if (!is_array($approvals)) {
+        return [];
+    }
+    return array_values(array_filter($approvals, 'is_array'));
+}
+
+function management_approvals_save(array $approvals): void
+{
+    json_write(DATA_PATH . '/approvals.json', array_values($approvals));
+}
+
+function management_approval_present(array $approval): array
+{
+    return [
+        'id' => $approval['id'] ?? null,
+        'target_type' => $approval['target_type'] ?? null,
+        'target_id' => $approval['target_id'] ?? null,
+        'changes' => $approval['changes'] ?? [],
+        'status' => $approval['status'] ?? 'pending',
+        'reason' => $approval['reason'] ?? null,
+        'requested_by' => $approval['requested_by'] ?? null,
+        'requested_at' => $approval['requested_at'] ?? null,
+        'resolved_at' => $approval['resolved_at'] ?? null,
+        'resolved_by' => $approval['resolved_by'] ?? null,
+        'decision_notes' => $approval['decision_notes'] ?? null,
+        'snapshot' => $approval['snapshot'] ?? null,
+    ];
+}
+
+function management_approvals_list(?string $status = null): array
+{
+    $approvals = management_approvals_load();
+    if ($status !== null && $status !== '') {
+        $status = strtolower($status);
+        $approvals = array_filter($approvals, static function ($approval) use ($status) {
+            return strtolower((string) ($approval['status'] ?? 'pending')) === $status;
+        });
+    }
+    usort($approvals, static function ($a, $b) {
+        return strcmp($b['requested_at'] ?? '', $a['requested_at'] ?? '');
+    });
+    return array_values(array_map('management_approval_present', $approvals));
+}
+
+function management_approval_apply(array $approval, string $actor): void
+{
+    $targetType = strtolower((string) ($approval['target_type'] ?? ''));
+    $targetId = (string) ($approval['target_id'] ?? '');
+    $changes = is_array($approval['changes'] ?? null) ? $approval['changes'] : [];
+
+    if ($targetType === '' || $targetId === '' || !$changes) {
+        return;
+    }
+
+    switch ($targetType) {
+        case 'user':
+            $users = management_users_load();
+            foreach ($users as &$user) {
+                if (($user['id'] ?? '') !== $targetId) {
+                    continue;
+                }
+                foreach ($changes as $field => $change) {
+                    if ($field === 'password_hash') {
+                        continue;
+                    }
+                    $user[$field] = $change['new'] ?? ($user[$field] ?? null);
+                }
+                $user['updated_at'] = now_ist();
+                management_users_save($users);
+                return;
+            }
+            break;
+        case 'customer':
+            $customers = customers_load();
+            foreach ($customers as &$customer) {
+                if (($customer['id'] ?? '') !== $targetId) {
+                    continue;
+                }
+                foreach ($changes as $field => $change) {
+                    if (in_array($field, ['id'], true)) {
+                        continue;
+                    }
+                    $customer[$field] = $change['new'] ?? ($customer[$field] ?? null);
+                }
+                $customer['updated_at'] = now_ist();
+                customers_save($customers);
+                return;
+            }
+            break;
+        default:
+            break;
+    }
+}
+
+function management_approval_update_status(string $id, string $status, string $actor, ?string $notes = null): array
+{
+    $status = strtolower($status);
+    if (!in_array($status, ['approved', 'rejected', 'acknowledged'], true)) {
+        throw new InvalidArgumentException('Invalid approval status.');
+    }
+    $approvals = management_approvals_load();
+    foreach ($approvals as &$approval) {
+        if (($approval['id'] ?? '') !== $id) {
+            continue;
+        }
+        if ($status === 'acknowledged') {
+            $approval['acknowledged_at'] = now_ist();
+            $approval['acknowledged_by'] = $actor;
+            management_approvals_save($approvals);
+            return management_approval_present($approval);
+        }
+        $approval['status'] = $status;
+        $approval['resolved_at'] = now_ist();
+        $approval['resolved_by'] = $actor;
+        if ($notes !== null) {
+            $approval['decision_notes'] = $notes;
+        }
+        management_approvals_save($approvals);
+        if ($status === 'approved') {
+            management_approval_apply($approval, $actor);
+            log_activity('approval.approved', 'Approved change ' . $id, $actor);
+        } else {
+            log_activity('approval.rejected', 'Rejected change ' . $id, $actor);
+        }
+        return management_approval_present($approval);
+    }
+    unset($approval);
+
+    throw new RuntimeException('Approval request not found.');
+}
+
+function management_tasks_load(): array
+{
+    $tasks = json_read(DATA_PATH . '/tasks.json', []);
+    if (!is_array($tasks)) {
+        return [];
+    }
+    return array_values(array_filter($tasks, 'is_array'));
+}
+
+function management_tasks_save(array $tasks): void
+{
+    json_write(DATA_PATH . '/tasks.json', array_values($tasks));
+}
+
+function management_task_present(array $task): array
+{
+    return [
+        'id' => $task['id'] ?? null,
+        'title' => $task['title'] ?? '',
+        'description' => $task['description'] ?? '',
+        'priority' => $task['priority'] ?? 'medium',
+        'status' => $task['status'] ?? 'To Do',
+        'assignee' => $task['assignee'] ?? null,
+        'created_at' => $task['created_at'] ?? null,
+        'updated_at' => $task['updated_at'] ?? null,
+    ];
+}
+
+function management_tasks_board(): array
+{
+    $tasks = management_tasks_load();
+    $columns = ['To Do' => [], 'In Progress' => [], 'Done' => []];
+    foreach ($tasks as $task) {
+        $status = $task['status'] ?? 'To Do';
+        if (!isset($columns[$status])) {
+            $columns[$status] = [];
+        }
+        $columns[$status][] = management_task_present($task);
+    }
+    foreach ($columns as &$column) {
+        usort($column, static function ($a, $b) {
+            return strcmp($a['created_at'] ?? '', $b['created_at'] ?? '');
+        });
+    }
+    unset($column);
+    return $columns;
+}
+
+function management_task_create(array $payload, string $actor): array
+{
+    $title = sanitize_string($payload['title'] ?? '', 160);
+    if ($title === null || $title === '') {
+        throw new InvalidArgumentException('Task title is required.');
+    }
+    $description = sanitize_string($payload['description'] ?? '', 2000, true) ?? '';
+    $priority = sanitize_string($payload['priority'] ?? 'medium', 40) ?? 'medium';
+    $assignee = sanitize_string($payload['assignee'] ?? '', 160, true);
+
+    $tasks = management_tasks_load();
+    $now = now_ist();
+    $task = [
+        'id' => uuid('task'),
+        'title' => $title,
+        'description' => $description,
+        'priority' => strtolower($priority),
+        'status' => 'To Do',
+        'assignee' => $assignee ?: null,
+        'created_at' => $now,
+        'updated_at' => $now,
+    ];
+    $tasks[] = $task;
+    management_tasks_save($tasks);
+    log_activity('task.create', 'Created task ' . $task['id'], $actor);
+    return management_task_present($task);
+}
+
+function management_task_update(string $id, array $payload, string $actor): array
+{
+    $tasks = management_tasks_load();
+    foreach ($tasks as &$task) {
+        if (($task['id'] ?? '') !== $id) {
+            continue;
+        }
+        if (isset($payload['title'])) {
+            $title = sanitize_string($payload['title'], 160);
+            if ($title === null || $title === '') {
+                throw new InvalidArgumentException('Task title cannot be empty.');
+            }
+            $task['title'] = $title;
+        }
+        if (isset($payload['description'])) {
+            $task['description'] = sanitize_string($payload['description'], 2000, true) ?? '';
+        }
+        if (isset($payload['priority'])) {
+            $task['priority'] = strtolower((string) $payload['priority']);
+        }
+        if (isset($payload['status'])) {
+            $task['status'] = $payload['status'];
+        }
+        if (array_key_exists('assignee', $payload)) {
+            $task['assignee'] = sanitize_string($payload['assignee'], 160, true) ?: null;
+        }
+        $task['updated_at'] = now_ist();
+        management_tasks_save($tasks);
+        log_activity('task.update', 'Updated task ' . $id, $actor);
+        return management_task_present($task);
+    }
+    unset($task);
+
+    throw new RuntimeException('Task not found.');
+}
+
+function management_task_delete(string $id, string $actor): void
+{
+    $tasks = management_tasks_load();
+    $count = count($tasks);
+    $tasks = array_values(array_filter($tasks, static function ($task) use ($id) {
+        return ($task['id'] ?? '') !== $id;
+    }));
+    if ($count === count($tasks)) {
+        throw new RuntimeException('Task not found.');
+    }
+    management_tasks_save($tasks);
+    log_activity('task.delete', 'Deleted task ' . $id, $actor);
+}
+
+function management_activity_log_list(array $filters = []): array
+{
+    $log = json_read(ACTIVITY_LOG_FILE, []);
+    if (!is_array($log)) {
+        return [];
+    }
+    $actor = strtolower((string) ($filters['actor'] ?? ''));
+    $action = strtolower((string) ($filters['action'] ?? ''));
+    $from = isset($filters['from']) ? strtotime((string) $filters['from']) : null;
+    $to = isset($filters['to']) ? strtotime((string) $filters['to']) : null;
+
+    $entries = array_filter($log, static function ($entry) use ($actor, $action, $from, $to) {
+        if (!is_array($entry)) {
+            return false;
+        }
+        if ($actor !== '' && strtolower((string) ($entry['actor'] ?? '')) !== $actor) {
+            return false;
+        }
+        if ($action !== '' && strtolower((string) ($entry['action'] ?? '')) !== $action) {
+            return false;
+        }
+        $timestamp = strtotime((string) ($entry['timestamp'] ?? '')) ?: null;
+        if ($from !== null && ($timestamp === null || $timestamp < $from)) {
+            return false;
+        }
+        if ($to !== null && ($timestamp === null || $timestamp > $to)) {
+            return false;
+        }
+        return true;
+    });
+
+    usort($entries, static function ($a, $b) {
+        return strcmp($b['timestamp'] ?? '', $a['timestamp'] ?? '');
+    });
+
+    return array_values(array_map(static function ($entry) {
+        return [
+            'id' => $entry['id'] ?? null,
+            'timestamp' => $entry['timestamp'] ?? null,
+            'action' => $entry['action'] ?? null,
+            'details' => $entry['details'] ?? null,
+            'actor' => $entry['actor'] ?? null,
+        ];
+    }, $entries));
+}
+
+function management_dashboard_cards(): array
+{
+    $users = management_users_load();
+    $tickets = tickets_load();
+    $approvals = management_approvals_load();
+    $tasks = management_tasks_load();
+
+    $openTickets = array_filter($tickets, static function ($ticket) {
+        $status = strtolower((string) ($ticket['status'] ?? 'open'));
+        return !in_array($status, ['resolved', 'closed'], true);
+    });
+    $pendingApprovals = array_filter($approvals, static function ($approval) {
+        return strtolower((string) ($approval['status'] ?? 'pending')) === 'pending';
+    });
+    $activeTasks = array_filter($tasks, static function ($task) {
+        return strtolower((string) ($task['status'] ?? '')) !== 'done';
+    });
+
+    return [
+        'users' => count($users),
+        'complaints_open' => count($openTickets),
+        'approvals_pending' => count($pendingApprovals),
+        'tasks_active' => count($activeTasks),
+    ];
+}
+
+function management_resolve_date_range(array $filters): array
+{
+    $endInput = (string) ($filters['end'] ?? '');
+    $startInput = (string) ($filters['start'] ?? '');
+    $tz = new DateTimeZone('Asia/Kolkata');
+    $end = $endInput !== '' && validator_date($endInput)
+        ? DateTime::createFromFormat('Y-m-d H:i:s', $endInput . ' 23:59:59', $tz)
+        : new DateTime('now', $tz);
+    $start = $startInput !== '' && validator_date($startInput)
+        ? DateTime::createFromFormat('Y-m-d H:i:s', $startInput . ' 00:00:00', $tz)
+        : (clone $end)->modify('-29 days')->setTime(0, 0, 0);
+    if ($start > $end) {
+        [$start, $end] = [$end, $start];
+    }
+    return [$start, $end];
+}
+
+function management_timeseries_init(DatePeriod $period): array
+{
+    $series = [];
+    foreach ($period as $date) {
+        $series[$date->format('Y-m-d')] = [
+            'tickets_closed' => 0,
+            'avg_tat_hours' => null,
+            'fcr_rate' => null,
+            'lead_conversion_rate' => null,
+            'service_visits' => 0,
+            'defect_rate' => null,
+        ];
+    }
+    return $series;
+}
+
+function management_analytics(array $filters = []): array
+{
+    [$start, $end] = management_resolve_date_range($filters);
+    $period = new DatePeriod(clone $start, new DateInterval('P1D'), (clone $end)->modify('+1 day'));
+    $timeseries = management_timeseries_init($period);
+
+    $tickets = tickets_load();
+    $closedCount = 0;
+    $tatTotal = 0.0;
+    $fcrCount = 0;
+
+    foreach ($tickets as $ticket) {
+        $closedAt = isset($ticket['closed_at']) ? strtotime((string) $ticket['closed_at']) : null;
+        $createdAt = isset($ticket['created_at']) ? strtotime((string) $ticket['created_at']) : null;
+        if ($closedAt !== null && $closedAt >= $start->getTimestamp() && $closedAt <= $end->getTimestamp()) {
+            $closedCount++;
+            if ($createdAt !== null) {
+                $tatTotal += max(0, ($closedAt - $createdAt) / 3600);
+            }
+            $day = date('Y-m-d', $closedAt);
+            if (isset($timeseries[$day])) {
+                $timeseries[$day]['tickets_closed']++;
+            }
+            $history = array_values(array_filter($ticket['history'] ?? [], static function ($entry) {
+                return ($entry['event'] ?? '') === 'status_change';
+            }));
+            if (count($history) <= 1) {
+                $to = strtolower((string) ($history[0]['data']['to'] ?? $ticket['status'] ?? ''));
+                if (in_array($to, ['resolved', 'closed'], true)) {
+                    $fcrCount++;
+                }
+            }
+        }
+    }
+
+    $avgTat = $closedCount > 0 ? round($tatTotal / $closedCount, 2) : null;
+    $fcrRate = $closedCount > 0 ? round(($fcrCount / $closedCount) * 100, 2) : null;
+
+    $leads = leads_load();
+    $customers = customers_load();
+    $leadCount = 0;
+    $conversions = 0;
+    $leadIdsInRange = [];
+    foreach ($leads as $lead) {
+        $created = isset($lead['created_at']) ? strtotime((string) $lead['created_at']) : null;
+        if ($created !== null && $created >= $start->getTimestamp() && $created <= $end->getTimestamp()) {
+            $leadCount++;
+            $leadIdsInRange[] = $lead['id'] ?? null;
+        }
+    }
+    foreach ($customers as $customer) {
+        $created = isset($customer['created_at']) ? strtotime((string) $customer['created_at']) : null;
+        if ($created !== null && $created >= $start->getTimestamp() && $created <= $end->getTimestamp()) {
+            if (!empty($customer['converted_from_lead']) && in_array($customer['converted_from_lead'], $leadIdsInRange, true)) {
+                $conversions++;
+            }
+        }
+    }
+    $leadConversionRate = $leadCount > 0 ? round(($conversions / $leadCount) * 100, 2) : null;
+
+    $warranty = warranty_registry_load();
+    $visitsByTech = [];
+    foreach ($warranty['assets'] as $asset) {
+        foreach ($asset['service_visits'] ?? [] as $visit) {
+            $visitTime = isset($visit['logged_at']) ? strtotime((string) $visit['logged_at']) : null;
+            if ($visitTime === null || $visitTime < $start->getTimestamp() || $visitTime > $end->getTimestamp()) {
+                continue;
+            }
+            $tech = $visit['technician'] ?? 'Technician';
+            $visitsByTech[$tech] = ($visitsByTech[$tech] ?? 0) + 1;
+            $day = date('Y-m-d', $visitTime);
+            if (isset($timeseries[$day])) {
+                $timeseries[$day]['service_visits']++;
+            }
+        }
+    }
+    $totalVisits = array_sum($visitsByTech);
+    $avgProductivity = $visitsByTech ? round($totalVisits / count($visitsByTech), 2) : null;
+    arsort($visitsByTech);
+    $topTechnicians = [];
+    foreach (array_slice($visitsByTech, 0, 5, true) as $name => $count) {
+        $topTechnicians[] = ['technician' => $name, 'visits' => $count];
+    }
+
+    $ticketsCreatedInRange = 0;
+    $defectTickets = 0;
+    foreach ($tickets as $ticket) {
+        $createdAt = isset($ticket['created_at']) ? strtotime((string) $ticket['created_at']) : null;
+        if ($createdAt === null || $createdAt < $start->getTimestamp() || $createdAt > $end->getTimestamp()) {
+            continue;
+        }
+        $ticketsCreatedInRange++;
+        $tags = array_map('strtolower', $ticket['tags'] ?? []);
+        $issueType = strtolower((string) ($ticket['metadata']['issue_type'] ?? ''));
+        if (in_array('defect', $tags, true) || in_array('quality', $tags, true) || $issueType === 'defect') {
+            $defectTickets++;
+        }
+        $day = date('Y-m-d', $createdAt);
+        if (isset($timeseries[$day])) {
+            $timeseries[$day]['defect_rate'] = 0.0; // placeholder, compute later
+        }
+    }
+    $defectRate = $ticketsCreatedInRange > 0 ? round(($defectTickets / $ticketsCreatedInRange) * 100, 2) : null;
+
+    $funnel = [
+        'applications' => count($customers),
+        'sanction_pending' => 0,
+        'sanctioned' => 0,
+        'inspection_scheduled' => 0,
+        'inspection_done' => 0,
+        'disbursement_pending' => 0,
+        'disbursed' => 0,
+    ];
+    foreach ($customers as $customer) {
+        $sanction = strtolower((string) ($customer['sanction_status'] ?? ''));
+        $inspection = strtolower((string) ($customer['inspection_status'] ?? ''));
+        $disbursement = strtolower((string) ($customer['disbursement_status'] ?? ''));
+        if ($sanction === 'approved' || $sanction === 'sanctioned') {
+            $funnel['sanctioned']++;
+        } else {
+            $funnel['sanction_pending']++;
+        }
+        if ($inspection === 'scheduled') {
+            $funnel['inspection_scheduled']++;
+        }
+        if (in_array($inspection, ['completed', 'done'], true)) {
+            $funnel['inspection_done']++;
+        }
+        if ($disbursement === 'disbursed') {
+            $funnel['disbursed']++;
+        } else {
+            $funnel['disbursement_pending']++;
+        }
+    }
+
+    foreach ($timeseries as $day => &$values) {
+        if ($values['tickets_closed'] > 0) {
+            $values['avg_tat_hours'] = $avgTat;
+            $values['fcr_rate'] = $fcrRate;
+        }
+        if ($leadCount > 0) {
+            $values['lead_conversion_rate'] = $leadConversionRate;
+        }
+        if ($ticketsCreatedInRange > 0) {
+            $values['defect_rate'] = $defectRate;
+        }
+    }
+    unset($values);
+
+    return [
+        'range' => [
+            'start' => $start->format('Y-m-d'),
+            'end' => $end->format('Y-m-d'),
+        ],
+        'complaint_tat_hours' => $avgTat,
+        'complaint_volume' => $closedCount,
+        'fcr_rate' => $fcrRate,
+        'installer_productivity' => [
+            'average_visits' => $avgProductivity,
+            'total_visits' => $totalVisits,
+            'top_technicians' => $topTechnicians,
+        ],
+        'lead_to_customer_rate' => $leadConversionRate,
+        'lead_volume' => $leadCount,
+        'conversions' => $conversions,
+        'pmsg_funnel' => $funnel,
+        'defect_rate' => $defectRate,
+        'timeseries' => $timeseries,
+    ];
+}
+
+function management_analytics_export_csv(array $filters = []): string
+{
+    $analytics = management_analytics($filters);
+    $rows = [];
+    foreach ($analytics['timeseries'] as $day => $values) {
+        $rows[] = [
+            'date' => $day,
+            'tickets_closed' => $values['tickets_closed'],
+            'avg_tat_hours' => $values['avg_tat_hours'],
+            'fcr_rate' => $values['fcr_rate'],
+            'lead_conversion_rate' => $values['lead_conversion_rate'],
+            'service_visits' => $values['service_visits'],
+            'defect_rate' => $values['defect_rate'],
+        ];
+    }
+    return csv_encode($rows, ['date', 'tickets_closed', 'avg_tat_hours', 'fcr_rate', 'lead_conversion_rate', 'service_visits', 'defect_rate']);
+}
+
+function management_alerts_load(): array
+{
+    $alerts = json_read(ALERTS_FILE, []);
+    if (!is_array($alerts)) {
+        return [];
+    }
+    return array_values(array_filter($alerts, 'is_array'));
+}
+
+function management_alerts_save(array $alerts): void
+{
+    usort($alerts, static function ($a, $b) {
+        return strcmp($b['detected_at'] ?? '', $a['detected_at'] ?? '');
+    });
+    if (count($alerts) > 200) {
+        $alerts = array_slice($alerts, 0, 200);
+    }
+    json_write(ALERTS_FILE, array_values($alerts));
+}
+
+function management_alert_present(array $alert): array
+{
+    $timeline = array_values(array_map(static function ($event) {
+        return [
+            'event' => $event['event'] ?? null,
+            'actor' => $event['actor'] ?? null,
+            'note' => $event['note'] ?? null,
+            'timestamp' => $event['timestamp'] ?? null,
+        ];
+    }, $alert['timeline'] ?? []));
+    return [
+        'id' => $alert['id'] ?? null,
+        'type' => $alert['type'] ?? null,
+        'message' => $alert['message'] ?? null,
+        'severity' => $alert['severity'] ?? 'medium',
+        'status' => $alert['status'] ?? 'open',
+        'detected_at' => $alert['detected_at'] ?? null,
+        'metadata' => $alert['metadata'] ?? [],
+        'timeline' => $timeline,
+    ];
+}
+
+function management_alerts_existing_fingerprints(array $alerts): array
+{
+    $index = [];
+    foreach ($alerts as $pos => $alert) {
+        $fingerprint = $alert['fingerprint'] ?? null;
+        if ($fingerprint) {
+            $index[$fingerprint] = $pos;
+        }
+    }
+    return $index;
+}
+
+function management_alerts_detect_bulk_deletes(array $existing): array
+{
+    $log = json_read(ACTIVITY_LOG_FILE, []);
+    if (!is_array($log)) {
+        return [];
+    }
+    $threshold = 3;
+    $windowSeconds = 900; // 15 minutes
+    $now = time();
+    $buckets = [];
+    foreach ($log as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $action = (string) ($entry['action'] ?? '');
+        if (!str_contains($action, '.delete')) {
+            continue;
+        }
+        $timestamp = strtotime((string) ($entry['timestamp'] ?? '')) ?: null;
+        if ($timestamp === null || $timestamp < $now - 86400) {
+            continue;
+        }
+        $parts = explode('.', $action);
+        $resource = $parts[0] ?? 'record';
+        $bucketKey = (int) floor($timestamp / $windowSeconds) * $windowSeconds;
+        $key = $resource . ':' . $bucketKey;
+        if (!isset($buckets[$key])) {
+            $buckets[$key] = ['resource' => $resource, 'start' => $bucketKey, 'entries' => []];
+        }
+        $buckets[$key]['entries'][] = $entry;
+    }
+
+    $alerts = [];
+    foreach ($buckets as $bucket) {
+        if (count($bucket['entries']) < $threshold) {
+            continue;
+        }
+        $fingerprint = 'bulk_delete:' . $bucket['resource'] . ':' . $bucket['start'];
+        if (isset($existing[$fingerprint])) {
+            continue;
+        }
+        $start = date('c', $bucket['start']);
+        $alerts[] = [
+            'id' => uuid('alert'),
+            'fingerprint' => $fingerprint,
+            'type' => 'bulk_delete',
+            'message' => sprintf('%d %s records deleted within 15 minutes.', count($bucket['entries']), $bucket['resource']),
+            'severity' => 'high',
+            'status' => 'open',
+            'detected_at' => now_ist(),
+            'metadata' => [
+                'resource' => $bucket['resource'],
+                'window_started_at' => $start,
+                'examples' => array_map(static function ($entry) {
+                    return [
+                        'actor' => $entry['actor'] ?? null,
+                        'timestamp' => $entry['timestamp'] ?? null,
+                        'details' => $entry['details'] ?? null,
+                    ];
+                }, array_slice($bucket['entries'], 0, 5)),
+            ],
+            'timeline' => [
+                ['event' => 'detected', 'actor' => 'system', 'note' => null, 'timestamp' => now_ist()],
+            ],
+        ];
+    }
+    return $alerts;
+}
+
+function management_alerts_detect_login_bursts(array $existing): array
+{
+    $log = json_read(ACTIVITY_LOG_FILE, []);
+    if (!is_array($log)) {
+        return [];
+    }
+    $threshold = 5;
+    $windowSeconds = 600; // 10 minutes
+    $now = time();
+    $buckets = [];
+    foreach ($log as $entry) {
+        if (($entry['action'] ?? '') !== 'login') {
+            continue;
+        }
+        $timestamp = strtotime((string) ($entry['timestamp'] ?? '')) ?: null;
+        if ($timestamp === null || $timestamp < $now - 86400) {
+            continue;
+        }
+        $bucketKey = (int) floor($timestamp / $windowSeconds) * $windowSeconds;
+        if (!isset($buckets[$bucketKey])) {
+            $buckets[$bucketKey] = [];
+        }
+        $buckets[$bucketKey][] = $entry;
+    }
+    $alerts = [];
+    foreach ($buckets as $start => $entries) {
+        if (count($entries) < $threshold) {
+            continue;
+        }
+        $fingerprint = 'login_burst:' . $start;
+        if (isset($existing[$fingerprint])) {
+            continue;
+        }
+        $alerts[] = [
+            'id' => uuid('alert'),
+            'fingerprint' => $fingerprint,
+            'type' => 'login_burst',
+            'message' => sprintf('%d admin logins within 10 minutes.', count($entries)),
+            'severity' => 'medium',
+            'status' => 'open',
+            'detected_at' => now_ist(),
+            'metadata' => [
+                'window_started_at' => date('c', $start),
+                'actors' => array_values(array_unique(array_map(static function ($entry) {
+                    return $entry['actor'] ?? 'unknown';
+                }, $entries))),
+            ],
+            'timeline' => [
+                ['event' => 'detected', 'actor' => 'system', 'note' => null, 'timestamp' => now_ist()],
+            ],
+        ];
+    }
+    return $alerts;
+}
+
+function management_alerts_detect_imports(array $existing): array
+{
+    $log = json_read(ACTIVITY_LOG_FILE, []);
+    if (!is_array($log)) {
+        return [];
+    }
+    $alerts = [];
+    foreach ($log as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $action = (string) ($entry['action'] ?? '');
+        if (!str_contains($action, '.import')) {
+            continue;
+        }
+        $details = (string) ($entry['details'] ?? '');
+        if (!preg_match('/([0-9]{2,})/', $details, $matches)) {
+            continue;
+        }
+        $count = (int) $matches[1];
+        if ($count < 100) {
+            continue;
+        }
+        $parts = explode('.', $action);
+        $resource = $parts[0] ?? 'records';
+        $day = substr((string) ($entry['timestamp'] ?? ''), 0, 10);
+        $fingerprint = 'import:' . $resource . ':' . $day;
+        if (isset($existing[$fingerprint])) {
+            continue;
+        }
+        $alerts[] = [
+            'id' => uuid('alert'),
+            'fingerprint' => $fingerprint,
+            'type' => 'large_import',
+            'message' => sprintf('Large %s import (%d records) detected.', $resource, $count),
+            'severity' => 'medium',
+            'status' => 'open',
+            'detected_at' => now_ist(),
+            'metadata' => [
+                'resource' => $resource,
+                'count' => $count,
+                'actor' => $entry['actor'] ?? null,
+                'timestamp' => $entry['timestamp'] ?? null,
+            ],
+            'timeline' => [
+                ['event' => 'detected', 'actor' => 'system', 'note' => null, 'timestamp' => now_ist()],
+            ],
+        ];
+    }
+    return $alerts;
+}
+
+function management_alerts_detect_disk(array $existing): array
+{
+    $total = @disk_total_space(SERVER_BASE_PATH);
+    $free = @disk_free_space(SERVER_BASE_PATH);
+    if ($total <= 0 || $free < 0) {
+        return [];
+    }
+    $percent = ($free / $total) * 100;
+    if ($percent >= 15) {
+        return [];
+    }
+    $fingerprint = 'disk_low:' . date('Y-m-d');
+    if (isset($existing[$fingerprint])) {
+        return [];
+    }
+    return [[
+        'id' => uuid('alert'),
+        'fingerprint' => $fingerprint,
+        'type' => 'disk_space',
+        'message' => sprintf('Disk space low: %.2f%% free.', $percent),
+        'severity' => 'critical',
+        'status' => 'open',
+        'detected_at' => now_ist(),
+        'metadata' => [
+            'free_bytes' => $free,
+            'total_bytes' => $total,
+            'percent_free' => round($percent, 2),
+        ],
+        'timeline' => [
+            ['event' => 'detected', 'actor' => 'system', 'note' => null, 'timestamp' => now_ist()],
+        ],
+    ]];
+}
+
+function management_alerts_refresh(): array
+{
+    $alerts = management_alerts_load();
+    $existing = management_alerts_existing_fingerprints($alerts);
+    $newAlerts = array_merge(
+        management_alerts_detect_bulk_deletes($existing),
+        management_alerts_detect_login_bursts($existing),
+        management_alerts_detect_imports($existing),
+        management_alerts_detect_disk($existing)
+    );
+    if ($newAlerts) {
+        $alerts = array_merge($newAlerts, $alerts);
+        management_alerts_save($alerts);
+        $alerts = management_alerts_load();
+    }
+    return $alerts;
+}
+
+function management_alerts_list(): array
+{
+    $alerts = management_alerts_refresh();
+    return array_values(array_map('management_alert_present', $alerts));
+}
+
+function management_alerts_update_status(string $id, string $status, string $actor, ?string $note = null): array
+{
+    $status = strtolower($status);
+    if (!in_array($status, ['acknowledged', 'closed'], true)) {
+        throw new InvalidArgumentException('Invalid alert status.');
+    }
+    $alerts = management_alerts_load();
+    foreach ($alerts as &$alert) {
+        if (($alert['id'] ?? '') !== $id) {
+            continue;
+        }
+        $current = strtolower((string) ($alert['status'] ?? 'open'));
+        if ($current === 'closed') {
+            throw new RuntimeException('Alert already closed.');
+        }
+        $alert['status'] = $status;
+        $alert['timeline'][] = [
+            'event' => $status,
+            'actor' => $actor,
+            'note' => $note,
+            'timestamp' => now_ist(),
+        ];
+        management_alerts_save($alerts);
+        if ($status === 'closed') {
+            log_activity('alert.closed', 'Closed alert ' . $id, $actor);
+        } else {
+            log_activity('alert.ack', 'Acknowledged alert ' . $id, $actor);
+        }
+        return management_alert_present($alert);
+    }
+    unset($alert);
+
+    throw new RuntimeException('Alert not found.');
+}
+
+function management_audit_overview(array $filters = []): array
+{
+    [$start, $end] = management_resolve_date_range($filters);
+    $log = management_activity_log_list([
+        'from' => $start->format('Y-m-d'),
+        'to' => $end->format('Y-m-d'),
+    ]);
+    $recentLogins = array_values(array_filter($log, static function ($entry) {
+        return ($entry['action'] ?? '') === 'login';
+    }));
+    $recentDeletes = array_values(array_filter($log, static function ($entry) {
+        return str_contains((string) ($entry['action'] ?? ''), '.delete');
+    }));
+    $recentImports = array_values(array_filter($log, static function ($entry) {
+        return str_contains((string) ($entry['action'] ?? ''), '.import');
+    }));
+
+    return [
+        'range' => [
+            'start' => $start->format('Y-m-d'),
+            'end' => $end->format('Y-m-d'),
+        ],
+        'logins' => array_slice($recentLogins, 0, 20),
+        'deletes' => array_slice($recentDeletes, 0, 20),
+        'imports' => array_slice($recentImports, 0, 20),
+        'alerts' => management_alerts_list(),
+    ];
+}
+
+function management_logs_files(): array
+{
+    $logs = [];
+    foreach (glob(LOG_PATH . '/*.log') as $path) {
+        if (str_starts_with($path, LOG_ARCHIVE_PATH)) {
+            continue;
+        }
+        $logs[] = [
+            'name' => basename($path),
+            'path' => $path,
+            'size' => @filesize($path) ?: 0,
+            'modified_at' => @filemtime($path) ? date('c', (int) filemtime($path)) : null,
+        ];
+    }
+    return $logs;
+}
+
+function management_logs_archives_for(string $base): array
+{
+    $pattern = LOG_ARCHIVE_PATH . '/' . $base . '-*.log';
+    $archives = [];
+    foreach (glob($pattern) as $path) {
+        $archives[] = [
+            'name' => basename($path),
+            'path' => $path,
+            'size' => @filesize($path) ?: 0,
+            'created_at' => @filemtime($path) ? date('c', (int) filemtime($path)) : null,
+        ];
+    }
+    usort($archives, static function ($a, $b) {
+        return strcmp($b['created_at'] ?? '', $a['created_at'] ?? '');
+    });
+    return $archives;
+}
+
+function management_logs_purge_archives(int $days = 90): void
+{
+    $threshold = time() - ($days * 86400);
+    foreach (glob(LOG_ARCHIVE_PATH . '/*.log') as $path) {
+        $mtime = filemtime($path);
+        if ($mtime !== false && $mtime < $threshold) {
+            @unlink($path);
+        }
+    }
+}
+
+function management_logs_archive_file(string $name, string $actor, bool $manual = true): ?array
+{
+    $basename = basename($name);
+    $source = LOG_PATH . '/' . $basename;
+    if (!is_file($source)) {
+        throw new RuntimeException('Log file not found.');
+    }
+    $contents = file_get_contents($source);
+    if ($contents === false || trim($contents) === '') {
+        return null;
+    }
+    $hash = substr(hash('sha256', $contents), 0, 12);
+    $timestamp = date('Ymd_His');
+    $archiveName = sprintf('%s-%s-%s.log', pathinfo($basename, PATHINFO_FILENAME), $timestamp, $hash);
+    $archivePath = LOG_ARCHIVE_PATH . '/' . $archiveName;
+    file_put_contents($archivePath, $contents, LOCK_EX);
+    file_put_contents($source, '');
+    log_activity('log.archive', ($manual ? 'Manual' : 'Automatic') . ' archive for ' . $basename, $actor);
+    return [
+        'name' => $archiveName,
+        'size' => strlen($contents),
+        'created_at' => date('c'),
+    ];
+}
+
+function management_logs_status(): array
+{
+    management_logs_purge_archives();
+    $logs = management_logs_files();
+    $archivesCreated = [];
+    foreach ($logs as $log) {
+        if ($log['size'] > 512000) {
+            $archive = management_logs_archive_file($log['name'], 'system', false);
+            if ($archive) {
+                $archivesCreated[] = $archive;
+            }
+        }
+    }
+    $status = [];
+    foreach (management_logs_files() as $log) {
+        $name = $log['name'];
+        $archives = management_logs_archives_for(pathinfo($name, PATHINFO_FILENAME));
+        $status[] = [
+            'name' => $name,
+            'size' => $log['size'],
+            'modified_at' => $log['modified_at'],
+            'latest_archive' => $archives[0]['name'] ?? null,
+            'latest_archive_at' => $archives[0]['created_at'] ?? null,
+        ];
+    }
+    return [
+        'logs' => $status,
+        'archives_created' => $archivesCreated,
+    ];
+}
+
+function management_logs_run_archive(string $name, string $actor): ?array
+{
+    return management_logs_archive_file($name, $actor, true);
+}
+
+function management_logs_export(string $name, bool $fromArchive = false): string
+{
+    $basename = basename($name);
+    $path = $fromArchive ? LOG_ARCHIVE_PATH . '/' . $basename : LOG_PATH . '/' . $basename;
+    $real = realpath($path);
+    if ($real === false || !str_starts_with($real, $fromArchive ? LOG_ARCHIVE_PATH : LOG_PATH)) {
+        throw new RuntimeException('Invalid log requested.');
+    }
+    $contents = file_get_contents($real);
+    if ($contents === false) {
+        throw new RuntimeException('Unable to read log file.');
+    }
+    return base64_encode($contents);
+}
+
+function management_error_monitor_dashboard(): array
+{
+    $lines = [];
+    if (is_file(SYSTEM_ERROR_FILE)) {
+        $data = file(SYSTEM_ERROR_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if (is_array($data)) {
+            $lines = $data;
+        }
+    }
+    $groups = [];
+    foreach ($lines as $line) {
+        if (!preg_match('/^\[(.*?)\]\s*(.*)$/', $line, $matches)) {
+            continue;
+        }
+        $timestamp = $matches[1];
+        $message = $matches[2];
+        $signatureBase = preg_replace('/[0-9]+/', '#', strtolower($message));
+        $signature = substr(sha1($signatureBase), 0, 12);
+        if (!isset($groups[$signature])) {
+            $groups[$signature] = [
+                'signature' => $signature,
+                'message' => mb_substr($message, 0, 200),
+                'count' => 0,
+                'first_seen' => $timestamp,
+                'last_seen' => $timestamp,
+                'examples' => [],
+            ];
+        }
+        $groups[$signature]['count']++;
+        if ($timestamp < ($groups[$signature]['first_seen'] ?? $timestamp)) {
+            $groups[$signature]['first_seen'] = $timestamp;
+        }
+        if ($timestamp > ($groups[$signature]['last_seen'] ?? $timestamp)) {
+            $groups[$signature]['last_seen'] = $timestamp;
+        }
+        if (count($groups[$signature]['examples']) < 3) {
+            $groups[$signature]['examples'][] = mb_substr($message, -160);
+        }
+    }
+    usort($groups, static function ($a, $b) {
+        return $b['count'] <=> $a['count'];
+    });
+
+    $recent = array_slice(array_reverse($lines), 0, 20);
+
+    $total = @disk_total_space(SERVER_BASE_PATH);
+    $free = @disk_free_space(SERVER_BASE_PATH);
+    $disk = null;
+    if ($total > 0 && $free >= 0) {
+        $disk = [
+            'total_bytes' => $total,
+            'free_bytes' => $free,
+            'percent_free' => round(($free / $total) * 100, 2),
+        ];
+    }
+
+    return [
+        'groups' => array_values($groups),
+        'recent' => $recent,
+        'disk' => $disk,
+    ];
+}
+
+function portal_otps_load(): array
+{
+    $records = json_read(PORTAL_OTP_FILE, []);
+    if (!is_array($records)) {
+        return [];
+    }
+    return array_values(array_filter($records, 'is_array'));
+}
+
+function portal_otps_save(array $records): void
+{
+    json_write(PORTAL_OTP_FILE, array_values($records));
+}
+
+function portal_otps_prune(array &$records): void
+{
+    $now = time();
+    $records = array_values(array_filter($records, static function ($record) use ($now) {
+        return ($record['expires_at'] ?? 0) >= $now;
+    }));
+}
+
+function portal_customer_find(string $identifier): ?array
+{
+    $identifier = trim($identifier);
+    if ($identifier === '') {
+        return null;
+    }
+    $normalizedPhone = preg_replace('/\D+/', '', $identifier);
+    foreach (customers_load() as $customer) {
+        if (strcasecmp((string) ($customer['email'] ?? ''), $identifier) === 0) {
+            return $customer;
+        }
+        if ($normalizedPhone !== '') {
+            $customerPhone = preg_replace('/\D+/', '', (string) ($customer['phone'] ?? ''));
+            if ($customerPhone !== '' && $customerPhone === $normalizedPhone) {
+                return $customer;
+            }
+        }
+    }
+    return null;
+}
+
+function portal_issue_login_otp(string $customerId, string $channel, string $destination): array
+{
+    $records = portal_otps_load();
+    portal_otps_prune($records);
+    $code = (string) random_int(100000, 999999);
+    $records[] = [
+        'id' => uuid('otp'),
+        'customer_id' => $customerId,
+        'channel' => $channel,
+        'destination' => $destination,
+        'otp_hash' => password_hash($code, PASSWORD_DEFAULT),
+        'expires_at' => time() + 600,
+        'issued_at' => now_ist(),
+        'attempts' => 0,
+    ];
+    portal_otps_save($records);
+    $logLine = sprintf('[%s] OTP %s sent to %s via %s for customer %s%s', now_ist(), $code, $destination, $channel, $customerId, PHP_EOL);
+    file_put_contents(PORTAL_OTP_LOG_FILE, $logLine, FILE_APPEND);
+    return ['expires_at' => date('c', time() + 600)];
+}
+
+function portal_verify_login_otp(string $customerId, string $otp): bool
+{
+    $otp = trim($otp);
+    if ($otp === '') {
+        return false;
+    }
+    $records = portal_otps_load();
+    $now = time();
+    $matched = false;
+    foreach ($records as $index => $record) {
+        if (($record['customer_id'] ?? '') !== $customerId) {
+            continue;
+        }
+        if (($record['expires_at'] ?? 0) < $now) {
+            unset($records[$index]);
+            continue;
+        }
+        if (($record['attempts'] ?? 0) >= 5) {
+            continue;
+        }
+        if (password_verify($otp, $record['otp_hash'] ?? '')) {
+            unset($records[$index]);
+            $matched = true;
+            break;
+        }
+        $records[$index]['attempts'] = ($record['attempts'] ?? 0) + 1;
+    }
+    portal_otps_save(array_values($records));
+    return $matched;
+}
+
+function portal_customer_snapshot(string $customerId): array
+{
+    $customers = customers_load();
+    $customer = null;
+    foreach ($customers as $record) {
+        if (($record['id'] ?? '') === $customerId) {
+            $customer = $record;
+            break;
+        }
+    }
+    if (!$customer) {
+        throw new RuntimeException('Customer not found.');
+    }
+
+    $tickets = [];
+    foreach (tickets_load() as $ticket) {
+        if (($ticket['customer_id'] ?? '') === $customerId) {
+            $tickets[] = ticket_present($ticket);
+        }
+    }
+
+    $assets = [];
+    foreach (warranty_registry_load()['assets'] as $asset) {
+        if (($asset['customer_id'] ?? '') === $customerId) {
+            $assets[] = warranty_asset_present($asset);
+        }
+    }
+
+    $documents = documents_vault_list(['customer_id' => $customerId]);
+    $communications = array_slice(communication_log_list(['customer_id' => $customerId]), 0, 20);
+
+    $stage = 'Application Received';
+    $sanction = strtolower((string) ($customer['sanction_status'] ?? ''));
+    $inspection = strtolower((string) ($customer['inspection_status'] ?? ''));
+    $disbursement = strtolower((string) ($customer['disbursement_status'] ?? ''));
+    if ($sanction === 'approved' || $sanction === 'sanctioned') {
+        $stage = 'Sanctioned';
+    }
+    if (in_array($inspection, ['completed', 'done'], true)) {
+        $stage = 'Inspection Complete';
+    }
+    if ($disbursement === 'disbursed') {
+        $stage = 'Subsidy Disbursed';
+    }
+
+    return [
+        'customer' => [
+            'id' => $customer['id'] ?? null,
+            'full_name' => $customer['full_name'] ?? null,
+            'email' => $customer['email'] ?? null,
+            'phone' => $customer['phone'] ?? null,
+            'state' => $customer['state'] ?? null,
+            'pmsg_application_no' => $customer['pmsg_application_no'] ?? null,
+            'sanction_status' => $customer['sanction_status'] ?? null,
+            'inspection_status' => $customer['inspection_status'] ?? null,
+            'disbursement_status' => $customer['disbursement_status'] ?? null,
+        ],
+        'pmsg_stage' => $stage,
+        'tickets' => $tickets,
+        'amcs' => $assets,
+        'documents' => $documents,
+        'communications' => $communications,
+    ];
+}
+
+function portal_record_update_request(string $customerId, string $message, string $actor): array
+{
+    $message = sanitize_string($message, 2000);
+    if ($message === null || $message === '') {
+        throw new InvalidArgumentException('Message is required.');
+    }
+    $entry = communication_log_add([
+        'customer_id' => $customerId,
+        'channel' => 'portal',
+        'direction' => 'inbound',
+        'summary' => 'Portal update request',
+        'details' => $message,
+    ], $actor);
+    log_activity('portal.request_update', 'Customer ' . $customerId . ' requested an update', $actor);
+    return $entry;
+}
+

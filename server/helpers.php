@@ -6,6 +6,7 @@ const SERVER_BASE_PATH = __DIR__;
 const DATA_PATH = SERVER_BASE_PATH . '/data';
 const LOG_PATH = SERVER_BASE_PATH . '/logs';
 const UPLOAD_PATH = SERVER_BASE_PATH . '/uploads';
+const LOG_ARCHIVE_PATH = LOG_PATH . '/archive';
 const MODELS_REGISTRY_FILE = DATA_PATH . '/models.json';
 const BLOG_POSTS_FILE = DATA_PATH . '/blog_posts.json';
 const AI_IMAGES_FILE = DATA_PATH . '/ai_images.json';
@@ -13,7 +14,9 @@ const AI_TTS_FILE = DATA_PATH . '/ai_tts.json';
 const POTENTIAL_CUSTOMERS_FILE = DATA_PATH . '/potential_customers.json';
 const REFERRERS_FILE = DATA_PATH . '/referrers.json';
 const ACTIVITY_LOG_FILE = DATA_PATH . '/activity_log.json';
+const ALERTS_FILE = DATA_PATH . '/alerts.json';
 const SYSTEM_ERROR_FILE = LOG_PATH . '/system_errors.log';
+const PORTAL_OTP_LOG_FILE = LOG_PATH . '/portal_otp.log';
 const LOGIN_ATTEMPTS_FILE = DATA_PATH . '/login_attempts.json';
 const RATE_LIMIT_FILE = DATA_PATH . '/rate_limits.json';
 const SITE_SETTINGS_FILE = DATA_PATH . '/site_settings.json';
@@ -24,6 +27,7 @@ const DOCUMENT_TOKENS_FILE = DATA_PATH . '/document_tokens.json';
 const SUBSIDY_TRACKER_FILE = DATA_PATH . '/subsidy_tracker.json';
 const DATA_QUALITY_CACHE_FILE = DATA_PATH . '/data_quality_cache.json';
 const COMMUNICATION_LOG_FILE = DATA_PATH . '/communications.json';
+const PORTAL_OTP_FILE = DATA_PATH . '/portal_otps.json';
 const AI_IMAGE_UPLOAD_PATH = UPLOAD_PATH . '/ai_images';
 const AI_AUDIO_UPLOAD_PATH = UPLOAD_PATH . '/ai_audio';
 const DOCUMENT_UPLOAD_PATH = UPLOAD_PATH . '/documents';
@@ -37,14 +41,14 @@ function server_bootstrap(): void
     }
     $booted = true;
 
-    foreach ([DATA_PATH, LOG_PATH, UPLOAD_PATH, AI_IMAGE_UPLOAD_PATH, AI_AUDIO_UPLOAD_PATH, DOCUMENT_UPLOAD_PATH, WARRANTY_MEDIA_UPLOAD_PATH] as $directory) {
+    foreach ([DATA_PATH, LOG_PATH, LOG_ARCHIVE_PATH, UPLOAD_PATH, AI_IMAGE_UPLOAD_PATH, AI_AUDIO_UPLOAD_PATH, DOCUMENT_UPLOAD_PATH, WARRANTY_MEDIA_UPLOAD_PATH] as $directory) {
         if (!is_dir($directory)) {
             mkdir($directory, 0775, true);
         }
     }
 
     $htaccess = "Deny from all\n";
-    foreach ([DATA_PATH, LOG_PATH, UPLOAD_PATH] as $directory) {
+    foreach ([DATA_PATH, LOG_PATH, LOG_ARCHIVE_PATH, UPLOAD_PATH] as $directory) {
         $htaccessPath = $directory . '/.htaccess';
         if (!file_exists($htaccessPath)) {
             file_put_contents($htaccessPath, $htaccess, LOCK_EX);
@@ -53,6 +57,7 @@ function server_bootstrap(): void
 
     $defaults = [
         ACTIVITY_LOG_FILE => [],
+        ALERTS_FILE => [],
         LOGIN_ATTEMPTS_FILE => [],
         RATE_LIMIT_FILE => [],
         DATA_PATH . '/users.json' => [
@@ -90,6 +95,7 @@ function server_bootstrap(): void
         SUBSIDY_TRACKER_FILE => [],
         DATA_QUALITY_CACHE_FILE => ['last_run' => null, 'summary' => [], 'issues' => []],
         COMMUNICATION_LOG_FILE => [],
+        PORTAL_OTP_FILE => [],
     ];
 
     foreach ($defaults as $path => $default) {
@@ -161,8 +167,10 @@ function server_bootstrap(): void
         json_write(MODELS_REGISTRY_FILE, $converted);
     }
 
-    if (!file_exists(SYSTEM_ERROR_FILE)) {
-        touch(SYSTEM_ERROR_FILE);
+    foreach ([SYSTEM_ERROR_FILE, PORTAL_OTP_LOG_FILE] as $logFile) {
+        if (!file_exists($logFile)) {
+            touch($logFile);
+        }
     }
 }
 

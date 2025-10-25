@@ -33,6 +33,7 @@ $sections = array_keys($settings);
           </div>
           <div class="flex items-center gap-4">
             <span class="text-sm text-slate-500">Signed in as <span class="font-medium text-slate-700"><?= htmlspecialchars($CURRENT_USER['email'] ?? 'admin', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></span></span>
+            <a href="/admin/management.php" class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Management Layer</a>
             <a href="/admin/logout.php" class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Logout</a>
           </div>
         </div>
