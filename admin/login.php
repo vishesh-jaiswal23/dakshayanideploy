@@ -8,7 +8,7 @@ ensure_session();
 server_bootstrap();
 
 if (is_authenticated() && (get_authenticated_user()['role'] ?? '') === 'admin') {
-    header('Location: /admin/settings.php');
+    header('Location: /admin/index.php');
     exit;
 }
 
@@ -57,6 +57,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === null) {
             } else {
                 session_regenerate_id(true);
                 set_authenticated_user($matchedUser);
+                $_SESSION['user_role'] = 'admin';
+                $_SESSION['user_id'] = $matchedUser['id'] ?? 'admin-root';
+                $_SESSION['display_name'] = $matchedUser['name'] ?? 'Dakshayani Admin';
+                $_SESSION['user_email'] = $matchedUser['email'] ?? $email;
+                $_SESSION['last_login'] = date('j F Y, g:i A');
                 reset_login_attempts($ip);
 
                 $usersList = [];
@@ -68,9 +73,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === null) {
                 }
                 json_write(DATA_PATH . '/users.json', $usersList);
 
-                log_activity('login', 'Administrator signed in', $matchedUser['email'] ?? 'admin');
+                log_activity('admin_login_success', ['entry' => 'admin'], $matchedUser['email'] ?? 'admin');
 
-                header('Location: /admin/settings.php');
+                header('Location: /admin/index.php');
                 exit;
             }
         }
