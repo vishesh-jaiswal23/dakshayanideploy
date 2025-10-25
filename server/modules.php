@@ -337,7 +337,27 @@ function blog_post_normalize(array $post): array
     $post['id'] = is_string($post['id'] ?? null) ? $post['id'] : null;
     $post['title'] = is_string($post['title'] ?? null) ? $post['title'] : '';
     $post['content'] = is_string($post['content'] ?? null) ? $post['content'] : '';
-    $post['cover_image'] = is_string($post['cover_image'] ?? null) && $post['cover_image'] !== '' ? $post['cover_image'] : null;
+    $coverImage = is_string($post['cover_image'] ?? null) && $post['cover_image'] !== '' ? (string) $post['cover_image'] : null;
+    $meta = is_array($post['meta'] ?? null) ? $post['meta'] : [];
+    $coverFile = null;
+    if (isset($meta['cover_file']) && is_string($meta['cover_file'])) {
+        $coverFile = ltrim(str_replace(['..', '\\'], '', $meta['cover_file']), '/');
+    }
+    if ($coverFile === null && is_string($coverImage) && $coverImage !== '' && !str_contains($coverImage, 'type=blog_image')) {
+        $coverFile = ltrim(str_replace(['..', '\\'], '', $coverImage), '/');
+    }
+    if ($coverFile !== null && $coverFile !== '') {
+        $meta['cover_file'] = $coverFile;
+        if ($coverImage === null || !str_contains($coverImage, 'type=blog_image')) {
+            $id = is_string($post['id'] ?? null) ? $post['id'] : null;
+            if ($id !== null) {
+                $coverImage = 'download.php?type=blog_image&id=' . $id;
+            }
+        }
+    } else {
+        unset($meta['cover_file']);
+    }
+    $post['cover_image'] = $coverImage;
     $post['generated_by'] = is_string($post['generated_by'] ?? null) ? $post['generated_by'] : null;
     $post['created_at'] = is_string($post['created_at'] ?? null) ? $post['created_at'] : now_ist();
     $post['updated_at'] = is_string($post['updated_at'] ?? null) ? $post['updated_at'] : $post['created_at'];
@@ -347,7 +367,8 @@ function blog_post_normalize(array $post): array
     $post['status'] = in_array($status, ['draft', 'published'], true) ? $status : 'draft';
     $post['published_at'] = is_string($post['published_at'] ?? null) ? $post['published_at'] : null;
     $post['keywords'] = blog_normalize_keywords($post['keywords'] ?? []);
-    $post['meta'] = is_array($post['meta'] ?? null) ? $post['meta'] : [];
+    $post['tags'] = blog_normalize_tags($post['tags'] ?? []);
+    $post['meta'] = $meta;
     return $post;
 }
 
@@ -367,6 +388,28 @@ function blog_normalize_keywords($value): array
         }
     }
     return array_values(array_unique($keywords));
+}
+
+function blog_normalize_tags($value): array
+{
+    if (is_string($value)) {
+        $value = preg_split('/[,;]+/', $value);
+    }
+    if (!is_array($value)) {
+        return [];
+    }
+    $tags = [];
+    foreach ($value as $tag) {
+        if (!is_string($tag)) {
+            continue;
+        }
+        $clean = strtolower(trim($tag));
+        if ($clean === '') {
+            continue;
+        }
+        $tags[] = mb_substr($clean, 0, 40);
+    }
+    return array_values(array_unique($tags));
 }
 
 function blog_posts_list(array $filters = []): array
@@ -426,8 +469,9 @@ function blog_posts_list(array $filters = []): array
 
 function blog_generate_next_id(array $posts): string
 {
-    $year = (new DateTimeImmutable('now', new DateTimeZone('Asia/Kolkata')))->format('Y');
-    $prefix = 'BLOG-' . $year . '-';
+    $tz = new DateTimeZone('Asia/Kolkata');
+    $today = (new DateTimeImmutable('now', $tz))->format('Ymd');
+    $prefix = 'BLOG-' . $today . '-';
     $max = 0;
     foreach ($posts as $post) {
         $id = (string) ($post['id'] ?? '');
@@ -519,6 +563,16 @@ function blog_store_base64_image(string $data, string $mime): string
 function blog_post_upsert(array $payload, string $actor): array
 {
     $posts = blog_posts_load();
+    $normalizePath = static function (?string $value): ?string {
+        if ($value === null) {
+            return null;
+        }
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+        return ltrim(str_replace(['..', '\\'], '', $trimmed), '/');
+    };
     $idRaw = sanitize_string($payload['id'] ?? '', 64, true);
     $id = $idRaw !== null && $idRaw !== '' ? $idRaw : null;
     $title = sanitize_string($payload['title'] ?? '', 120);
@@ -527,19 +581,36 @@ function blog_post_upsert(array $payload, string $actor): array
     }
     $content = blog_sanitize_content($payload['content'] ?? '');
     $keywords = blog_normalize_keywords($payload['keywords'] ?? []);
+    $tags = blog_normalize_tags($payload['tags'] ?? []);
     $status = strtolower((string) ($payload['status'] ?? 'draft'));
     if (!in_array($status, ['draft', 'published'], true)) {
         $status = 'draft';
     }
-    $coverImage = null;
-    if (isset($payload['cover_image']) && is_string($payload['cover_image']) && trim($payload['cover_image']) !== '') {
-        $coverImage = ltrim(str_replace(['..', '\\'], '', trim($payload['cover_image'])), '/');
+    $meta = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
+    $coverFile = null;
+    if (isset($meta['cover_file']) && is_string($meta['cover_file'])) {
+        $coverFile = $normalizePath($meta['cover_file']);
+    }
+    unset($meta['cover_file']);
+
+    $coverDownload = null;
+    if (isset($payload['cover_image']) && is_string($payload['cover_image'])) {
+        $candidate = trim($payload['cover_image']);
+        if ($candidate !== '') {
+            if (str_contains($candidate, 'type=blog_image')) {
+                $coverDownload = ltrim($candidate, '/');
+            } else {
+                $normalizedCandidate = $normalizePath($candidate);
+                if ($normalizedCandidate !== null) {
+                    $coverFile = $normalizedCandidate;
+                }
+            }
+        }
     }
     $now = now_ist();
     $generatedBy = is_string($payload['generated_by'] ?? null) ? $payload['generated_by'] : $actor;
     $modelUsedText = is_string($payload['model_used_text'] ?? null) ? $payload['model_used_text'] : null;
     $modelUsedImage = is_string($payload['model_used_image'] ?? null) ? $payload['model_used_image'] : null;
-    $meta = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
 
     if ($id) {
         $updated = null;
@@ -550,9 +621,16 @@ function blog_post_upsert(array $payload, string $actor): array
             $post['title'] = $title;
             $post['content'] = $content;
             $post['keywords'] = $keywords;
+            $post['tags'] = $tags;
             $post['status'] = $status;
-            if ($coverImage !== null) {
-                $post['cover_image'] = $coverImage;
+            $existingMeta = is_array($post['meta'] ?? null) ? $post['meta'] : [];
+            if ($coverFile !== null) {
+                $existingMeta['cover_file'] = $coverFile;
+                $post['cover_image'] = 'download.php?type=blog_image&id=' . $id;
+            } elseif (isset($existingMeta['cover_file']) && $existingMeta['cover_file'] !== '') {
+                $post['cover_image'] = 'download.php?type=blog_image&id=' . $id;
+            } elseif ($coverDownload !== null) {
+                $post['cover_image'] = $coverDownload;
             }
             if (!empty($generatedBy) && empty($post['generated_by'])) {
                 $post['generated_by'] = $generatedBy;
@@ -563,7 +641,11 @@ function blog_post_upsert(array $payload, string $actor): array
             if ($modelUsedImage !== null) {
                 $post['model_used_image'] = $modelUsedImage;
             }
-            $post['meta'] = $meta;
+            $mergedMeta = array_merge($existingMeta, $meta);
+            if (isset($mergedMeta['cover_file']) && ($mergedMeta['cover_file'] === null || $mergedMeta['cover_file'] === '')) {
+                unset($mergedMeta['cover_file']);
+            }
+            $post['meta'] = $mergedMeta;
             if ($status === 'published' && empty($post['published_at'])) {
                 $post['published_at'] = $now;
             }
@@ -581,21 +663,23 @@ function blog_post_upsert(array $payload, string $actor): array
     }
 
     $id = blog_generate_next_id($posts);
-    if ($coverImage === null) {
-        $coverImage = blog_placeholder_image();
+    if ($coverFile === null) {
+        $coverFile = blog_placeholder_image();
     }
+    $coverImage = 'download.php?type=blog_image&id=' . $id;
 
     $post = [
         'id' => $id,
         'title' => $title,
         'content' => $content,
         'keywords' => $keywords,
+        'tags' => $tags,
         'status' => $status,
         'cover_image' => $coverImage,
         'generated_by' => $generatedBy,
         'model_used_text' => $modelUsedText,
         'model_used_image' => $modelUsedImage,
-        'meta' => $meta,
+        'meta' => array_merge($meta, ['cover_file' => $coverFile]),
         'created_at' => $now,
         'updated_at' => $now,
     ];
@@ -616,9 +700,12 @@ function blog_post_publish(string $id, string $actor): array
             $post['status'] = 'published';
             $post['published_at'] = now_ist();
             $post['updated_at'] = now_ist();
-            if (empty($post['cover_image'])) {
-                $post['cover_image'] = blog_placeholder_image();
+            $meta = is_array($post['meta'] ?? null) ? $post['meta'] : [];
+            if (empty($meta['cover_file'])) {
+                $meta['cover_file'] = blog_placeholder_image();
             }
+            $post['meta'] = $meta;
+            $post['cover_image'] = 'download.php?type=blog_image&id=' . $id;
             blog_posts_save($posts);
             log_activity('blog.publish', 'Published blog post ' . $id, $actor);
             return blog_post_normalize($post);
@@ -822,12 +909,13 @@ function ai_generate_blog(array $payload, string $actor): array
         'title' => $title,
         'content' => $content,
         'keywords' => $keywords,
+        'tags' => $keywords,
         'status' => 'draft',
         'generated_by' => $actor,
         'cover_image' => $imagePath,
         'model_used_text' => $textModelCode,
         'model_used_image' => $imageModelCode,
-        'meta' => ['word_count_target' => $wordCount, 'mock_response' => $usedMock],
+        'meta' => ['word_count_target' => $wordCount, 'mock_response' => $usedMock, 'cover_file' => $imagePath],
     ], $actor);
 
     if ($generateImage) {
@@ -897,7 +985,14 @@ function blog_update_cover_image(string $id, string $coverImage, string $actor, 
         if (($post['id'] ?? '') !== $id) {
             continue;
         }
-        $post['cover_image'] = $coverImage;
+        $meta = is_array($post['meta'] ?? null) ? $post['meta'] : [];
+        $coverFile = ltrim(str_replace(['..', '\\'], '', $coverImage), '/');
+        if ($coverFile === '') {
+            $coverFile = blog_placeholder_image();
+        }
+        $meta['cover_file'] = $coverFile;
+        $post['cover_image'] = 'download.php?type=blog_image&id=' . $id;
+        $post['meta'] = $meta;
         if ($modelCode !== null) {
             $post['model_used_image'] = $modelCode;
         }
@@ -936,6 +1031,528 @@ function blog_upload_cover(array $payload, string $actor): array
     $path = blog_store_base64_image($data, $mime);
     $post = blog_update_cover_image($postId, $path, $actor, null);
     return ['path' => $path, 'post' => $post];
+}
+
+/**
+ * Auto blog automation
+ */
+
+function auto_blog_lock_path(): string
+{
+    return AUTO_BLOG_LOCK_FILE;
+}
+
+function auto_blog_lock_active(int $windowSeconds = 1800): bool
+{
+    $path = auto_blog_lock_path();
+    if (!file_exists($path)) {
+        return false;
+    }
+    $mtime = @filemtime($path);
+    if ($mtime === false) {
+        return false;
+    }
+    return (time() - $mtime) < $windowSeconds;
+}
+
+function auto_blog_lock_acquire()
+{
+    $path = auto_blog_lock_path();
+    $directory = dirname($path);
+    if (!is_dir($directory)) {
+        mkdir($directory, 0775, true);
+    }
+    $handle = fopen($path, 'c+');
+    if ($handle === false) {
+        return null;
+    }
+    if (!flock($handle, LOCK_EX | LOCK_NB)) {
+        fclose($handle);
+        return null;
+    }
+    ftruncate($handle, 0);
+    fwrite($handle, (string) time());
+    fflush($handle);
+    return $handle;
+}
+
+function auto_blog_lock_release($handle): void
+{
+    if (is_resource($handle)) {
+        flock($handle, LOCK_UN);
+        fclose($handle);
+    }
+    if (file_exists(auto_blog_lock_path())) {
+        unlink(auto_blog_lock_path());
+    }
+}
+
+function auto_blog_normalize_settings(array $settings): array
+{
+    $defaults = default_site_settings()['auto_blog'] ?? [];
+    $normalized = $defaults;
+    $normalized['enabled'] = normalize_bool($settings['enabled'] ?? $defaults['enabled'] ?? false);
+    $time = (string) ($settings['time_ist'] ?? $defaults['time_ist'] ?? '06:00');
+    if (!preg_match('/^([01][0-9]|2[0-3]):[0-5][0-9]$/', $time)) {
+        $time = $defaults['time_ist'] ?? '06:00';
+    }
+    $normalized['time_ist'] = $time;
+    $validDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    $days = $settings['days'] ?? $defaults['days'] ?? $validDays;
+    if (!is_array($days)) {
+        $days = $defaults['days'] ?? $validDays;
+    }
+    $filteredDays = [];
+    foreach ($days as $day) {
+        $day = substr(strtoupper((string) $day), 0, 3);
+        foreach ($validDays as $valid) {
+            if (strtoupper($valid) === $day) {
+                $filteredDays[] = $valid;
+                break;
+            }
+        }
+    }
+    $normalized['days'] = array_values(array_unique($filteredDays ?: ($defaults['days'] ?? $validDays)));
+
+    $wordCount = (int) ($settings['default_word_count'] ?? $defaults['default_word_count'] ?? 900);
+    $normalized['default_word_count'] = max(400, min(2000, $wordCount));
+    $normalized['generate_image'] = normalize_bool($settings['generate_image'] ?? $defaults['generate_image'] ?? true);
+
+    $topicsRaw = $settings['topics_pool'] ?? $defaults['topics_pool'] ?? [];
+    if (is_string($topicsRaw)) {
+        $topicsRaw = preg_split('/\r\n|\n|\r/', $topicsRaw);
+    }
+    $topics = [];
+    if (is_array($topicsRaw)) {
+        foreach ($topicsRaw as $topic) {
+            if (!is_string($topic)) {
+                continue;
+            }
+            $clean = trim($topic);
+            if ($clean === '') {
+                continue;
+            }
+            $topics[] = mb_substr($clean, 0, 160);
+        }
+    }
+    $normalized['topics_pool'] = array_values(array_unique($topics));
+
+    $normalized['model_overrides'] = $defaults['model_overrides'] ?? ['text' => 'gemini-2.5-flash', 'image' => 'gemini-2.5-flash-image'];
+    if (isset($settings['model_overrides']) && is_array($settings['model_overrides'])) {
+        foreach (['text', 'image'] as $key) {
+            if (isset($settings['model_overrides'][$key]) && is_string($settings['model_overrides'][$key])) {
+                $normalized['model_overrides'][$key] = trim($settings['model_overrides'][$key]) !== ''
+                    ? mb_substr(trim($settings['model_overrides'][$key]), 0, 160)
+                    : $normalized['model_overrides'][$key];
+            }
+        }
+    }
+
+    $attempts = (int) ($settings['max_daily_attempts'] ?? $defaults['max_daily_attempts'] ?? 2);
+    $normalized['max_daily_attempts'] = max(1, min(5, $attempts));
+    $status = strtolower((string) ($settings['publish_status'] ?? $defaults['publish_status'] ?? 'published'));
+    $normalized['publish_status'] = in_array($status, ['draft', 'published'], true) ? $status : 'draft';
+
+    return $normalized;
+}
+
+function auto_blog_settings(): array
+{
+    $settings = load_site_settings();
+    $current = is_array($settings['auto_blog'] ?? null) ? $settings['auto_blog'] : [];
+    return auto_blog_normalize_settings($current);
+}
+
+function auto_blog_settings_update(array $payload, string $actor): array
+{
+    $settings = load_site_settings();
+    $current = is_array($settings['auto_blog'] ?? null) ? $settings['auto_blog'] : [];
+    $merged = auto_blog_normalize_settings(array_merge($current, $payload));
+    $settings['auto_blog'] = $merged;
+    if (!save_site_settings($settings)) {
+        throw new RuntimeException('Unable to persist auto blog settings.');
+    }
+    log_activity('auto_blog.settings', 'Updated auto blog settings', $actor);
+    return $merged;
+}
+
+function auto_blog_state_load(): array
+{
+    $state = json_read(AUTO_BLOG_STATE_FILE, []);
+    if (!is_array($state)) {
+        $state = [];
+    }
+    $attempts = is_array($state['daily_attempts'] ?? null) ? $state['daily_attempts'] : [];
+    return [
+        'last_topic_index' => isset($state['last_topic_index']) ? (int) $state['last_topic_index'] : -1,
+        'daily_attempts' => $attempts,
+        'last_run_at' => is_string($state['last_run_at'] ?? null) ? $state['last_run_at'] : null,
+    ];
+}
+
+function auto_blog_prune_attempts(array $attempts, DateTimeImmutable $now): array
+{
+    $threshold = $now->sub(new DateInterval('P7D'));
+    foreach ($attempts as $date => $count) {
+        try {
+            $dt = new DateTimeImmutable((string) $date, new DateTimeZone('Asia/Kolkata'));
+        } catch (Exception $exception) {
+            unset($attempts[$date]);
+            continue;
+        }
+        if ($dt < $threshold) {
+            unset($attempts[$date]);
+        }
+    }
+    return $attempts;
+}
+
+function auto_blog_state_save(array $state): void
+{
+    $attempts = [];
+    if (is_array($state['daily_attempts'] ?? null)) {
+        foreach ($state['daily_attempts'] as $date => $count) {
+            $attempts[$date] = (int) $count;
+        }
+    }
+    $payload = [
+        'last_topic_index' => isset($state['last_topic_index']) ? (int) $state['last_topic_index'] : -1,
+        'daily_attempts' => $attempts,
+        'last_run_at' => is_string($state['last_run_at'] ?? null) ? $state['last_run_at'] : null,
+    ];
+    json_write(AUTO_BLOG_STATE_FILE, $payload);
+}
+
+function auto_blog_log_run(array $entry): void
+{
+    $runs = json_read(AUTO_BLOG_RUNS_FILE, []);
+    if (!is_array($runs)) {
+        $runs = [];
+    }
+    $record = [
+        'id' => uuid('auto-blog-run'),
+        'timestamp' => now_ist(),
+        'topic' => (string) ($entry['topic'] ?? ''),
+        'status' => $entry['status'] ?? 'unknown',
+        'blog_id' => $entry['blog_id'] ?? null,
+        'message' => $entry['message'] ?? null,
+    ];
+    if (!empty($record['blog_id'])) {
+        $record['link'] = '/blog.php?id=' . rawurlencode($record['blog_id']);
+    }
+    array_unshift($runs, $record);
+    if (count($runs) > 50) {
+        $runs = array_slice($runs, 0, 50);
+    }
+    json_write(AUTO_BLOG_RUNS_FILE, $runs);
+}
+
+function auto_blog_recent_runs(int $limit = 5): array
+{
+    $runs = json_read(AUTO_BLOG_RUNS_FILE, []);
+    if (!is_array($runs)) {
+        return [];
+    }
+    return array_slice($runs, 0, max(1, $limit));
+}
+
+function auto_blog_push_alert(string $message, array $metadata = []): void
+{
+    $alerts = management_alerts_load();
+    $alerts[] = [
+        'id' => uuid('alert'),
+        'type' => 'auto_blog_error',
+        'message' => $message,
+        'severity' => $metadata['severity'] ?? 'high',
+        'status' => 'open',
+        'detected_at' => now_ist(),
+        'metadata' => $metadata,
+        'timeline' => [
+            ['event' => 'detected', 'actor' => 'system', 'note' => $metadata['note'] ?? null, 'timestamp' => now_ist()],
+        ],
+    ];
+    management_alerts_save($alerts);
+}
+
+function auto_blog_log_activity(string $status, string $topic, ?string $blogId = null, string $message = ''): void
+{
+    $details = 'status=' . $status . '; topic=' . $topic;
+    if ($blogId) {
+        $details .= '; blog_id=' . $blogId;
+    }
+    if ($message !== '') {
+        $details .= '; message=' . $message;
+    }
+    log_activity('auto_blog_run', $details, 'auto_blog');
+    auto_blog_log_run([
+        'status' => $status,
+        'topic' => $topic,
+        'blog_id' => $blogId,
+        'message' => $message,
+    ]);
+}
+
+function auto_blog_day_allowed(array $settings, DateTimeImmutable $now): bool
+{
+    $day = $now->format('D');
+    return in_array($day, $settings['days'], true);
+}
+
+function auto_blog_time_allowed(array $settings, DateTimeImmutable $now): bool
+{
+    $scheduled = DateTime::createFromFormat('Y-m-d H:i', $now->format('Y-m-d') . ' ' . $settings['time_ist'], new DateTimeZone('Asia/Kolkata'));
+    if (!$scheduled) {
+        return false;
+    }
+    $diff = abs($scheduled->getTimestamp() - $now->getTimestamp());
+    return $diff <= 600; // within 10 minutes window
+}
+
+function auto_blog_topic_recent(string $topic, array $posts, int $days = 14): bool
+{
+    $tz = new DateTimeZone('Asia/Kolkata');
+    $cutoff = (new DateTimeImmutable('now', $tz))->sub(new DateInterval('P' . $days . 'D'));
+    $topicLower = mb_strtolower($topic);
+    foreach ($posts as $post) {
+        $title = mb_strtolower((string) ($post['title'] ?? ''));
+        if ($title === '') {
+            continue;
+        }
+        try {
+            $created = new DateTimeImmutable((string) ($post['created_at'] ?? ''), $tz);
+        } catch (Exception $exception) {
+            continue;
+        }
+        if ($created < $cutoff) {
+            continue;
+        }
+        $percent = 0.0;
+        similar_text($title, $topicLower, $percent);
+        if ($percent >= 80.0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function auto_blog_select_topic(array $settings, array &$state, array $posts): ?string
+{
+    $topics = $settings['topics_pool'];
+    if (empty($topics)) {
+        return null;
+    }
+    $count = count($topics);
+    $lastIndex = isset($state['last_topic_index']) ? (int) $state['last_topic_index'] : -1;
+    for ($i = 1; $i <= $count; $i++) {
+        $index = ($lastIndex + $i) % $count;
+        $topic = $topics[$index];
+        if (!auto_blog_topic_recent($topic, $posts)) {
+            $state['last_topic_index'] = $index;
+            return $topic;
+        }
+    }
+    return null;
+}
+
+function auto_blog_generate_keywords(string $topic): array
+{
+    $keywords = [
+        $topic,
+        'Dakshayani Enterprises',
+        'Solar EPC India',
+    ];
+    return array_values(array_unique($keywords));
+}
+
+function auto_blog_generate_tags(string $topic): array
+{
+    $tags = ['solar'];
+    $topicLower = strtolower($topic);
+    if (str_contains($topicLower, 'pm surya ghar')) {
+        $tags[] = 'pmsg';
+    }
+    if (preg_match('/jharkhand|bihar|telangana|andhra|maharashtra|karnataka|delhi/', $topicLower, $matches)) {
+        $tags[] = strtolower($matches[0]);
+    }
+    if (str_contains($topicLower, 'net metering')) {
+        $tags[] = 'net-metering';
+    }
+    $words = preg_split('/[^a-z0-9]+/i', $topicLower);
+    foreach ($words as $word) {
+        if ($word === null || $word === '') {
+            continue;
+        }
+        if (strlen($word) < 3) {
+            continue;
+        }
+        if (in_array($word, ['with', 'and', 'for', 'the', 'how', 'what', 'when', 'from', 'into', 'process', 'basics', 'checklist'], true)) {
+            continue;
+        }
+        $tags[] = $word;
+    }
+    return array_values(array_unique($tags));
+}
+
+function auto_blog_sanitize_html(string $html): string
+{
+    $allowed = '<h1><h2><h3><h4><p><ul><ol><li>';
+    $clean = strip_tags($html, $allowed . '<img>');
+    $clean = preg_replace('/<img[^>]*>/i', '', $clean);
+    $clean = preg_replace('/on[a-z]+\s*=\s*"[^"]*"/i', '', $clean);
+    $clean = preg_replace("/style\s*=\s*'[^']*'/i", '', $clean);
+    $clean = preg_replace('/style\s*=\s*"[^"]*"/i', '', $clean);
+    $clean = preg_replace('/javascript:/i', '', $clean);
+    $clean = preg_replace('/\s+/', ' ', (string) $clean);
+    $clean = trim((string) $clean);
+    if ($clean === '') {
+        return '<p>Fresh solar insights from Dakshayani Enterprises are coming soon.</p>';
+    }
+    return $clean;
+}
+
+function auto_blog_parse_response(string $text, string $fallbackTitle): array
+{
+    $payload = json_decode(trim($text), true);
+    if (!is_array($payload) || empty($payload['title']) || empty($payload['content_html'])) {
+        if (preg_match('/\{.*\}/s', $text, $matches)) {
+            $payload = json_decode($matches[0], true);
+        }
+    }
+    if (!is_array($payload) || empty($payload['title']) || empty($payload['content_html'])) {
+        return [$fallbackTitle, '<p>' . htmlspecialchars($fallbackTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>'];
+    }
+    return [
+        mb_substr((string) $payload['title'], 0, 140),
+        (string) $payload['content_html'],
+    ];
+}
+
+function auto_blog_run(array $options = []): array
+{
+    $settings = auto_blog_settings();
+    $force = !empty($options['force']);
+    $ignoreEnabled = !empty($options['ignore_enabled']);
+    $trigger = $options['trigger'] ?? 'manual';
+    $now = new DateTimeImmutable('now', new DateTimeZone('Asia/Kolkata'));
+
+    if (!$ignoreEnabled && !$settings['enabled']) {
+        auto_blog_log_activity('skipped', 'disabled', null, 'Automation disabled');
+        return ['status' => 'skipped', 'reason' => 'disabled'];
+    }
+
+    if (!$force) {
+        if (!auto_blog_day_allowed($settings, $now)) {
+            auto_blog_log_activity('skipped', 'day', null, 'Day not enabled');
+            return ['status' => 'skipped', 'reason' => 'day_not_allowed'];
+        }
+        if (!auto_blog_time_allowed($settings, $now)) {
+            auto_blog_log_activity('skipped', 'time', null, 'Outside schedule');
+            return ['status' => 'skipped', 'reason' => 'time_not_matched'];
+        }
+    }
+
+    $state = auto_blog_state_load();
+    $state['daily_attempts'] = auto_blog_prune_attempts($state['daily_attempts'], $now);
+    $dateKey = $now->format('Y-m-d');
+    $attemptsUsed = (int) ($state['daily_attempts'][$dateKey] ?? 0);
+    if ($attemptsUsed >= $settings['max_daily_attempts']) {
+        auto_blog_log_activity('skipped', 'attempts', null, 'Max attempts reached');
+        return ['status' => 'skipped', 'reason' => 'max_attempts'];
+    }
+
+    $posts = blog_posts_load();
+    $topic = auto_blog_select_topic($settings, $state, $posts);
+    if ($topic === null) {
+        auto_blog_log_activity('skipped', 'topic_pool', null, 'No fresh topic available');
+        return ['status' => 'skipped', 'reason' => 'no_topic'];
+    }
+
+    $keywords = auto_blog_generate_keywords($topic);
+    $tags = auto_blog_generate_tags($topic);
+
+    $state['daily_attempts'][$dateKey] = $attemptsUsed + 1;
+    $state['last_run_at'] = $now->format(DateTime::ATOM);
+    auto_blog_state_save($state);
+
+    try {
+        $textModelCode = $settings['model_overrides']['text'] ?? 'gemini-2.5-flash';
+        $textModel = models_registry_find_preferred($textModelCode, 'Text');
+        $textApiKey = $textModel['api_key'] ?? null;
+        if (!$textApiKey) {
+            throw new RuntimeException('Text model API key missing.');
+        }
+
+        $prompt = "Generate a JSON object with keys 'title' and 'content_html'. "
+            . 'Write an SEO friendly solar energy blog article for Dakshayani Enterprises.'
+            . ' Topic: ' . $topic . '. Target word count: ' . $settings['default_word_count'] . '. '
+            . 'Content guidelines: include a welcoming introduction, at least three <h2> sections, bullet lists, '
+            . 'and a closing call-to-action inviting readers to contact Dakshayani Enterprises for solar EPC services in India. '
+            . 'Use only the tags <h1>-<h4>, <p>, <ul>, <ol>, <li>. '
+            . 'Do not include scripts or styles. Return only JSON.';
+
+        $response = gemini_generate_text($textModel['model_code'] ?? $textModelCode, $textApiKey, $prompt);
+        [$title, $rawContent] = auto_blog_parse_response($response, $topic);
+        $sanitizedContent = auto_blog_sanitize_html($rawContent);
+
+        $coverFile = blog_placeholder_image();
+        $imageModelCode = null;
+        if ($settings['generate_image']) {
+            $imageModelCode = $settings['model_overrides']['image'] ?? 'gemini-2.5-flash-image';
+            $imageModel = models_registry_find_preferred($imageModelCode, 'Image');
+            $imageApiKey = $imageModel['api_key'] ?? null;
+            if ($imageApiKey) {
+                try {
+                    $imagePrompt = 'Generate a clean, modern cover image for a solar blog titled ' . $title . ' focused on ' . $topic . '.';
+                    $image = gemini_generate_image($imageModel['model_code'] ?? $imageModelCode, $imageApiKey, $imagePrompt);
+                    $coverFile = blog_store_image($image['binary'], $image['mime']);
+                } catch (Throwable $exception) {
+                    log_system_error('Auto blog image generation failed', ['error' => $exception->getMessage()]);
+                    $coverFile = blog_placeholder_image();
+                }
+            } else {
+                log_system_error('Auto blog image skipped due to missing API key');
+            }
+        }
+
+        $post = blog_post_upsert([
+            'title' => $title,
+            'content' => $sanitizedContent,
+            'keywords' => $keywords,
+            'tags' => $tags,
+            'status' => $settings['publish_status'],
+            'cover_image' => $coverFile,
+            'generated_by' => 'auto_blog',
+            'model_used_text' => $textModel['model_code'] ?? $textModelCode,
+            'model_used_image' => $imageModelCode,
+            'meta' => [
+                'word_count_target' => $settings['default_word_count'],
+                'auto_topic' => $topic,
+                'trigger' => $trigger,
+                'cover_file' => $coverFile,
+            ],
+        ], 'auto_blog');
+
+        auto_blog_log_activity('success', $topic, $post['id'], 'Blog created');
+        return [
+            'status' => 'success',
+            'topic' => $topic,
+            'blog' => $post,
+            'attempts_used' => $state['daily_attempts'][$dateKey],
+            'max_attempts' => $settings['max_daily_attempts'],
+        ];
+    } catch (Throwable $exception) {
+        $message = $exception->getMessage();
+        log_system_error('Auto blog run failed', ['error' => $message, 'topic' => $topic]);
+        auto_blog_push_alert('Auto blog generation failed for topic: ' . $topic, ['message' => $message]);
+        auto_blog_log_activity('error', $topic, null, $message);
+        return [
+            'status' => 'error',
+            'topic' => $topic,
+            'message' => $message,
+            'attempts_used' => $state['daily_attempts'][$dateKey],
+            'max_attempts' => $settings['max_daily_attempts'],
+        ];
+    }
 }
 
 /**

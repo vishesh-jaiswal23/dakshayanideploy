@@ -33,6 +33,15 @@ if (!$post || ($post['status'] ?? 'draft') !== 'published') {
 function blog_cover(string $path, string $token, string $placeholder): string
 {
     $file = $path !== '' ? $path : $placeholder;
+    if (str_starts_with($file, 'download.php')) {
+        $url = '/' . ltrim($file, '/');
+        if (str_contains($url, 'type=blog_image')) {
+            $glue = str_contains($url, '?') ? '&' : '?';
+            return $url . $glue . 'inline=1';
+        }
+        $glue = str_contains($url, '?') ? '&' : '?';
+        return $url . $glue . 'token=' . rawurlencode($token) . '&inline=1';
+    }
     return '/download.php?file=' . rawurlencode($file) . '&token=' . rawurlencode($token) . '&inline=1';
 }
 

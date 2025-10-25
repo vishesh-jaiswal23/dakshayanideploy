@@ -30,6 +30,15 @@ function blog_cover_url(array $post, string $token, string $placeholder): string
     if ($path === '') {
         $path = $placeholder;
     }
+    if (str_starts_with($path, 'download.php')) {
+        $url = '/' . ltrim($path, '/');
+        if (str_contains($url, 'type=blog_image')) {
+            $glue = str_contains($url, '?') ? '&' : '?';
+            return $url . $glue . 'inline=1';
+        }
+        $glue = str_contains($url, '?') ? '&' : '?';
+        return $url . $glue . 'token=' . rawurlencode($token) . '&inline=1';
+    }
     return '/download.php?file=' . rawurlencode($path) . '&token=' . rawurlencode($token) . '&inline=1';
 }
 
