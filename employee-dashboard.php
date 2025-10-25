@@ -1092,7 +1092,9 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
         <div class="charts-grid">
           <article class="chart-card">
             <h3>Pipeline stages</h3>
-            <canvas id="employee-pipeline-chart" data-pipeline='<?= $pipelineJson; ?>' aria-label="Pipeline chart"></canvas>
+            <div class="chart-card__canvas">
+              <canvas id="employee-pipeline-chart" data-pipeline='<?= $pipelineJson; ?>' aria-label="Pipeline chart"></canvas>
+            </div>
             <ul class="chart-legend">
               <?php $colorIndex = 0; ?>
               <?php foreach ($customerSegmentStats as $stat): ?>
@@ -1103,7 +1105,9 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
           </article>
           <article class="chart-card">
             <h3>Sentiment spotlight</h3>
-            <canvas id="employee-sentiment-chart" data-sentiment='<?= $sentimentJson; ?>' aria-label="Sentiment chart"></canvas>
+            <div class="chart-card__canvas">
+              <canvas id="employee-sentiment-chart" data-sentiment='<?= $sentimentJson; ?>' aria-label="Sentiment chart"></canvas>
+            </div>
             <ul class="chart-legend">
               <li><span style="background:#ef4444"></span>At risk</li>
               <li><span style="background:#22c55e"></span>Recovering</li>
@@ -1913,6 +1917,7 @@ $formatDateTime = static function (?string $value, string $fallback = '—'): st
             },
             options: {
               responsive: true,
+              maintainAspectRatio: false,
               cutout: '62%',
               plugins: {
                 legend: { display: false },

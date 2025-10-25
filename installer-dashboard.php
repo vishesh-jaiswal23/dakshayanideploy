@@ -287,7 +287,9 @@ if ($lastDataRefreshTimestamp !== null) {
             <div class="charts-grid">
               <article class="chart-card">
                 <h3>Crew utilisation (this week)</h3>
-                <canvas id="installer-utilisation-chart" aria-label="Crew utilisation chart"></canvas>
+                <div class="chart-card__canvas">
+                  <canvas id="installer-utilisation-chart" aria-label="Crew utilisation chart"></canvas>
+                </div>
                 <ul class="chart-legend">
                   <li><span style="background:#0ea5e9"></span>On-site</li>
                   <li><span style="background:#facc15"></span>Standby</li>
@@ -296,7 +298,9 @@ if ($lastDataRefreshTimestamp !== null) {
               </article>
               <article class="chart-card">
                 <h3>Jobs by city</h3>
-                <canvas id="installer-city-chart" aria-label="Jobs by city bar chart"></canvas>
+                <div class="chart-card__canvas">
+                  <canvas id="installer-city-chart" aria-label="Jobs by city bar chart"></canvas>
+                </div>
                 <ul class="chart-legend">
                   <li><span style="background:#0ea5e9"></span>Active jobs</li>
                 </ul>
@@ -485,6 +489,7 @@ if ($lastDataRefreshTimestamp !== null) {
           },
           options: {
             responsive: true,
+            maintainAspectRatio: false,
             cutout: '68%',
             plugins: { legend: { display: false } }
           }
