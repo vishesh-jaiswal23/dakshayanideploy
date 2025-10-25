@@ -49,6 +49,7 @@ body[data-role]::before {
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow-x: hidden;
 }
 
 .dashboard-topbar {
@@ -177,7 +178,7 @@ body[data-role]::before {
 }
 
 .dashboard-shell {
-  width: min(1280px, calc(100vw - 4rem));
+  width: min(1280px, 100%);
   margin: -4.5rem auto 3.5rem;
   background: var(--surface);
   border-radius: var(--radius-large);
@@ -1342,15 +1343,15 @@ body[data-role]::before {
   }
 
   .dashboard-shell {
-    width: min(100%, calc(100vw - 2.5rem));
+    width: 100%;
     margin-top: -3.5rem;
+    padding-inline: clamp(1.25rem, 5vw, 1.75rem);
   }
 }
 
 @media (max-width: 640px) {
   .dashboard-shell {
-    width: min(100%, calc(100vw - 1.5rem));
-    padding: 1.35rem;
+    padding: clamp(1.1rem, 6vw, 1.35rem);
     border-radius: 24px;
   }
 
