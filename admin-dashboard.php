@@ -2889,7 +2889,7 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
   <link rel="stylesheet" href="dashboard-modern.css" />
   <style></style>
 </head>
-<body data-view="<?= htmlspecialchars($currentView); ?>">
+<body data-role="admin" data-view="<?= htmlspecialchars($currentView); ?>">
   <div class="dashboard-app">
     <header class="dashboard-topbar">
       <div class="topbar-brand">
@@ -3107,7 +3107,9 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
         <div class="charts-grid">
           <article class="chart-card">
             <h3>Accounts by role</h3>
-            <canvas id="admin-role-chart" data-roles='<?= $roleChartJson; ?>' aria-label="Accounts by role chart"></canvas>
+            <div class="chart-card__canvas">
+              <canvas id="admin-role-chart" data-roles='<?= $roleChartJson; ?>' aria-label="Accounts by role chart"></canvas>
+            </div>
             <ul class="chart-legend">
               <?php foreach ($roleChartData as $index => $roleEntry): ?>
                 <?php $roleColors = ['#0ea5e9', '#38bdf8', '#94a3b8', '#22c55e', '#0284c7']; ?>
@@ -3117,7 +3119,9 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
           </article>
           <article class="chart-card">
             <h3>Ticket priorities</h3>
-            <canvas id="admin-ticket-chart" data-tickets='<?= $priorityChartJson; ?>' aria-label="Ticket priorities chart"></canvas>
+            <div class="chart-card__canvas">
+              <canvas id="admin-ticket-chart" data-tickets='<?= $priorityChartJson; ?>' aria-label="Ticket priorities chart"></canvas>
+            </div>
             <ul class="chart-legend">
               <li><span style="background:#ef4444"></span>High</li>
               <li><span style="background:#f97316"></span>Medium</li>
@@ -5268,6 +5272,7 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
             },
             options: {
               responsive: true,
+              maintainAspectRatio: false,
               cutout: '60%',
               plugins: { legend: { display: false } }
             }
@@ -5300,6 +5305,7 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
             options: {
               responsive: true,
               maintainAspectRatio: false,
+              layout: { padding: { top: 6, right: 6, bottom: 6, left: 6 } },
               plugins: { legend: { display: false } },
               scales: {
                 x: { ticks: { color: '#64748b' }, grid: { display: false } },

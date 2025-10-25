@@ -285,7 +285,9 @@ if ($lastDataRefreshTimestamp !== null) {
             <div class="charts-grid">
               <article class="chart-card">
                 <h3>Lead conversion journey</h3>
-                <canvas id="referrer-funnel-chart" aria-label="Lead conversion chart"></canvas>
+                <div class="chart-card__canvas">
+                  <canvas id="referrer-funnel-chart" aria-label="Lead conversion chart"></canvas>
+                </div>
                 <ul class="chart-legend">
                   <li><span style="background:#0ea5e9"></span>Leads</li>
                   <li><span style="background:#38bdf8"></span>Qualified</li>
@@ -295,7 +297,9 @@ if ($lastDataRefreshTimestamp !== null) {
               </article>
               <article class="chart-card">
                 <h3>Payout velocity</h3>
-                <canvas id="referrer-payout-chart" aria-label="Payout timeline chart"></canvas>
+                <div class="chart-card__canvas">
+                  <canvas id="referrer-payout-chart" aria-label="Payout timeline chart"></canvas>
+                </div>
                 <ul class="chart-legend">
                   <li><span style="background:#0ea5e9"></span>Reward earnings</li>
                 </ul>

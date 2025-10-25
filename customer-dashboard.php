@@ -285,7 +285,9 @@ if ($lastDataRefreshTimestamp !== null) {
             <div class="charts-grid">
               <article class="chart-card">
                 <h3>Generation (last 6 months)</h3>
-                <canvas id="customer-generation-chart" aria-label="Monthly energy generation chart"></canvas>
+                <div class="chart-card__canvas">
+                  <canvas id="customer-generation-chart" aria-label="Monthly energy generation chart"></canvas>
+                </div>
                 <ul class="chart-legend">
                   <li><span style="background:#0ea5e9"></span>Actual generation</li>
                   <li><span style="background:#94a3b8"></span>Projected</li>
@@ -294,7 +296,9 @@ if ($lastDataRefreshTimestamp !== null) {
               </article>
               <article class="chart-card">
                 <h3>Installation progress</h3>
-                <canvas id="customer-progress-chart" aria-label="Installation progress chart"></canvas>
+                <div class="chart-card__canvas">
+                  <canvas id="customer-progress-chart" aria-label="Installation progress chart"></canvas>
+                </div>
                 <ul class="chart-legend">
                   <li><span style="background:#0ea5e9"></span>Completed</li>
                   <li><span style="background:#dbeafe"></span>Remaining</li>
@@ -516,6 +520,7 @@ if ($lastDataRefreshTimestamp !== null) {
           options: {
             responsive: true,
             cutout: '68%',
+            maintainAspectRatio: false,
             plugins: {
               legend: { display: false },
               tooltip: {
