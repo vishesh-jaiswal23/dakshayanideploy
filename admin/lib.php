@@ -301,6 +301,7 @@ function admin_views(): array
     return [
         'dashboard' => ['title' => 'Dashboard Overview', 'icon' => 'chart-pie'],
         'ai' => ['title' => 'AI Tools', 'icon' => 'sparkles'],
+        'v_blog_list' => ['title' => 'Blog Manager', 'icon' => 'document-text'],
         'crm' => ['title' => 'CRM', 'icon' => 'users'],
         'tickets' => ['title' => 'Tickets & Complaints', 'icon' => 'ticket'],
         'warranty' => ['title' => 'Warranty & AMC', 'icon' => 'shield-check'],
