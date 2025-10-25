@@ -2889,7 +2889,7 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
   <link rel="stylesheet" href="dashboard-modern.css" />
   <style></style>
 </head>
-<body data-view="<?= htmlspecialchars($currentView); ?>">
+<body data-role="admin" data-view="<?= htmlspecialchars($currentView); ?>">
   <div class="dashboard-app">
     <header class="dashboard-topbar">
       <div class="topbar-brand">
