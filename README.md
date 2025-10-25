@@ -15,6 +15,8 @@ additional runtimes.
   administration, and WhatsApp lead relays.
 - Admin workspace for managing site content, theme palettes, users, and
   knowledge base entries.
+- Gemini-powered automations that publish daily solar news, schedule blog
+  briefings, and review portal operations for actionable follow-ups.
 
 ## Prerequisites
 
@@ -22,6 +24,8 @@ additional runtimes.
   extensions enabled (both are bundled with the default PHP builds).
 - Optional: a web server such as Apache or Nginx. The project also runs via
   PHP’s built-in development server for local testing.
+- A Gemini API key (`GEMINI_API_KEY`) if you plan to run the automated news,
+  blog, or operations review tasks.
 
 ## Local development
 
@@ -33,10 +37,32 @@ additional runtimes.
    ```bash
    php -S 127.0.0.1:8000
    ```
-3. Visit `http://127.0.0.1:8000/login.php` and sign in with the admin
+3. Create an `api.txt` file in the project root that contains your Gemini API
+   key. The admin dashboard, CLI helpers, and AI playground will read the key
+   from this file automatically (environment variables are still supported if
+   you prefer them).
+4. Visit `http://127.0.0.1:8000/login.php` and sign in with the admin
    credentials defined in `login.php`.
-4. Explore the dashboards for each role. All API requests are served by
+5. Explore the dashboards for each role. All API requests are served by
    `api/index.php` and use the same session as the web pages.
+
+### Gemini automation tasks
+
+The admin dashboard now surfaces Gemini’s automated outputs under the **AI
+automation** view. To run the same jobs manually or wire them into a cron job,
+use the helper script:
+
+```bash
+php server/ai-gemini.php --task=all
+```
+
+Supported tasks are `news` (daily solar digest), `blog` (Monday/Wednesday/Friday
+blog research), and `operations` (daily dashboard review). Provide
+`--force` to ignore the schedule window. The script reads the API key from the
+`GEMINI_API_KEY` environment variable or from an `api.txt` file in the project
+root. By default it targets the `gemini-1.5-pro-latest` model on the `v1beta`
+endpoint; set the `GEMINI_MODEL` (and optionally `GEMINI_API_VERSION`) env vars
+if your account has access to different model names.
 
 > **Tip:** the API responses are human readable. Visit
 > `http://127.0.0.1:8000/api/me` while signed in to inspect the payload that
