@@ -33,6 +33,7 @@ body[data-role] {
   color: var(--text);
   background: radial-gradient(circle at top right, rgba(14, 165, 233, 0.2), transparent 45%), linear-gradient(160deg, rgba(11, 31, 58, 0.92), rgba(18, 50, 98, 0.95));
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 body[data-role]::before {
@@ -176,7 +177,7 @@ body[data-role]::before {
 }
 
 .dashboard-shell {
-  width: min(1280px, calc(100% - 3rem));
+  width: min(1280px, calc(100vw - 4rem));
   margin: -4.5rem auto 3.5rem;
   background: var(--surface);
   border-radius: var(--radius-large);
@@ -184,6 +185,10 @@ body[data-role]::before {
   padding: clamp(1.75rem, 3vw, 2.75rem);
   position: relative;
   z-index: 2;
+}
+
+.dashboard-layout > * {
+  min-width: 0;
 }
 
 .dashboard-layout {
@@ -458,6 +463,48 @@ body[data-role]::before {
   box-shadow: var(--card-shadow-soft);
   display: grid;
   gap: clamp(1.25rem, 2.5vw, 1.75rem);
+}
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radius-medium);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--card-shadow-soft);
+}
+
+.table-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 560px;
+}
+
+.table-wrapper th,
+.table-wrapper td {
+  padding: 0.85rem 1rem;
+  text-align: left;
+  font-size: 0.9rem;
+  color: var(--text);
+  word-break: break-word;
+  white-space: normal;
+}
+
+.table-wrapper thead {
+  background: rgba(14, 165, 233, 0.12);
+  color: var(--accent-strong);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+.table-wrapper tbody tr:nth-child(even) {
+  background: rgba(14, 165, 233, 0.08);
+}
+
+.table-wrapper tbody tr:hover {
+  background: rgba(14, 165, 233, 0.12);
 }
 
 .panel-header {
@@ -1295,18 +1342,29 @@ body[data-role]::before {
   }
 
   .dashboard-shell {
-    width: calc(100% - 2.5rem);
+    width: min(100%, calc(100vw - 2.5rem));
     margin-top: -3.5rem;
   }
 }
 
 @media (max-width: 640px) {
   .dashboard-shell {
-    padding: 1.5rem;
+    width: min(100%, calc(100vw - 1.5rem));
+    padding: 1.35rem;
     border-radius: 24px;
   }
 
   .hero-cards {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .table-wrapper table {
+    min-width: 520px;
+  }
+
+  .table-wrapper th,
+  .table-wrapper td {
+    padding: 0.75rem 0.85rem;
+    font-size: 0.85rem;
   }
 }
