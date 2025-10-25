@@ -7,8 +7,10 @@ date_default_timezone_set(PORTAL_TIMEZONE);
 
 require_once __DIR__ . '/portal-state.php';
 require_once __DIR__ . '/portal-admin.php';
+require_once __DIR__ . '/server/helpers.php';
 
 portal_admin_bootstrap_files(PORTAL_ADMIN_EMAIL, PORTAL_ADMIN_PASSWORD_HASH);
+server_bootstrap();
 
 $dashboardRoutes = PORTAL_DASHBOARD_ROUTES;
 
@@ -47,6 +49,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === null) {
                 $error = 'Incorrect email or password. Please try again.';
             }
         } else {
+            $adminProfile = [
+                'id' => 'admin-root',
+                'name' => 'Dakshayani Admin',
+                'email' => PORTAL_ADMIN_EMAIL,
+                'role' => 'admin',
+            ];
             $_SESSION['user_role'] = 'admin';
             $_SESSION['user_id'] = 'admin-root';
             $_SESSION['display_name'] = 'Dakshayani Admin';
@@ -57,8 +65,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === null) {
             } catch (Exception $e) {
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(16));
             }
+            set_authenticated_user($adminProfile);
             portal_admin_reset_login_attempts($ipAddress);
             portal_admin_log_activity('login', 'Admin signed in', 'Dakshayani Admin');
+            log_activity('admin_login_success', ['entry' => 'root'], PORTAL_ADMIN_EMAIL);
             header('Location: ' . $dashboardRoutes['admin']);
             exit;
         }

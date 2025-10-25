@@ -500,14 +500,14 @@ function csv_encode(array $rows, array $headers = []): string
     return $csv;
 }
 
-function log_activity(string $action, string $details, string $actor = 'system'): void
+function log_activity(string $action, string|array $details, string $actor = 'system'): void
 {
     $log = json_read(ACTIVITY_LOG_FILE, []);
     $log[] = [
         'id' => uuid('act'),
         'timestamp' => now_ist(),
         'action' => $action,
-        'details' => $details,
+        'details' => is_array($details) ? $details : (string) $details,
         'actor' => $actor,
     ];
 
