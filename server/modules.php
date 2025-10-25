@@ -1129,3 +1129,1878 @@ function referrers_export_csv(): string
     return csv_encode($referrers, $headers);
 }
 
+/**
+ * Ticketing and complaints helpers
+ */
+function ticket_allowed_statuses(): array
+{
+    return ['open', 'in_progress', 'on_hold', 'resolved', 'closed'];
+}
+
+function ticket_allowed_priorities(): array
+{
+    return ['low', 'medium', 'high', 'urgent'];
+}
+
+function ticket_normalize(array $ticket): array
+{
+    $ticket['notes'] = array_values(array_filter(is_array($ticket['notes'] ?? null) ? $ticket['notes'] : [], 'is_array'));
+    foreach ($ticket['notes'] as &$note) {
+        $note['id'] = $note['id'] ?? uuid('tn');
+        $note['body'] = (string) ($note['body'] ?? '');
+        $note['author'] = $note['author'] ?? 'system';
+        $note['visibility'] = $note['visibility'] ?? 'internal';
+        $note['created_at'] = $note['created_at'] ?? now_ist();
+    }
+    unset($note);
+
+    $ticket['history'] = array_values(array_filter(is_array($ticket['history'] ?? null) ? $ticket['history'] : [], 'is_array'));
+    foreach ($ticket['history'] as &$entry) {
+        $entry['id'] = $entry['id'] ?? uuid('th');
+        $entry['event'] = $entry['event'] ?? 'update';
+        $entry['actor'] = $entry['actor'] ?? 'system';
+        $entry['recorded_at'] = $entry['recorded_at'] ?? now_ist();
+        if (!isset($entry['data']) || !is_array($entry['data'])) {
+            $entry['data'] = [];
+        }
+    }
+    unset($entry);
+
+    $ticket['status'] = strtolower((string) ($ticket['status'] ?? 'open'));
+    if (!in_array($ticket['status'], ticket_allowed_statuses(), true)) {
+        $ticket['status'] = 'open';
+    }
+
+    $ticket['priority'] = strtolower((string) ($ticket['priority'] ?? 'medium'));
+    if (!in_array($ticket['priority'], ticket_allowed_priorities(), true)) {
+        $ticket['priority'] = 'medium';
+    }
+
+    if (isset($ticket['tags']) && is_array($ticket['tags'])) {
+        $ticket['tags'] = array_values(array_filter(array_unique(array_map(function ($tag) {
+            return strtolower(trim((string) $tag));
+        }, $ticket['tags'])), static function ($tag) {
+            return $tag !== '';
+        }));
+    } else {
+        $ticket['tags'] = [];
+    }
+
+    if (!isset($ticket['metadata']) || !is_array($ticket['metadata'])) {
+        $ticket['metadata'] = [];
+    }
+
+    return $ticket;
+}
+
+function ticket_present(array $ticket): array
+{
+    $ticket = ticket_normalize($ticket);
+    return [
+        'id' => $ticket['id'] ?? null,
+        'subject' => $ticket['subject'] ?? '',
+        'description' => $ticket['description'] ?? '',
+        'status' => $ticket['status'],
+        'priority' => $ticket['priority'],
+        'assignee' => $ticket['assignee'] ?? null,
+        'customer_id' => $ticket['customer_id'] ?? null,
+        'customer_name' => $ticket['customer_name'] ?? null,
+        'customer_phone' => $ticket['customer_phone'] ?? null,
+        'customer_email' => $ticket['customer_email'] ?? null,
+        'channel' => $ticket['channel'] ?? null,
+        'due_date' => $ticket['due_date'] ?? null,
+        'tags' => $ticket['tags'],
+        'metadata' => $ticket['metadata'],
+        'notes' => $ticket['notes'],
+        'history' => $ticket['history'],
+        'created_at' => $ticket['created_at'] ?? null,
+        'updated_at' => $ticket['updated_at'] ?? null,
+        'closed_at' => $ticket['closed_at'] ?? null,
+    ];
+}
+
+function tickets_load(): array
+{
+    $tickets = json_read(TICKETS_FILE, []);
+    if (!is_array($tickets)) {
+        return [];
+    }
+    return array_map('ticket_normalize', $tickets);
+}
+
+function tickets_save(array $tickets): void
+{
+    $normalised = array_map('ticket_normalize', $tickets);
+    json_write(TICKETS_FILE, array_values($normalised));
+}
+
+function ticket_append_history(array &$ticket, string $event, array $data, string $actor): void
+{
+    if (!isset($ticket['history']) || !is_array($ticket['history'])) {
+        $ticket['history'] = [];
+    }
+    $ticket['history'][] = [
+        'id' => uuid('th'),
+        'event' => $event,
+        'data' => $data,
+        'actor' => $actor,
+        'recorded_at' => now_ist(),
+    ];
+}
+
+function validate_ticket_payload(array $payload, bool $partial = false): array
+{
+    $subject = sanitize_string($payload['subject'] ?? '', 180);
+    if (!$partial && ($subject === null || $subject === '')) {
+        throw new InvalidArgumentException('Ticket subject is required.');
+    }
+
+    $description = sanitize_string($payload['description'] ?? '', 5000, true);
+    $status = sanitize_string($payload['status'] ?? '', 40, true);
+    if ($status !== null && $status !== '' && !in_array(strtolower($status), ticket_allowed_statuses(), true)) {
+        throw new InvalidArgumentException('Invalid ticket status provided.');
+    }
+
+    $priority = sanitize_string($payload['priority'] ?? '', 40, true);
+    if ($priority !== null && $priority !== '' && !in_array(strtolower($priority), ticket_allowed_priorities(), true)) {
+        throw new InvalidArgumentException('Invalid ticket priority provided.');
+    }
+
+    $assignee = sanitize_string($payload['assignee'] ?? '', 160, true);
+    $customerId = sanitize_string($payload['customer_id'] ?? '', 160, true);
+    $customerName = sanitize_string($payload['customer_name'] ?? '', 160, true);
+    $customerPhone = sanitize_string($payload['customer_phone'] ?? '', 40, true);
+    $customerEmail = sanitize_string($payload['customer_email'] ?? '', 160, true);
+    if ($customerEmail && !validator_email($customerEmail)) {
+        throw new InvalidArgumentException('Customer email is invalid.');
+    }
+
+    $channel = sanitize_string($payload['channel'] ?? '', 80, true);
+    $dueDate = sanitize_string($payload['due_date'] ?? '', 20, true);
+    if ($dueDate) {
+        if (!validator_date($dueDate)) {
+            throw new InvalidArgumentException('Due date must use YYYY-MM-DD format.');
+        }
+    }
+
+    $tags = [];
+    if (isset($payload['tags'])) {
+        if (!is_array($payload['tags'])) {
+            throw new InvalidArgumentException('Tags must be an array of strings.');
+        }
+        foreach ($payload['tags'] as $tag) {
+            $clean = sanitize_string($tag, 60, true);
+            if ($clean) {
+                $tags[] = strtolower($clean);
+            }
+        }
+    }
+
+    $metadata = [];
+    if (isset($payload['metadata'])) {
+        if (is_array($payload['metadata'])) {
+            $metadata = $payload['metadata'];
+        } else {
+            throw new InvalidArgumentException('Metadata must be an object.');
+        }
+    }
+
+    $validated = [];
+    if ($subject !== null) {
+        $validated['subject'] = $subject;
+    }
+    if ($description !== null) {
+        $validated['description'] = $description ?? '';
+    }
+    if ($status) {
+        $validated['status'] = strtolower($status);
+    }
+    if ($priority) {
+        $validated['priority'] = strtolower($priority);
+    }
+    if ($assignee !== null) {
+        $validated['assignee'] = $assignee ?: null;
+    }
+    if ($customerId !== null) {
+        $validated['customer_id'] = $customerId ?: null;
+    }
+    if ($customerName !== null) {
+        $validated['customer_name'] = $customerName ?: null;
+    }
+    if ($customerPhone !== null) {
+        $validated['customer_phone'] = $customerPhone ?: null;
+    }
+    if ($customerEmail !== null) {
+        $validated['customer_email'] = $customerEmail ?: null;
+    }
+    if ($channel !== null) {
+        $validated['channel'] = $channel ?: null;
+    }
+    if ($dueDate !== null) {
+        $validated['due_date'] = $dueDate ?: null;
+    }
+    if ($tags) {
+        $validated['tags'] = array_values(array_unique($tags));
+    }
+    if ($metadata) {
+        $validated['metadata'] = $metadata;
+    }
+
+    return $validated;
+}
+
+function tickets_list(array $filters = []): array
+{
+    $tickets = tickets_load();
+    $status = strtolower((string) ($filters['status'] ?? ''));
+    $priority = strtolower((string) ($filters['priority'] ?? ''));
+    $assignee = strtolower((string) ($filters['assignee'] ?? ''));
+    $customerId = strtolower((string) ($filters['customer_id'] ?? ''));
+    $search = strtolower(trim((string) ($filters['search'] ?? '')));
+    $tag = strtolower((string) ($filters['tag'] ?? ''));
+
+    $filtered = array_filter($tickets, static function ($ticket) use ($status, $priority, $assignee, $customerId, $search, $tag) {
+        $ticket = ticket_normalize($ticket);
+        if ($status !== '' && strtolower((string) ($ticket['status'] ?? '')) !== $status) {
+            return false;
+        }
+        if ($priority !== '' && strtolower((string) ($ticket['priority'] ?? '')) !== $priority) {
+            return false;
+        }
+        if ($assignee !== '' && strtolower((string) ($ticket['assignee'] ?? '')) !== $assignee) {
+            return false;
+        }
+        if ($customerId !== '' && strtolower((string) ($ticket['customer_id'] ?? '')) !== $customerId) {
+            return false;
+        }
+        if ($tag !== '' && !in_array($tag, $ticket['tags'] ?? [], true)) {
+            return false;
+        }
+        if ($search !== '') {
+            $haystack = strtolower(($ticket['subject'] ?? '') . ' ' . ($ticket['description'] ?? '') . ' ' . ($ticket['customer_name'] ?? '') . ' ' . ($ticket['customer_phone'] ?? ''));
+            if (!str_contains($haystack, $search)) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    return array_values(array_map('ticket_present', $filtered));
+}
+
+function ticket_create(array $payload, string $actor): array
+{
+    $validated = validate_ticket_payload($payload);
+    $settings = load_site_settings();
+    $defaults = $settings['Complaints'] ?? [];
+
+    if (!isset($validated['priority']) && isset($defaults['default_priority'])) {
+        $validated['priority'] = strtolower((string) $defaults['default_priority']);
+    }
+    if (!isset($validated['assignee']) && !empty($defaults['auto_assign_to'])) {
+        $validated['assignee'] = $defaults['auto_assign_to'];
+    }
+
+    $tickets = tickets_load();
+    $ticket = array_merge([
+        'id' => uuid('ticket'),
+        'status' => 'open',
+        'priority' => 'medium',
+        'notes' => [],
+        'history' => [],
+        'tags' => [],
+        'metadata' => [],
+        'created_at' => now_ist(),
+        'updated_at' => now_ist(),
+    ], $validated);
+
+    ticket_append_history($ticket, 'created', ['subject' => $ticket['subject'] ?? ''], $actor);
+
+    $tickets[] = $ticket;
+    tickets_save($tickets);
+    log_activity('ticket.create', 'Created ticket ' . ($ticket['id'] ?? ''), $actor);
+
+    return ticket_present($ticket);
+}
+
+function ticket_update(string $id, array $payload, string $actor): array
+{
+    $validated = validate_ticket_payload($payload, true);
+    $tickets = tickets_load();
+    foreach ($tickets as &$ticket) {
+        if (($ticket['id'] ?? '') !== $id) {
+            continue;
+        }
+        $original = ticket_normalize($ticket);
+        $ticket = array_merge($ticket, $validated);
+        $ticket['updated_at'] = now_ist();
+
+        if (($validated['status'] ?? null) && $validated['status'] !== $original['status']) {
+            if ($validated['status'] === 'resolved' || $validated['status'] === 'closed') {
+                $ticket['closed_at'] = $ticket['closed_at'] ?? now_ist();
+            }
+            ticket_append_history($ticket, 'status_change', ['from' => $original['status'], 'to' => $validated['status']], $actor);
+        }
+        if (($validated['assignee'] ?? null) !== null && ($validated['assignee'] ?? null) !== ($original['assignee'] ?? null)) {
+            ticket_append_history($ticket, 'assignee_change', ['from' => $original['assignee'] ?? null, 'to' => $validated['assignee']], $actor);
+        }
+        if (($validated['priority'] ?? null) && $validated['priority'] !== $original['priority']) {
+            ticket_append_history($ticket, 'priority_change', ['from' => $original['priority'], 'to' => $validated['priority']], $actor);
+        }
+
+        tickets_save($tickets);
+        log_activity('ticket.update', 'Updated ticket ' . $id, $actor);
+        return ticket_present($ticket);
+    }
+    unset($ticket);
+
+    throw new RuntimeException('Ticket not found.');
+}
+
+function ticket_delete(string $id, string $actor): void
+{
+    $tickets = tickets_load();
+    $before = count($tickets);
+    $tickets = array_values(array_filter($tickets, static function ($ticket) use ($id) {
+        return ($ticket['id'] ?? '') !== $id;
+    }));
+
+    if ($before === count($tickets)) {
+        throw new RuntimeException('Ticket not found.');
+    }
+
+    tickets_save($tickets);
+    log_activity('ticket.delete', 'Deleted ticket ' . $id, $actor);
+}
+
+function ticket_add_note(string $ticketId, array $payload, string $actor): array
+{
+    $noteBody = sanitize_string($payload['body'] ?? '', 4000);
+    if ($noteBody === null || $noteBody === '') {
+        throw new InvalidArgumentException('Note body cannot be empty.');
+    }
+    $visibility = strtolower((string) sanitize_string($payload['visibility'] ?? 'internal', 40, true));
+    if (!in_array($visibility, ['internal', 'external'], true)) {
+        $visibility = 'internal';
+    }
+
+    $tickets = tickets_load();
+    foreach ($tickets as &$ticket) {
+        if (($ticket['id'] ?? '') !== $ticketId) {
+            continue;
+        }
+        $ticket = ticket_normalize($ticket);
+        $note = [
+            'id' => uuid('tn'),
+            'body' => $noteBody,
+            'author' => $actor,
+            'visibility' => $visibility,
+            'created_at' => now_ist(),
+        ];
+        $ticket['notes'][] = $note;
+        $ticket['updated_at'] = now_ist();
+        ticket_append_history($ticket, 'note_added', ['visibility' => $visibility], $actor);
+
+        // Propagate to communication log for unified timeline
+        communication_log_add([
+            'customer_id' => $ticket['customer_id'] ?? null,
+            'ticket_id' => $ticketId,
+            'channel' => $visibility === 'external' ? 'customer-update' : 'internal-note',
+            'summary' => mb_substr($noteBody, 0, 240),
+            'details' => $noteBody,
+        ], $actor);
+
+        $tickets = array_map('ticket_normalize', $tickets);
+        tickets_save($tickets);
+        log_activity('ticket.note', 'Added note to ticket ' . $ticketId, $actor);
+        return ticket_present($ticket);
+    }
+    unset($ticket);
+
+    throw new RuntimeException('Ticket not found.');
+}
+
+/**
+ * Warranty and AMC tracker helpers
+ */
+function warranty_registry_load(): array
+{
+    $data = json_read(WARRANTY_AMC_FILE, ['assets' => []]);
+    if (!is_array($data)) {
+        return ['assets' => []];
+    }
+    if (!isset($data['assets']) || !is_array($data['assets'])) {
+        $data['assets'] = [];
+    }
+    $data['assets'] = array_values(array_map(static function ($asset) {
+        if (!is_array($asset)) {
+            return [];
+        }
+        if (!isset($asset['service_visits']) || !is_array($asset['service_visits'])) {
+            $asset['service_visits'] = [];
+        }
+        if (!isset($asset['reminders']) || !is_array($asset['reminders'])) {
+            $asset['reminders'] = [];
+        }
+        if (!isset($asset['geo_photos']) || !is_array($asset['geo_photos'])) {
+            $asset['geo_photos'] = [];
+        }
+        return $asset;
+    }, $data['assets']));
+    return $data;
+}
+
+function warranty_registry_save(array $data): void
+{
+    if (!isset($data['assets']) || !is_array($data['assets'])) {
+        $data['assets'] = [];
+    }
+    json_write(WARRANTY_AMC_FILE, ['assets' => array_values($data['assets'])]);
+}
+
+function warranty_asset_present(array $asset): array
+{
+    return [
+        'id' => $asset['id'] ?? null,
+        'customer_id' => $asset['customer_id'] ?? null,
+        'customer_name' => $asset['customer_name'] ?? null,
+        'segment' => $asset['segment'] ?? null,
+        'asset_type' => $asset['asset_type'] ?? null,
+        'serial_number' => $asset['serial_number'] ?? null,
+        'installation_date' => $asset['installation_date'] ?? null,
+        'warranty_expiry' => $asset['warranty_expiry'] ?? null,
+        'amc_expiry' => $asset['amc_expiry'] ?? null,
+        'location' => $asset['location'] ?? null,
+        'pincode' => $asset['pincode'] ?? null,
+        'latitude' => $asset['latitude'] ?? null,
+        'longitude' => $asset['longitude'] ?? null,
+        'capacity_kw' => $asset['capacity_kw'] ?? null,
+        'notes' => $asset['notes'] ?? '',
+        'service_visits' => $asset['service_visits'] ?? [],
+        'reminders' => $asset['reminders'] ?? [],
+        'geo_photos' => $asset['geo_photos'] ?? [],
+        'documents' => $asset['documents'] ?? [],
+        'created_at' => $asset['created_at'] ?? null,
+        'updated_at' => $asset['updated_at'] ?? null,
+    ];
+}
+
+function validate_warranty_asset_payload(array $payload, bool $partial = false): array
+{
+    $customerId = sanitize_string($payload['customer_id'] ?? '', 160, true);
+    $customerName = sanitize_string($payload['customer_name'] ?? '', 160, true);
+    if (!$partial && ($customerName === null || $customerName === '')) {
+        throw new InvalidArgumentException('Customer name is required for warranty assets.');
+    }
+
+    $segment = sanitize_string($payload['segment'] ?? '', 80, true);
+    $assetType = sanitize_string($payload['asset_type'] ?? '', 120, true);
+    if (!$partial && ($assetType === null || $assetType === '')) {
+        throw new InvalidArgumentException('Asset type is required.');
+    }
+    $serialNumber = sanitize_string($payload['serial_number'] ?? '', 160, true);
+    $installationDate = sanitize_string($payload['installation_date'] ?? '', 20, true);
+    if ($installationDate && !validator_date($installationDate)) {
+        throw new InvalidArgumentException('Installation date must use YYYY-MM-DD format.');
+    }
+    $warrantyExpiry = sanitize_string($payload['warranty_expiry'] ?? '', 20, true);
+    if ($warrantyExpiry && !validator_date($warrantyExpiry)) {
+        throw new InvalidArgumentException('Warranty expiry must use YYYY-MM-DD format.');
+    }
+    $amcExpiry = sanitize_string($payload['amc_expiry'] ?? '', 20, true);
+    if ($amcExpiry && !validator_date($amcExpiry)) {
+        throw new InvalidArgumentException('AMC expiry must use YYYY-MM-DD format.');
+    }
+
+    $location = sanitize_string($payload['location'] ?? '', 240, true);
+    $pincode = sanitize_string($payload['pincode'] ?? '', 20, true);
+    if ($pincode) {
+        $settings = load_site_settings();
+        $pattern = $settings['Data Quality']['pincode_regex'] ?? null;
+        if (!validator_pincode($pincode, is_string($pattern) ? $pattern : null)) {
+            throw new InvalidArgumentException('Pincode must be six digits.');
+        }
+    }
+
+    $latitude = isset($payload['latitude']) ? (float) $payload['latitude'] : null;
+    $longitude = isset($payload['longitude']) ? (float) $payload['longitude'] : null;
+    $capacity = isset($payload['capacity_kw']) ? (float) $payload['capacity_kw'] : null;
+    $notes = sanitize_string($payload['notes'] ?? '', 4000, true);
+
+    $documents = [];
+    if (isset($payload['documents'])) {
+        if (!is_array($payload['documents'])) {
+            throw new InvalidArgumentException('Documents must be an array.');
+        }
+        $documents = array_values($payload['documents']);
+    }
+
+    $validated = [];
+    if ($customerId !== null) {
+        $validated['customer_id'] = $customerId ?: null;
+    }
+    if ($customerName !== null) {
+        $validated['customer_name'] = $customerName ?: null;
+    }
+    if ($segment !== null) {
+        $validated['segment'] = $segment ?: null;
+    }
+    if ($assetType !== null) {
+        $validated['asset_type'] = $assetType ?: null;
+    }
+    if ($serialNumber !== null) {
+        $validated['serial_number'] = $serialNumber ?: null;
+    }
+    if ($installationDate !== null) {
+        $validated['installation_date'] = $installationDate ?: null;
+    }
+    if ($warrantyExpiry !== null) {
+        $validated['warranty_expiry'] = $warrantyExpiry ?: null;
+    }
+    if ($amcExpiry !== null) {
+        $validated['amc_expiry'] = $amcExpiry ?: null;
+    }
+    if ($location !== null) {
+        $validated['location'] = $location ?: null;
+    }
+    if ($pincode !== null) {
+        $validated['pincode'] = $pincode ?: null;
+    }
+    if ($latitude !== null) {
+        $validated['latitude'] = $latitude;
+    }
+    if ($longitude !== null) {
+        $validated['longitude'] = $longitude;
+    }
+    if ($capacity !== null) {
+        $validated['capacity_kw'] = $capacity;
+    }
+    if ($notes !== null) {
+        $validated['notes'] = $notes ?? '';
+    }
+    if ($documents) {
+        $validated['documents'] = $documents;
+    }
+
+    return $validated;
+}
+
+function warranty_assets_list(array $filters = []): array
+{
+    $registry = warranty_registry_load();
+    $customerId = strtolower((string) ($filters['customer_id'] ?? ''));
+    $segment = strtolower((string) ($filters['segment'] ?? ''));
+    $search = strtolower(trim((string) ($filters['search'] ?? '')));
+    $dueBefore = (string) ($filters['due_before'] ?? '');
+
+    $assets = array_filter($registry['assets'], static function ($asset) use ($customerId, $segment, $search, $dueBefore) {
+        $customerMatch = $customerId === '' || strtolower((string) ($asset['customer_id'] ?? '')) === $customerId;
+        $segmentMatch = $segment === '' || strtolower((string) ($asset['segment'] ?? '')) === $segment;
+        if (!$customerMatch || !$segmentMatch) {
+            return false;
+        }
+        if ($search !== '') {
+            $haystack = strtolower(($asset['customer_name'] ?? '') . ' ' . ($asset['serial_number'] ?? '') . ' ' . ($asset['location'] ?? ''));
+            if (!str_contains($haystack, $search)) {
+                return false;
+            }
+        }
+        if ($dueBefore !== '') {
+            $targets = array_filter([
+                $asset['warranty_expiry'] ?? null,
+                $asset['amc_expiry'] ?? null,
+            ], static function ($date) {
+                return is_string($date) && $date !== '';
+            });
+            foreach ($targets as $date) {
+                if ($date <= $dueBefore) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return true;
+    });
+
+    return array_values(array_map('warranty_asset_present', $assets));
+}
+
+function warranty_asset_create(array $payload, string $actor): array
+{
+    $validated = validate_warranty_asset_payload($payload);
+    $registry = warranty_registry_load();
+    $asset = array_merge([
+        'id' => uuid('asset'),
+        'service_visits' => [],
+        'reminders' => [],
+        'geo_photos' => [],
+        'documents' => [],
+        'created_at' => now_ist(),
+        'updated_at' => now_ist(),
+    ], $validated);
+
+    $registry['assets'][] = $asset;
+    warranty_registry_save($registry);
+    log_activity('warranty.create', 'Registered warranty asset ' . $asset['id'], $actor);
+
+    return warranty_asset_present($asset);
+}
+
+function warranty_asset_update(string $id, array $payload, string $actor): array
+{
+    $validated = validate_warranty_asset_payload($payload, true);
+    $registry = warranty_registry_load();
+    foreach ($registry['assets'] as &$asset) {
+        if (($asset['id'] ?? '') !== $id) {
+            continue;
+        }
+        $asset = array_merge($asset, $validated);
+        $asset['updated_at'] = now_ist();
+        warranty_registry_save($registry);
+        log_activity('warranty.update', 'Updated warranty asset ' . $id, $actor);
+        return warranty_asset_present($asset);
+    }
+    unset($asset);
+
+    throw new RuntimeException('Warranty asset not found.');
+}
+
+function warranty_asset_delete(string $id, string $actor): void
+{
+    $registry = warranty_registry_load();
+    $count = count($registry['assets']);
+    $registry['assets'] = array_values(array_filter($registry['assets'], static function ($asset) use ($id) {
+        return ($asset['id'] ?? '') !== $id;
+    }));
+    if ($count === count($registry['assets'])) {
+        throw new RuntimeException('Warranty asset not found.');
+    }
+    warranty_registry_save($registry);
+    log_activity('warranty.delete', 'Removed warranty asset ' . $id, $actor);
+}
+
+function warranty_asset_add_visit(string $id, array $payload, string $actor): array
+{
+    $visitDate = sanitize_string($payload['visit_date'] ?? '', 20);
+    if ($visitDate === null || $visitDate === '' || !validator_date($visitDate)) {
+        throw new InvalidArgumentException('Visit date is required in YYYY-MM-DD format.');
+    }
+    $technician = sanitize_string($payload['technician'] ?? '', 160);
+    if ($technician === null || $technician === '') {
+        throw new InvalidArgumentException('Technician name is required.');
+    }
+    $outcome = sanitize_string($payload['outcome'] ?? '', 4000, true);
+    $nextSteps = sanitize_string($payload['next_steps'] ?? '', 4000, true);
+    $photos = [];
+    if (isset($payload['photos'])) {
+        if (!is_array($payload['photos'])) {
+            throw new InvalidArgumentException('Photos must be an array.');
+        }
+        foreach ($payload['photos'] as $photo) {
+            if (!is_array($photo)) {
+                continue;
+            }
+            $photos[] = [
+                'id' => $photo['id'] ?? uuid('aphoto'),
+                'file' => $photo['file'] ?? null,
+                'latitude' => isset($photo['latitude']) ? (float) $photo['latitude'] : null,
+                'longitude' => isset($photo['longitude']) ? (float) $photo['longitude'] : null,
+                'captured_at' => $photo['captured_at'] ?? now_ist(),
+            ];
+        }
+    }
+
+    $registry = warranty_registry_load();
+    foreach ($registry['assets'] as &$asset) {
+        if (($asset['id'] ?? '') !== $id) {
+            continue;
+        }
+        if (!isset($asset['service_visits']) || !is_array($asset['service_visits'])) {
+            $asset['service_visits'] = [];
+        }
+        $visit = [
+            'id' => uuid('visit'),
+            'visit_date' => $visitDate,
+            'technician' => $technician,
+            'outcome' => $outcome ?? null,
+            'next_steps' => $nextSteps ?? null,
+            'photos' => $photos,
+            'logged_at' => now_ist(),
+            'logged_by' => $actor,
+        ];
+        $asset['service_visits'][] = $visit;
+        if ($photos) {
+            if (!isset($asset['geo_photos']) || !is_array($asset['geo_photos'])) {
+                $asset['geo_photos'] = [];
+            }
+            foreach ($photos as $photo) {
+                $asset['geo_photos'][] = array_merge($photo, ['visit_id' => $visit['id'], 'uploaded_by' => $actor]);
+            }
+        }
+        $asset['updated_at'] = now_ist();
+        warranty_registry_save($registry);
+        log_activity('warranty.visit', 'Logged service visit for asset ' . $id, $actor);
+        communication_log_add([
+            'customer_id' => $asset['customer_id'] ?? null,
+            'ticket_id' => $payload['ticket_id'] ?? null,
+            'channel' => 'service-visit',
+            'summary' => 'Technician ' . $technician . ' visited on ' . $visitDate,
+            'details' => $outcome ?? 'Visit recorded',
+        ], $actor);
+        return warranty_asset_present($asset);
+    }
+    unset($asset);
+
+    throw new RuntimeException('Warranty asset not found.');
+}
+
+function warranty_asset_add_reminder(string $id, array $payload, string $actor): array
+{
+    $dueOn = sanitize_string($payload['due_on'] ?? '', 20);
+    if ($dueOn === null || $dueOn === '' || !validator_date($dueOn)) {
+        throw new InvalidArgumentException('Reminder due date must use YYYY-MM-DD format.');
+    }
+    $type = sanitize_string($payload['type'] ?? '', 120);
+    if ($type === null || $type === '') {
+        throw new InvalidArgumentException('Reminder type is required.');
+    }
+    $notes = sanitize_string($payload['notes'] ?? '', 2000, true);
+
+    $registry = warranty_registry_load();
+    foreach ($registry['assets'] as &$asset) {
+        if (($asset['id'] ?? '') !== $id) {
+            continue;
+        }
+        if (!isset($asset['reminders']) || !is_array($asset['reminders'])) {
+            $asset['reminders'] = [];
+        }
+        $reminder = [
+            'id' => uuid('rem'),
+            'type' => $type,
+            'due_on' => $dueOn,
+            'notes' => $notes ?? null,
+            'status' => 'pending',
+            'created_at' => now_ist(),
+            'created_by' => $actor,
+        ];
+        $asset['reminders'][] = $reminder;
+        $asset['updated_at'] = now_ist();
+        warranty_registry_save($registry);
+        log_activity('warranty.reminder', 'Added reminder for asset ' . $id, $actor);
+        return warranty_asset_present($asset);
+    }
+    unset($asset);
+
+    throw new RuntimeException('Warranty asset not found.');
+}
+
+function warranty_asset_update_reminder_status(string $assetId, string $reminderId, string $status, string $actor): array
+{
+    $status = strtolower($status);
+    if (!in_array($status, ['pending', 'completed', 'skipped'], true)) {
+        throw new InvalidArgumentException('Invalid reminder status.');
+    }
+    $registry = warranty_registry_load();
+    foreach ($registry['assets'] as &$asset) {
+        if (($asset['id'] ?? '') !== $assetId) {
+            continue;
+        }
+        if (!isset($asset['reminders']) || !is_array($asset['reminders'])) {
+            $asset['reminders'] = [];
+        }
+        foreach ($asset['reminders'] as &$reminder) {
+            if (($reminder['id'] ?? '') !== $reminderId) {
+                continue;
+            }
+            $reminder['status'] = $status;
+            $reminder['updated_at'] = now_ist();
+            $reminder['updated_by'] = $actor;
+            warranty_registry_save($registry);
+            log_activity('warranty.reminder_status', 'Updated reminder ' . $reminderId . ' for asset ' . $assetId, $actor);
+            return warranty_asset_present($asset);
+        }
+        unset($reminder);
+    }
+    unset($asset);
+
+    throw new RuntimeException('Reminder not found.');
+}
+
+function warranty_amc_export_csv(array $filters = []): string
+{
+    $assets = warranty_assets_list($filters);
+    $rows = array_map(static function ($asset) {
+        $nextService = null;
+        foreach ($asset['reminders'] as $reminder) {
+            if (($reminder['status'] ?? '') !== 'pending') {
+                continue;
+            }
+            if ($nextService === null || $reminder['due_on'] < $nextService) {
+                $nextService = $reminder['due_on'];
+            }
+        }
+        return [
+            'id' => $asset['id'],
+            'customer_id' => $asset['customer_id'],
+            'customer_name' => $asset['customer_name'],
+            'segment' => $asset['segment'],
+            'asset_type' => $asset['asset_type'],
+            'serial_number' => $asset['serial_number'],
+            'installation_date' => $asset['installation_date'],
+            'warranty_expiry' => $asset['warranty_expiry'],
+            'amc_expiry' => $asset['amc_expiry'],
+            'location' => $asset['location'],
+            'pincode' => $asset['pincode'],
+            'capacity_kw' => $asset['capacity_kw'],
+            'next_service_due' => $nextService,
+            'service_visit_count' => count($asset['service_visits']),
+        ];
+    }, $assets);
+
+    $headers = ['id', 'customer_id', 'customer_name', 'segment', 'asset_type', 'serial_number', 'installation_date', 'warranty_expiry', 'amc_expiry', 'location', 'pincode', 'capacity_kw', 'next_service_due', 'service_visit_count'];
+    return csv_encode($rows, $headers);
+}
+
+/**
+ * Document vault with versioning helpers
+ */
+function documents_vault_load(): array
+{
+    $data = json_read(DOCUMENTS_INDEX_FILE, ['documents' => [], 'next_sequence' => 1]);
+    if (!is_array($data)) {
+        $data = ['documents' => [], 'next_sequence' => 1];
+    }
+    if (!isset($data['documents']) || !is_array($data['documents'])) {
+        $data['documents'] = [];
+    }
+    if (!isset($data['next_sequence']) || !is_int($data['next_sequence'])) {
+        $data['next_sequence'] = 1;
+    }
+    $data['documents'] = array_values(array_map(static function ($document) {
+        if (!isset($document['versions']) || !is_array($document['versions'])) {
+            $document['versions'] = [];
+        }
+        if (!isset($document['tags']) || !is_array($document['tags'])) {
+            $document['tags'] = [];
+        }
+        if (!isset($document['customer_ids']) || !is_array($document['customer_ids'])) {
+            $document['customer_ids'] = [];
+        }
+        if (!isset($document['ticket_ids']) || !is_array($document['ticket_ids'])) {
+            $document['ticket_ids'] = [];
+        }
+        return $document;
+    }, $data['documents']));
+    return $data;
+}
+
+function documents_vault_save(array $data): void
+{
+    if (!isset($data['documents']) || !is_array($data['documents'])) {
+        $data['documents'] = [];
+    }
+    if (!isset($data['next_sequence']) || !is_int($data['next_sequence'])) {
+        $data['next_sequence'] = 1;
+    }
+    json_write(DOCUMENTS_INDEX_FILE, [
+        'documents' => array_values($data['documents']),
+        'next_sequence' => $data['next_sequence'],
+    ]);
+}
+
+function documents_vault_present(array $document): array
+{
+    $document['versions'] = array_values($document['versions'] ?? []);
+    return [
+        'id' => $document['id'] ?? null,
+        'title' => $document['title'] ?? '',
+        'description' => $document['description'] ?? '',
+        'customer_ids' => $document['customer_ids'] ?? [],
+        'ticket_ids' => $document['ticket_ids'] ?? [],
+        'tags' => $document['tags'] ?? [],
+        'latest_version' => $document['latest_version'] ?? null,
+        'versions' => $document['versions'],
+        'created_at' => $document['created_at'] ?? null,
+        'updated_at' => $document['updated_at'] ?? null,
+    ];
+}
+
+function documents_vault_list(array $filters = []): array
+{
+    $vault = documents_vault_load();
+    $customerId = strtolower((string) ($filters['customer_id'] ?? ''));
+    $ticketId = strtolower((string) ($filters['ticket_id'] ?? ''));
+    $tag = strtolower((string) ($filters['tag'] ?? ''));
+    $search = strtolower(trim((string) ($filters['search'] ?? '')));
+
+    $documents = array_filter($vault['documents'], static function ($document) use ($customerId, $ticketId, $tag, $search) {
+        if ($customerId !== '') {
+            $matches = array_filter($document['customer_ids'] ?? [], static function ($candidate) use ($customerId) {
+                return strtolower((string) $candidate) === $customerId;
+            });
+            if (!$matches) {
+                return false;
+            }
+        }
+        if ($ticketId !== '') {
+            $matches = array_filter($document['ticket_ids'] ?? [], static function ($candidate) use ($ticketId) {
+                return strtolower((string) $candidate) === $ticketId;
+            });
+            if (!$matches) {
+                return false;
+            }
+        }
+        if ($tag !== '' && !in_array($tag, array_map('strtolower', $document['tags'] ?? []), true)) {
+            return false;
+        }
+        if ($search !== '') {
+            $haystack = strtolower(($document['title'] ?? '') . ' ' . ($document['description'] ?? '') . ' ' . implode(' ', $document['tags'] ?? []));
+            if (!str_contains($haystack, $search)) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    return array_values(array_map('documents_vault_present', $documents));
+}
+
+function documents_vault_validate_payload(array $payload, bool $isNew): array
+{
+    $title = sanitize_string($payload['title'] ?? '', 200, !$isNew);
+    if ($isNew && ($title === null || $title === '')) {
+        throw new InvalidArgumentException('Document title is required.');
+    }
+    $description = sanitize_string($payload['description'] ?? '', 4000, true);
+
+    $customerIds = [];
+    if (isset($payload['customer_ids'])) {
+        if (!is_array($payload['customer_ids'])) {
+            throw new InvalidArgumentException('customer_ids must be an array.');
+        }
+        foreach ($payload['customer_ids'] as $id) {
+            $clean = sanitize_string($id, 160, true);
+            if ($clean) {
+                $customerIds[] = $clean;
+            }
+        }
+    }
+
+    $ticketIds = [];
+    if (isset($payload['ticket_ids'])) {
+        if (!is_array($payload['ticket_ids'])) {
+            throw new InvalidArgumentException('ticket_ids must be an array.');
+        }
+        foreach ($payload['ticket_ids'] as $id) {
+            $clean = sanitize_string($id, 160, true);
+            if ($clean) {
+                $ticketIds[] = $clean;
+            }
+        }
+    }
+
+    $tags = [];
+    if (isset($payload['tags'])) {
+        if (!is_array($payload['tags'])) {
+            throw new InvalidArgumentException('tags must be an array.');
+        }
+        foreach ($payload['tags'] as $tag) {
+            $clean = sanitize_string($tag, 60, true);
+            if ($clean) {
+                $tags[] = strtolower($clean);
+            }
+        }
+    }
+
+    $validated = [];
+    if ($title !== null) {
+        $validated['title'] = $title;
+    }
+    if ($description !== null) {
+        $validated['description'] = $description ?? '';
+    }
+    if ($customerIds) {
+        $validated['customer_ids'] = array_values(array_unique($customerIds));
+    }
+    if ($ticketIds) {
+        $validated['ticket_ids'] = array_values(array_unique($ticketIds));
+    }
+    if ($tags) {
+        $validated['tags'] = array_values(array_unique($tags));
+    }
+
+    return $validated;
+}
+
+function documents_vault_record_upload(array $payload, string $actor): array
+{
+    $documentId = sanitize_string($payload['document_id'] ?? '', 160, true);
+    $fileName = sanitize_string($payload['file_name'] ?? '', 255);
+    if ($fileName === null || $fileName === '') {
+        throw new InvalidArgumentException('File name is required.');
+    }
+    $filePath = sanitize_string($payload['file_path'] ?? '', 500);
+    if ($filePath === null || $filePath === '') {
+        throw new InvalidArgumentException('File path is required.');
+    }
+    $fileSize = isset($payload['file_size']) ? (int) $payload['file_size'] : 0;
+    if ($fileSize < 0) {
+        $fileSize = 0;
+    }
+    $checksum = sanitize_string($payload['checksum'] ?? '', 128, true);
+    $notes = sanitize_string($payload['notes'] ?? '', 2000, true);
+
+    $vault = documents_vault_load();
+    $isNew = $documentId === null || $documentId === '';
+
+    $metadata = documents_vault_validate_payload($payload, $isNew);
+    $now = now_ist();
+
+    if ($isNew) {
+        $sequence = max(1, (int) $vault['next_sequence']);
+        $documentId = 'doc-' . str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
+        $vault['next_sequence'] = $sequence + 1;
+        $document = array_merge([
+            'id' => $documentId,
+            'title' => $metadata['title'] ?? $fileName,
+            'description' => $metadata['description'] ?? '',
+            'customer_ids' => $metadata['customer_ids'] ?? [],
+            'ticket_ids' => $metadata['ticket_ids'] ?? [],
+            'tags' => $metadata['tags'] ?? [],
+            'versions' => [],
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], []);
+        $vault['documents'][] = $document;
+    }
+
+    foreach ($vault['documents'] as &$document) {
+        if (($document['id'] ?? '') !== $documentId) {
+            continue;
+        }
+        if (!$isNew) {
+            $document = array_merge($document, $metadata);
+            $document['updated_at'] = $now;
+        }
+
+        $versionNumber = count($document['versions']) + 1;
+        $versionId = $documentId . '-v' . $versionNumber;
+        $version = [
+            'id' => $versionId,
+            'version' => $versionNumber,
+            'file_name' => $fileName,
+            'file_path' => $filePath,
+            'file_size' => $fileSize,
+            'checksum' => $checksum ?: null,
+            'notes' => $notes ?? null,
+            'uploaded_at' => $now,
+            'uploaded_by' => $actor,
+        ];
+        $document['versions'][] = $version;
+        $document['latest_version'] = $versionId;
+        $document['updated_at'] = $now;
+        documents_vault_save($vault);
+        log_activity('documents.upload', 'Uploaded document version ' . $versionId, $actor);
+        return documents_vault_present($document);
+    }
+    unset($document);
+
+    throw new RuntimeException('Document not found for upload.');
+}
+
+function documents_vault_search(string $query, array $filters = []): array
+{
+    $filters['search'] = $query;
+    return documents_vault_list($filters);
+}
+
+function documents_vault_generate_download_token(string $documentId, string $versionId, string $actor, int $ttlSeconds = 900): array
+{
+    if ($ttlSeconds <= 0) {
+        $ttlSeconds = 900;
+    }
+    $token = bin2hex(random_bytes(16));
+    $hash = hash('sha256', $token);
+    $expiresAt = time() + $ttlSeconds;
+
+    $tokens = json_read(DOCUMENT_TOKENS_FILE, []);
+    if (!is_array($tokens)) {
+        $tokens = [];
+    }
+    $tokens[$hash] = [
+        'document_id' => $documentId,
+        'version_id' => $versionId,
+        'issued_at' => time(),
+        'expires_at' => $expiresAt,
+        'actor' => $actor,
+    ];
+    json_write(DOCUMENT_TOKENS_FILE, $tokens);
+
+    return [
+        'token' => $token,
+        'expires_at' => date('c', $expiresAt),
+    ];
+}
+
+function documents_vault_validate_download_token(string $token): ?array
+{
+    $hash = hash('sha256', $token);
+    $tokens = json_read(DOCUMENT_TOKENS_FILE, []);
+    if (!is_array($tokens) || !isset($tokens[$hash])) {
+        return null;
+    }
+    $record = $tokens[$hash];
+    if (($record['expires_at'] ?? 0) < time()) {
+        unset($tokens[$hash]);
+        json_write(DOCUMENT_TOKENS_FILE, $tokens);
+        return null;
+    }
+    return $record;
+}
+
+/**
+ * Customer communication timeline helpers
+ */
+function communication_log_load(): array
+{
+    $entries = json_read(COMMUNICATION_LOG_FILE, []);
+    if (!is_array($entries)) {
+        return [];
+    }
+    return array_values(array_filter($entries, 'is_array'));
+}
+
+function communication_log_save(array $entries): void
+{
+    json_write(COMMUNICATION_LOG_FILE, array_values($entries));
+}
+
+function communication_log_present(array $entry): array
+{
+    return [
+        'id' => $entry['id'] ?? null,
+        'customer_id' => $entry['customer_id'] ?? null,
+        'ticket_id' => $entry['ticket_id'] ?? null,
+        'channel' => $entry['channel'] ?? 'note',
+        'direction' => $entry['direction'] ?? 'outbound',
+        'summary' => $entry['summary'] ?? '',
+        'details' => $entry['details'] ?? null,
+        'recorded_at' => $entry['recorded_at'] ?? null,
+        'actor' => $entry['actor'] ?? null,
+        'metadata' => $entry['metadata'] ?? [],
+    ];
+}
+
+function communication_log_list(array $filters = []): array
+{
+    $entries = communication_log_load();
+    $customerId = strtolower((string) ($filters['customer_id'] ?? ''));
+    $ticketId = strtolower((string) ($filters['ticket_id'] ?? ''));
+    $channel = strtolower((string) ($filters['channel'] ?? ''));
+    $direction = strtolower((string) ($filters['direction'] ?? ''));
+    $from = isset($filters['from']) ? strtotime((string) $filters['from']) : null;
+    $to = isset($filters['to']) ? strtotime((string) $filters['to']) : null;
+
+    $results = array_filter($entries, static function ($entry) use ($customerId, $ticketId, $channel, $direction, $from, $to) {
+        if ($customerId !== '' && strtolower((string) ($entry['customer_id'] ?? '')) !== $customerId) {
+            return false;
+        }
+        if ($ticketId !== '' && strtolower((string) ($entry['ticket_id'] ?? '')) !== $ticketId) {
+            return false;
+        }
+        if ($channel !== '' && strtolower((string) ($entry['channel'] ?? '')) !== $channel) {
+            return false;
+        }
+        if ($direction !== '' && strtolower((string) ($entry['direction'] ?? '')) !== $direction) {
+            return false;
+        }
+        if ($from !== null || $to !== null) {
+            $timestamp = strtotime((string) ($entry['recorded_at'] ?? '')) ?: null;
+            if ($timestamp === null) {
+                return false;
+            }
+            if ($from !== null && $timestamp < $from) {
+                return false;
+            }
+            if ($to !== null && $timestamp > $to) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    usort($results, static function ($a, $b) {
+        return strcmp($b['recorded_at'] ?? '', $a['recorded_at'] ?? '');
+    });
+
+    return array_values(array_map('communication_log_present', $results));
+}
+
+function communication_log_add(array $payload, string $actor): array
+{
+    $customerId = sanitize_string($payload['customer_id'] ?? '', 160, true);
+    $ticketId = sanitize_string($payload['ticket_id'] ?? '', 160, true);
+    $channel = sanitize_string($payload['channel'] ?? '', 80, true) ?? 'note';
+    $direction = sanitize_string($payload['direction'] ?? '', 20, true) ?? 'outbound';
+    $summary = sanitize_string($payload['summary'] ?? '', 400, true) ?? '';
+    $details = sanitize_string($payload['details'] ?? '', 4000, true);
+    $metadata = [];
+    if (isset($payload['metadata'])) {
+        if (!is_array($payload['metadata'])) {
+            throw new InvalidArgumentException('Communication metadata must be an object.');
+        }
+        $metadata = $payload['metadata'];
+    }
+
+    $entries = communication_log_load();
+    $entry = [
+        'id' => uuid('comm'),
+        'customer_id' => $customerId ?: null,
+        'ticket_id' => $ticketId ?: null,
+        'channel' => strtolower($channel),
+        'direction' => strtolower($direction),
+        'summary' => $summary,
+        'details' => $details ?: null,
+        'metadata' => $metadata,
+        'recorded_at' => now_ist(),
+        'actor' => $actor,
+    ];
+
+    $entries[] = $entry;
+    communication_log_save($entries);
+    log_activity('communication.add', 'Logged communication ' . $entry['id'], $actor);
+
+    return communication_log_present($entry);
+}
+
+function communication_log_export_csv(array $filters = []): string
+{
+    $entries = communication_log_list($filters);
+    $headers = ['id', 'customer_id', 'ticket_id', 'channel', 'direction', 'summary', 'details', 'recorded_at', 'actor'];
+    return csv_encode($entries, $headers);
+}
+
+/**
+ * Subsidy oversight helpers
+ */
+function subsidy_allowed_stages(): array
+{
+    return ['applied', 'sanctioned', 'inspected', 'redeemed', 'closed'];
+}
+
+function subsidy_stage_checklist(string $stage): array
+{
+    $lists = [
+        'applied' => ['Application form', 'Customer KYC documents', 'Installation proposal'],
+        'sanctioned' => ['Sanction letter', 'Financial approval copy'],
+        'inspected' => ['Site inspection report', 'Geo-tagged photos', 'Net meter acknowledgement'],
+        'redeemed' => ['Subsidy claim form', 'Bank details verification'],
+        'closed' => ['Final settlement confirmation', 'Customer satisfaction note'],
+    ];
+    $stage = strtolower($stage);
+    return $lists[$stage] ?? [];
+}
+
+function subsidy_records_load(): array
+{
+    $records = json_read(SUBSIDY_TRACKER_FILE, []);
+    if (!is_array($records)) {
+        return [];
+    }
+    return array_values(array_filter($records, 'is_array'));
+}
+
+function subsidy_records_save(array $records): void
+{
+    json_write(SUBSIDY_TRACKER_FILE, array_values($records));
+}
+
+function subsidy_record_present(array $record): array
+{
+    return [
+        'id' => $record['id'] ?? null,
+        'customer_id' => $record['customer_id'] ?? null,
+        'application_no' => $record['application_no'] ?? '',
+        'discom' => $record['discom'] ?? '',
+        'stage' => $record['stage'] ?? 'applied',
+        'amount' => (float) ($record['amount'] ?? 0),
+        'dates' => $record['dates'] ?? [],
+        'remarks' => $record['remarks'] ?? '',
+        'documents' => $record['documents'] ?? [],
+        'created_at' => $record['created_at'] ?? null,
+        'updated_at' => $record['updated_at'] ?? null,
+    ];
+}
+
+function validate_subsidy_payload(array $payload, bool $partial = false): array
+{
+    $customerId = sanitize_string($payload['customer_id'] ?? '', 160, true);
+    $applicationNo = sanitize_string($payload['application_no'] ?? '', 160, true);
+    if (!$partial && ($applicationNo === null || $applicationNo === '')) {
+        throw new InvalidArgumentException('Application number is required.');
+    }
+    $discom = sanitize_string($payload['discom'] ?? '', 120, true);
+    if (!$partial && ($discom === null || $discom === '')) {
+        throw new InvalidArgumentException('DISCOM is required.');
+    }
+    $stage = sanitize_string($payload['stage'] ?? '', 40, true);
+    if ($stage !== null && $stage !== '' && !in_array(strtolower($stage), subsidy_allowed_stages(), true)) {
+        throw new InvalidArgumentException('Invalid subsidy stage.');
+    }
+    $amount = isset($payload['amount']) ? (float) $payload['amount'] : null;
+    $remarks = sanitize_string($payload['remarks'] ?? '', 4000, true);
+
+    $dates = [];
+    if (isset($payload['dates'])) {
+        if (!is_array($payload['dates'])) {
+            throw new InvalidArgumentException('Dates must be an object.');
+        }
+        foreach ($payload['dates'] as $key => $value) {
+            $cleanKey = strtolower(trim((string) $key));
+            if (!in_array($cleanKey, subsidy_allowed_stages(), true)) {
+                continue;
+            }
+            $cleanValue = sanitize_string($value, 20, true);
+            if ($cleanValue && !validator_date($cleanValue)) {
+                throw new InvalidArgumentException('Date for ' . $cleanKey . ' must use YYYY-MM-DD format.');
+            }
+            if ($cleanValue) {
+                $dates[$cleanKey] = $cleanValue;
+            }
+        }
+    }
+
+    $documents = [];
+    if (isset($payload['documents'])) {
+        if (!is_array($payload['documents'])) {
+            throw new InvalidArgumentException('Documents must be an object.');
+        }
+        $documents = $payload['documents'];
+    }
+
+    $validated = [];
+    if ($customerId !== null) {
+        $validated['customer_id'] = $customerId ?: null;
+    }
+    if ($applicationNo !== null) {
+        $validated['application_no'] = $applicationNo ?: null;
+    }
+    if ($discom !== null) {
+        $validated['discom'] = $discom ?: null;
+    }
+    if ($stage) {
+        $validated['stage'] = strtolower($stage);
+    }
+    if ($amount !== null) {
+        $validated['amount'] = $amount;
+    }
+    if ($remarks !== null) {
+        $validated['remarks'] = $remarks ?? '';
+    }
+    if ($dates) {
+        $validated['dates'] = $dates;
+    }
+    if ($documents) {
+        $validated['documents'] = $documents;
+    }
+
+    return $validated;
+}
+
+function subsidy_records_list(array $filters = []): array
+{
+    $records = subsidy_records_load();
+    $stage = strtolower((string) ($filters['stage'] ?? ''));
+    $discom = strtolower((string) ($filters['discom'] ?? ''));
+    $search = strtolower(trim((string) ($filters['search'] ?? '')));
+
+    $filtered = array_filter($records, static function ($record) use ($stage, $discom, $search) {
+        if ($stage !== '' && strtolower((string) ($record['stage'] ?? '')) !== $stage) {
+            return false;
+        }
+        if ($discom !== '' && strtolower((string) ($record['discom'] ?? '')) !== $discom) {
+            return false;
+        }
+        if ($search !== '') {
+            $haystack = strtolower(($record['application_no'] ?? '') . ' ' . ($record['customer_id'] ?? '') . ' ' . ($record['remarks'] ?? ''));
+            if (!str_contains($haystack, $search)) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    usort($filtered, static function ($a, $b) {
+        return strcmp($b['updated_at'] ?? '', $a['updated_at'] ?? '');
+    });
+
+    return array_values(array_map('subsidy_record_present', $filtered));
+}
+
+function subsidy_record_create(array $payload, string $actor): array
+{
+    $validated = validate_subsidy_payload($payload);
+    $records = subsidy_records_load();
+    $record = array_merge([
+        'id' => uuid('subsidy'),
+        'stage' => 'applied',
+        'dates' => [],
+        'documents' => [],
+        'created_at' => now_ist(),
+        'updated_at' => now_ist(),
+    ], $validated);
+    if (!isset($record['stage']) || $record['stage'] === null) {
+        $record['stage'] = 'applied';
+    }
+    if (!isset($record['dates'][$record['stage']])) {
+        $record['dates'][$record['stage']] = substr($record['created_at'], 0, 10);
+    }
+    $records[] = $record;
+    subsidy_records_save($records);
+    log_activity('subsidy.create', 'Created subsidy record ' . $record['id'], $actor);
+
+    return subsidy_record_present($record);
+}
+
+function subsidy_record_update(string $id, array $payload, string $actor): array
+{
+    $validated = validate_subsidy_payload($payload, true);
+    $records = subsidy_records_load();
+    foreach ($records as &$record) {
+        if (($record['id'] ?? '') !== $id) {
+            continue;
+        }
+        $record = array_merge($record, $validated);
+        $record['updated_at'] = now_ist();
+        subsidy_records_save($records);
+        log_activity('subsidy.update', 'Updated subsidy record ' . $id, $actor);
+        return subsidy_record_present($record);
+    }
+    unset($record);
+
+    throw new RuntimeException('Subsidy record not found.');
+}
+
+function subsidy_record_transition_stage(string $id, string $stage, array $payload, string $actor): array
+{
+    $stage = strtolower($stage);
+    if (!in_array($stage, subsidy_allowed_stages(), true)) {
+        throw new InvalidArgumentException('Invalid subsidy stage.');
+    }
+    $records = subsidy_records_load();
+    foreach ($records as &$record) {
+        if (($record['id'] ?? '') !== $id) {
+            continue;
+        }
+        $record['stage'] = $stage;
+        if (!isset($record['dates']) || !is_array($record['dates'])) {
+            $record['dates'] = [];
+        }
+        $date = sanitize_string($payload['date'] ?? '', 20, true);
+        if ($date) {
+            if (!validator_date($date)) {
+                throw new InvalidArgumentException('Transition date must use YYYY-MM-DD format.');
+            }
+            $record['dates'][$stage] = $date;
+        } else {
+            $record['dates'][$stage] = substr(now_ist(), 0, 10);
+        }
+        if (isset($payload['documents']) && is_array($payload['documents'])) {
+            if (!isset($record['documents']) || !is_array($record['documents'])) {
+                $record['documents'] = [];
+            }
+            $record['documents'][$stage] = $payload['documents'];
+        }
+        if (isset($payload['remarks'])) {
+            $remarks = sanitize_string($payload['remarks'], 4000, true);
+            if ($remarks !== null) {
+                $record['remarks'] = $remarks;
+            }
+        }
+        $record['updated_at'] = now_ist();
+        subsidy_records_save($records);
+        log_activity('subsidy.stage', 'Moved subsidy record ' . $id . ' to ' . $stage, $actor);
+        return subsidy_record_present($record);
+    }
+    unset($record);
+
+    throw new RuntimeException('Subsidy record not found.');
+}
+
+function subsidy_dashboard_metrics(): array
+{
+    $records = subsidy_records_load();
+    $totals = ['count' => count($records), 'amount' => 0.0];
+    $byStage = [];
+    foreach (subsidy_allowed_stages() as $stage) {
+        $byStage[$stage] = ['count' => 0, 'amount' => 0.0];
+    }
+    foreach ($records as $record) {
+        $amount = (float) ($record['amount'] ?? 0);
+        $totals['amount'] += $amount;
+        $stage = strtolower((string) ($record['stage'] ?? 'applied'));
+        if (!isset($byStage[$stage])) {
+            $byStage[$stage] = ['count' => 0, 'amount' => 0.0];
+        }
+        $byStage[$stage]['count']++;
+        $byStage[$stage]['amount'] += $amount;
+    }
+
+    $upcoming = [];
+    $today = date('Y-m-d');
+    foreach ($records as $record) {
+        $dates = $record['dates'] ?? [];
+        $stage = $record['stage'] ?? 'applied';
+        $checkStage = $stage === 'closed' ? 'closed' : $stage;
+        if (!isset($dates[$checkStage])) {
+            $upcoming[] = [
+                'id' => $record['id'],
+                'application_no' => $record['application_no'],
+                'pending_stage' => $checkStage,
+                'recommended_documents' => subsidy_stage_checklist($checkStage),
+            ];
+            continue;
+        }
+        if ($stage !== 'closed') {
+            $dueChecklist = subsidy_stage_checklist($stage);
+            $missingDocs = array_diff($dueChecklist, array_keys((array) ($record['documents'][$stage] ?? [])));
+            if ($missingDocs) {
+                $upcoming[] = [
+                    'id' => $record['id'],
+                    'application_no' => $record['application_no'],
+                    'pending_stage' => $stage,
+                    'missing_documents' => array_values($missingDocs),
+                ];
+            }
+        }
+        if (isset($record['dates']['inspected']) && $record['dates']['inspected'] <= $today && $stage === 'inspected') {
+            $upcoming[] = [
+                'id' => $record['id'],
+                'application_no' => $record['application_no'],
+                'pending_stage' => 'redeemed',
+                'note' => 'Ready for subsidy redemption submission.',
+            ];
+        }
+    }
+
+    return [
+        'totals' => $totals,
+        'by_stage' => $byStage,
+        'attention' => $upcoming,
+    ];
+}
+
+function subsidy_records_export_csv(array $filters = []): string
+{
+    $records = subsidy_records_list($filters);
+    $rows = array_map(static function ($record) {
+        return [
+            'id' => $record['id'],
+            'customer_id' => $record['customer_id'],
+            'application_no' => $record['application_no'],
+            'discom' => $record['discom'],
+            'stage' => $record['stage'],
+            'amount' => $record['amount'],
+            'applied_on' => $record['dates']['applied'] ?? null,
+            'sanctioned_on' => $record['dates']['sanctioned'] ?? null,
+            'inspected_on' => $record['dates']['inspected'] ?? null,
+            'redeemed_on' => $record['dates']['redeemed'] ?? null,
+            'closed_on' => $record['dates']['closed'] ?? null,
+            'remarks' => $record['remarks'],
+        ];
+    }, $records);
+    $headers = ['id', 'customer_id', 'application_no', 'discom', 'stage', 'amount', 'applied_on', 'sanctioned_on', 'inspected_on', 'redeemed_on', 'closed_on', 'remarks'];
+    return csv_encode($rows, $headers);
+}
+
+/**
+ * Data quality rules helpers
+ */
+function data_quality_normalize_phone(?string $phone): ?string
+{
+    if ($phone === null) {
+        return null;
+    }
+    $digits = preg_replace('/[^0-9]/', '', $phone);
+    if ($digits === '') {
+        return null;
+    }
+    if (strlen($digits) === 12 && str_starts_with($digits, '91')) {
+        $digits = substr($digits, 2);
+    }
+    if (strlen($digits) < 6) {
+        return null;
+    }
+    return $digits;
+}
+
+function data_quality_normalize_email(?string $email): ?string
+{
+    if ($email === null) {
+        return null;
+    }
+    $clean = strtolower(trim($email));
+    return $clean === '' ? null : $clean;
+}
+
+function data_quality_validate_date($value): bool
+{
+    if ($value === null || $value === '') {
+        return true;
+    }
+    $trimmed = substr((string) $value, 0, 10);
+    return validator_date($trimmed);
+}
+
+function data_quality_scan(bool $refreshCache = true): array
+{
+    $issues = [];
+    $customers = customers_load();
+    $leads = leads_load();
+    $tickets = tickets_load();
+    $settings = load_site_settings();
+    $yesNoValues = array_map('strtolower', $settings['Data Quality']['yes_no_values'] ?? ['yes', 'no']);
+    $pincodePattern = $settings['Data Quality']['pincode_regex'] ?? null;
+
+    $emailIndex = [];
+    $phoneIndex = [];
+
+    $recordSources = [
+        ['entity' => 'customer', 'records' => $customers],
+        ['entity' => 'lead', 'records' => $leads],
+        ['entity' => 'ticket', 'records' => $tickets],
+    ];
+
+    foreach ($recordSources as $source) {
+        foreach ($source['records'] as $record) {
+            $email = data_quality_normalize_email($record['email'] ?? ($record['customer_email'] ?? null));
+            $phone = data_quality_normalize_phone($record['phone'] ?? ($record['customer_phone'] ?? null));
+            $id = $record['id'] ?? ($record['application_no'] ?? null);
+            if ($email) {
+                $emailIndex[$email][$source['entity']][] = $id;
+            }
+            if ($phone) {
+                $phoneIndex[$phone][$source['entity']][] = $id;
+            }
+        }
+    }
+
+    foreach ($emailIndex as $email => $groups) {
+        $count = 0;
+        foreach ($groups as $ids) {
+            $count += count($ids);
+        }
+        if ($count > 1) {
+            $issues[] = [
+                'id' => uuid('dq'),
+                'type' => 'duplicate',
+                'field' => 'email',
+                'value' => $email,
+                'records' => $groups,
+            ];
+        }
+    }
+    foreach ($phoneIndex as $phone => $groups) {
+        $count = 0;
+        foreach ($groups as $ids) {
+            $count += count($ids);
+        }
+        if ($count > 1) {
+            $issues[] = [
+                'id' => uuid('dq'),
+                'type' => 'duplicate',
+                'field' => 'phone',
+                'value' => $phone,
+                'records' => $groups,
+            ];
+        }
+    }
+
+    foreach ($customers as $customer) {
+        $id = $customer['id'] ?? null;
+        if (!data_quality_validate_date($customer['created_at'] ?? null)) {
+            $issues[] = [
+                'id' => uuid('dq'),
+                'type' => 'invalid_date',
+                'field' => 'created_at',
+                'value' => $customer['created_at'],
+                'entity' => 'customer',
+                'record_id' => $id,
+            ];
+        }
+        if (!data_quality_validate_date($customer['updated_at'] ?? null)) {
+            $issues[] = [
+                'id' => uuid('dq'),
+                'type' => 'invalid_date',
+                'field' => 'updated_at',
+                'value' => $customer['updated_at'],
+                'entity' => 'customer',
+                'record_id' => $id,
+            ];
+        }
+        if (isset($customer['documents_verified'])) {
+            $value = $customer['documents_verified'];
+            $normalized = is_bool($value) ? ($value ? 'yes' : 'no') : strtolower((string) $value);
+            if (!in_array($normalized, array_merge(['true', 'false', '1', '0'], $yesNoValues), true)) {
+                $issues[] = [
+                    'id' => uuid('dq'),
+                    'type' => 'invalid_yes_no',
+                    'field' => 'documents_verified',
+                    'value' => $value,
+                    'entity' => 'customer',
+                    'record_id' => $id,
+                ];
+            }
+        }
+        if (isset($customer['pincode']) && $customer['pincode'] !== null) {
+            $pin = (string) $customer['pincode'];
+            if (!validator_pincode($pin, is_string($pincodePattern) ? $pincodePattern : null)) {
+                $issues[] = [
+                    'id' => uuid('dq'),
+                    'type' => 'invalid_pincode',
+                    'field' => 'pincode',
+                    'value' => $pin,
+                    'entity' => 'customer',
+                    'record_id' => $id,
+                ];
+            }
+        }
+    }
+
+    foreach ($tickets as $ticket) {
+        if (!data_quality_validate_date($ticket['due_date'] ?? null)) {
+            $issues[] = [
+                'id' => uuid('dq'),
+                'type' => 'invalid_date',
+                'field' => 'due_date',
+                'value' => $ticket['due_date'],
+                'entity' => 'ticket',
+                'record_id' => $ticket['id'] ?? null,
+            ];
+        }
+    }
+
+    $cache = [
+        'last_run' => now_ist(),
+        'summary' => [
+            'issues_total' => count($issues),
+            'duplicates' => count(array_filter($issues, static fn($issue) => $issue['type'] === 'duplicate')),
+            'invalid_dates' => count(array_filter($issues, static fn($issue) => $issue['type'] === 'invalid_date')),
+        ],
+        'issues' => $issues,
+    ];
+
+    if ($refreshCache) {
+        json_write(DATA_QUALITY_CACHE_FILE, $cache);
+    }
+
+    return $cache;
+}
+
+function data_quality_get_cache(bool $refresh = false): array
+{
+    $cache = json_read(DATA_QUALITY_CACHE_FILE, ['last_run' => null, 'summary' => [], 'issues' => []]);
+    if ($refresh || !is_array($cache) || empty($cache['last_run'])) {
+        $cache = data_quality_scan(true);
+    }
+    return $cache;
+}
+
+function data_quality_dashboard(bool $refresh = false): array
+{
+    $cache = data_quality_get_cache($refresh);
+    $issues = $cache['issues'] ?? [];
+    $byType = [];
+    foreach ($issues as $issue) {
+        $type = $issue['type'] ?? 'unknown';
+        if (!isset($byType[$type])) {
+            $byType[$type] = 0;
+        }
+        $byType[$type]++;
+    }
+    return [
+        'last_run' => $cache['last_run'] ?? null,
+        'summary' => $cache['summary'] ?? [],
+        'issues_by_type' => $byType,
+        'total_issues' => count($issues),
+    ];
+}
+
+function data_quality_export_errors_csv(?array $issues = null): string
+{
+    if ($issues === null) {
+        $cache = data_quality_get_cache(false);
+        $issues = $cache['issues'] ?? [];
+    }
+    $rows = array_map(static function ($issue) {
+        return [
+            'id' => $issue['id'] ?? null,
+            'type' => $issue['type'] ?? null,
+            'field' => $issue['field'] ?? null,
+            'value' => is_scalar($issue['value'] ?? null) ? $issue['value'] : json_encode($issue['value']),
+            'entity' => $issue['entity'] ?? null,
+            'record_id' => $issue['record_id'] ?? null,
+        ];
+    }, $issues);
+    $headers = ['id', 'type', 'field', 'value', 'entity', 'record_id'];
+    return csv_encode($rows, $headers);
+}
+
+function data_quality_merge(array $payload, string $actor): array
+{
+    $entity = strtolower((string) ($payload['entity'] ?? ''));
+    if ($entity !== 'customer') {
+        throw new InvalidArgumentException('Merge is currently supported for customers only.');
+    }
+    $primaryId = sanitize_string($payload['primary_id'] ?? '', 160);
+    if ($primaryId === null || $primaryId === '') {
+        throw new InvalidArgumentException('Primary record id is required.');
+    }
+    $duplicateIds = $payload['duplicate_ids'] ?? [];
+    if (!is_array($duplicateIds) || !$duplicateIds) {
+        throw new InvalidArgumentException('Duplicate ids must be provided.');
+    }
+    $fields = $payload['fields'] ?? [];
+    if (!is_array($fields)) {
+        throw new InvalidArgumentException('Merge fields payload must be an object.');
+    }
+
+    $customers = customers_load();
+    $primary = null;
+    foreach ($customers as $index => $customer) {
+        if (($customer['id'] ?? '') === $primaryId) {
+            $primary = &$customers[$index];
+            break;
+        }
+    }
+    if (!$primary) {
+        throw new RuntimeException('Primary customer not found.');
+    }
+
+    foreach ($fields as $field => $value) {
+        if (in_array($field, ['id', 'created_at'], true)) {
+            continue;
+        }
+        $primary[$field] = $value;
+    }
+
+    $customers = array_values(array_filter($customers, static function ($customer) use ($primaryId, $duplicateIds) {
+        $id = $customer['id'] ?? null;
+        if ($id === $primaryId) {
+            return true;
+        }
+        return !in_array($id, $duplicateIds, true);
+    }));
+
+    customers_save($customers);
+    log_activity('data_quality.merge', 'Merged customers into ' . $primaryId, $actor);
+
+    foreach (customers_load() as $customer) {
+        if (($customer['id'] ?? null) === $primaryId) {
+            return $customer;
+        }
+    }
+
+    throw new RuntimeException('Merged customer not found after merge.');
+}
+
