@@ -495,6 +495,20 @@ switch (true) {
 
             $systemInstruction = 'You are an experienced solar finance advisor for Dakshayani Enterprises in Jharkhand, India. Use the provided project metrics to craft guidance that is immediately useful for the customer. Return JSON with keys: advisory (string), financialPoints (array of 3-5 concise strings), followUp (string call-to-action). Reference Indian currency, policies, and the Dakshayani team. If data is incomplete, rely on the fallback fields.';
 
+            $responseSchema = [
+                'type' => 'object',
+                'required' => ['advisory'],
+                'properties' => [
+                    'advisory' => ['type' => 'string'],
+                    'financialPoints' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string'],
+                    ],
+                    'followUp' => ['type' => 'string'],
+                ],
+                'additionalProperties' => true,
+            ];
+
             $aiResponse = $client->generateJson(
                 [[
                     'role' => 'user',
@@ -507,7 +521,8 @@ switch (true) {
                     'temperature' => 0.35,
                     'maxOutputTokens' => 640,
                 ],
-                'calculator_advisory'
+                'calculator_advisory',
+                $responseSchema
             );
 
             $aiAdvisory = isset($aiResponse['advisory']) ? trim((string) $aiResponse['advisory']) : '';

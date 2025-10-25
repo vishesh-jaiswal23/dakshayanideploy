@@ -543,7 +543,13 @@ final class GeminiClient
         return $this->resolveModelAndVersion($task);
     }
 
-    public function generateJson(array $messages, ?string $systemInstruction = null, array $generationConfig = [], ?string $task = null): array
+    public function generateJson(
+        array $messages,
+        ?string $systemInstruction = null,
+        array $generationConfig = [],
+        ?string $task = null,
+        ?array $responseSchema = null
+    ): array
     {
         $contents = [];
         foreach ($messages as $message) {
@@ -582,6 +588,10 @@ final class GeminiClient
                 'responseMimeType' => 'application/json',
             ], $generationConfig),
         ];
+
+        if ($responseSchema !== null) {
+            $payload['responseSchema'] = $responseSchema;
+        }
 
         if ($systemInstruction !== null && trim($systemInstruction) !== '') {
             $payload['systemInstruction'] = [
@@ -671,6 +681,10 @@ final class GeminiClient
             'operations' => 'operations_watch',
             'ops' => 'operations_watch',
             'operations_watch' => 'operations_watch',
+            'calculator' => 'text',
+            'calculator_advisory' => 'text',
+            'viaan' => 'text',
+            'viaan_chat' => 'text',
         ];
 
         $normalized = strtolower(trim($task));
@@ -787,6 +801,49 @@ final class GeminiClient
             foreach ($parts as $part) {
                 if (!is_array($part)) {
                     continue;
+                }
+
+                if (isset($part['functionCall']['args'])) {
+                    $args = $part['functionCall']['args'];
+                    if (is_array($args)) {
+                        return $args;
+                    }
+
+                    if (is_string($args)) {
+                        $decoded = $this->decodeJsonFromText($args);
+                        if ($decoded !== null) {
+                            return $decoded;
+                        }
+                    }
+                }
+
+                if (isset($part['functionResponse'])) {
+                    $functionResponse = $part['functionResponse'];
+
+                    if (isset($functionResponse['result'])) {
+                        $result = $functionResponse['result'];
+                        if (is_array($result)) {
+                            return $result;
+                        }
+
+                        if (is_string($result)) {
+                            $decoded = $this->decodeJsonFromText($result);
+                            if ($decoded !== null) {
+                                return $decoded;
+                            }
+                        }
+                    }
+
+                    if (isset($functionResponse['response']['content']) && is_array($functionResponse['response']['content'])) {
+                        foreach ($functionResponse['response']['content'] as $responsePart) {
+                            if (isset($responsePart['text'])) {
+                                $decoded = $this->decodeJsonFromText((string) $responsePart['text']);
+                                if ($decoded !== null) {
+                                    return $decoded;
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if (isset($part['text'])) {
@@ -920,12 +977,15 @@ final class GeminiAutomation
             ];
         }
 
+        $timezone = GeminiSchedule::timezone($automation);
+        $localizedNow = $now->setTimezone($timezone);
+
         try {
-            $digest = $this->generateNewsDigest($now, $automation);
+            $digest = $this->generateNewsDigest($localizedNow, $automation);
         } catch (RuntimeException $exception) {
             $automation['last_error'] = [
                 'message' => $exception->getMessage(),
-                'occurred_at' => $now->format(DateTimeInterface::ATOM),
+                'occurred_at' => $localizedNow->format(DateTimeInterface::ATOM),
             ];
 
             return [
@@ -938,7 +998,7 @@ final class GeminiAutomation
         }
 
         $automation['last_error'] = null;
-        $automation['last_run_at'] = $now->format(DateTimeInterface::ATOM);
+        $automation['last_run_at'] = $localizedNow->format(DateTimeInterface::ATOM);
         $automation['last_digest'] = $digest;
         $automation['history'] = $this->prependHistoryEntry($automation['history'], $digest, 'id', 10);
 
@@ -968,13 +1028,16 @@ final class GeminiAutomation
             ];
         }
 
+        $timezone = GeminiSchedule::timezone($automation);
+        $localizedNow = $now->setTimezone($timezone);
+
         try {
-            $blogPlan = $this->generateBlogPlan($now, $automation);
-            $post = $this->persistBlogPost($now, $blogPlan);
+            $blogPlan = $this->generateBlogPlan($localizedNow, $automation);
+            $post = $this->persistBlogPost($localizedNow, $blogPlan);
         } catch (RuntimeException $exception) {
             $automation['last_error'] = [
                 'message' => $exception->getMessage(),
-                'occurred_at' => $now->format(DateTimeInterface::ATOM),
+                'occurred_at' => $localizedNow->format(DateTimeInterface::ATOM),
             ];
 
             return [
@@ -987,7 +1050,7 @@ final class GeminiAutomation
         }
 
         $automation['last_error'] = null;
-        $automation['last_run_at'] = $now->format(DateTimeInterface::ATOM);
+        $automation['last_run_at'] = $localizedNow->format(DateTimeInterface::ATOM);
         $automation['last_blog'] = $post;
         $automation['history'] = $this->prependHistoryEntry($automation['history'], $post, 'id', 8);
 
@@ -1017,14 +1080,17 @@ final class GeminiAutomation
             ];
         }
 
-        $snapshot = $this->buildOperationsSnapshot($now);
+        $timezone = GeminiSchedule::timezone($automation);
+        $localizedNow = $now->setTimezone($timezone);
+
+        $snapshot = $this->buildOperationsSnapshot($localizedNow);
 
         try {
-            $report = $this->generateOperationsReport($now, $snapshot);
+            $report = $this->generateOperationsReport($localizedNow, $snapshot);
         } catch (RuntimeException $exception) {
             $automation['last_error'] = [
                 'message' => $exception->getMessage(),
-                'occurred_at' => $now->format(DateTimeInterface::ATOM),
+                'occurred_at' => $localizedNow->format(DateTimeInterface::ATOM),
             ];
 
             return [
@@ -1037,7 +1103,7 @@ final class GeminiAutomation
         }
 
         $automation['last_error'] = null;
-        $automation['last_run_at'] = $now->format(DateTimeInterface::ATOM);
+        $automation['last_run_at'] = $localizedNow->format(DateTimeInterface::ATOM);
         $automation['last_report'] = $report;
         $automation['history'] = $this->prependHistoryEntry($automation['history'], $report, 'id', 6);
 
@@ -1088,7 +1154,48 @@ final class GeminiAutomation
 
         $system = "You are an editorial analyst for Dakshayani Enterprises. Source timely solar and renewable energy developments from India and global markets. Focus on insights leaders can act on (policy shifts, financing updates, technology deployments). Return strictly JSON.";
 
-        $response = $this->client->generateJson([$prompt], $system, ['maxOutputTokens' => 768], 'news_digest');
+        $responseSchema = [
+            'type' => 'object',
+            'required' => ['summary', 'items'],
+            'properties' => [
+                'summary' => ['type' => 'string'],
+                'items' => [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'object',
+                        'required' => ['headline'],
+                        'properties' => [
+                            'headline' => ['type' => 'string'],
+                            'region' => ['type' => 'string'],
+                            'summary' => ['type' => 'string'],
+                            'recommendedAction' => ['type' => 'string'],
+                            'sourceHints' => [
+                                'type' => 'array',
+                                'items' => [
+                                    'type' => 'object',
+                                    'properties' => [
+                                        'label' => ['type' => 'string'],
+                                        'url' => ['type' => 'string'],
+                                    ],
+                                    'additionalProperties' => true,
+                                ],
+                                'additionalProperties' => false,
+                            ],
+                        ],
+                        'additionalProperties' => true,
+                    ],
+                ],
+            ],
+            'additionalProperties' => true,
+        ];
+
+        $response = $this->client->generateJson(
+            [$prompt],
+            $system,
+            ['maxOutputTokens' => 768],
+            'news_digest',
+            $responseSchema
+        );
 
         $items = [];
         foreach ($response['items'] ?? [] as $item) {
@@ -1155,7 +1262,54 @@ final class GeminiAutomation
 
         $system = "You are the content strategist for Dakshayani Enterprises. Produce policy-aware and data-rich solar blog posts focused on India. Reference Rooftop solar, PM Surya Ghar, hybrid systems, hydrogen pilots, or financing trends as relevant. Return only JSON.";
 
-        $response = $this->client->generateJson($messages, $system, ['maxOutputTokens' => 1400, 'temperature' => 0.5], 'blog_research');
+        $responseSchema = [
+            'type' => 'object',
+            'required' => ['title', 'excerpt'],
+            'properties' => [
+                'title' => ['type' => 'string'],
+                'slug' => ['type' => 'string'],
+                'excerpt' => ['type' => 'string'],
+                'tags' => [
+                    'type' => 'array',
+                    'items' => ['type' => 'string'],
+                ],
+                'heroImage' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'src' => ['type' => 'string'],
+                        'alt' => ['type' => 'string'],
+                    ],
+                    'additionalProperties' => true,
+                ],
+                'sections' => [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'heading' => ['type' => 'string'],
+                            'paragraphs' => [
+                                'type' => 'array',
+                                'items' => ['type' => 'string'],
+                            ],
+                        ],
+                        'additionalProperties' => true,
+                    ],
+                ],
+                'keyTakeaways' => [
+                    'type' => 'array',
+                    'items' => ['type' => 'string'],
+                ],
+            ],
+            'additionalProperties' => true,
+        ];
+
+        $response = $this->client->generateJson(
+            $messages,
+            $system,
+            ['maxOutputTokens' => 1400, 'temperature' => 0.5],
+            'blog_research',
+            $responseSchema
+        );
 
         $title = trim((string) ($response['title'] ?? '')); 
         $slug = trim((string) ($response['slug'] ?? ''));
@@ -1307,8 +1461,8 @@ final class GeminiAutomation
             'upcoming' => [],
         ];
 
-        $timezone = new DateTimeZone('Asia/Kolkata');
-        $today = $now->setTimezone($timezone);
+        $timezone = $now->getTimezone();
+        $today = $now;
 
         foreach ($tasks as $task) {
             if (!is_array($task)) {
@@ -1405,7 +1559,49 @@ final class GeminiAutomation
 
         $system = "You are Dakshayani Enterprises' operations reviewer. Analyse workloads, complaints, and approvals. Highlight risks and concrete actions to improve execution. Return only JSON.";
 
-        $response = $this->client->generateJson($messages, $system, ['maxOutputTokens' => 900, 'temperature' => 0.35], 'operations_watch');
+        $responseSchema = [
+            'type' => 'object',
+            'required' => ['summary'],
+            'properties' => [
+                'summary' => ['type' => 'string'],
+                'riskFlags' => [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'area' => ['type' => 'string'],
+                            'detail' => ['type' => 'string'],
+                            'urgency' => ['type' => 'string'],
+                        ],
+                        'additionalProperties' => true,
+                    ],
+                ],
+                'recommendations' => [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'area' => ['type' => 'string'],
+                            'urgency' => ['type' => 'string'],
+                            'suggestedActions' => [
+                                'type' => 'array',
+                                'items' => ['type' => 'string'],
+                            ],
+                        ],
+                        'additionalProperties' => true,
+                    ],
+                ],
+            ],
+            'additionalProperties' => true,
+        ];
+
+        $response = $this->client->generateJson(
+            $messages,
+            $system,
+            ['maxOutputTokens' => 900, 'temperature' => 0.35],
+            'operations_watch',
+            $responseSchema
+        );
 
         $summary = trim((string) ($response['summary'] ?? ''));
         $riskFlags = [];

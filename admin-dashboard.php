@@ -2904,10 +2904,16 @@ foreach ($aiAutomationMap as $viewKey => $automationKey) {
     $automation = $aiAutomationState[$automationKey] ?? portal_default_state()['ai_automation'][$automationKey];
 
     $lastRunTimestamp = portal_parse_datetime($automation['last_run_at'] ?? null);
-    $lastRunLabel = $lastRunTimestamp !== null ? portal_format_datetime($lastRunTimestamp) : 'Never';
+    $automationTimezone = GeminiSchedule::timezone($automation)->getName();
+    $displayFormat = 'j M Y, g:i A T';
+    $lastRunLabel = $lastRunTimestamp !== null
+        ? portal_format_datetime($lastRunTimestamp, $displayFormat, $automationTimezone)
+        : 'Never';
 
     $nextRun = GeminiSchedule::calculateNextRun($automation);
-    $nextRunLabel = $nextRun instanceof DateTimeImmutable ? portal_format_datetime($nextRun->getTimestamp()) : 'Not scheduled';
+    $nextRunLabel = $nextRun instanceof DateTimeImmutable
+        ? portal_format_datetime($nextRun->getTimestamp(), $displayFormat, $automationTimezone)
+        : 'Not scheduled';
 
     $error = $automation['last_error'] ?? null;
     $errorMessage = '';
@@ -2916,7 +2922,7 @@ foreach ($aiAutomationMap as $viewKey => $automationKey) {
         $errorMessage = trim((string) ($error['message'] ?? ''));
         $errorTimestamp = portal_parse_datetime($error['occurred_at'] ?? null);
         if ($errorTimestamp !== null) {
-            $errorTimestampLabel = portal_format_datetime($errorTimestamp);
+            $errorTimestampLabel = portal_format_datetime($errorTimestamp, $displayFormat, $automationTimezone);
         }
     }
 
