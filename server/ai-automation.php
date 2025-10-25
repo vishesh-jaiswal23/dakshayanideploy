@@ -7,6 +7,92 @@ if (!function_exists('portal_default_state')) {
     require_once __DIR__ . '/../portal-state.php';
 }
 
+/** @var array|null $GLOBALS['__gemini_portal_state'] */
+$GLOBALS['__gemini_portal_state'] = $GLOBALS['__gemini_portal_state'] ?? null;
+/** @var array|null $GLOBALS['__gemini_portal_cache'] */
+$GLOBALS['__gemini_portal_cache'] = $GLOBALS['__gemini_portal_cache'] ?? null;
+
+function gemini_set_portal_state(?array $state): void
+{
+    if ($state === null) {
+        $GLOBALS['__gemini_portal_state'] = null;
+        $GLOBALS['__gemini_portal_cache'] = null;
+        return;
+    }
+
+    $GLOBALS['__gemini_portal_state'] = $state;
+    $GLOBALS['__gemini_portal_cache'] = null;
+}
+
+/**
+ * @return array{
+ *     api_key?: string,
+ *     default_model?: string,
+ *     models: array<string, string>,
+ *     versions: array<string, string>
+ * }
+ */
+function gemini_load_portal_configuration(?array $state = null): array
+{
+    $shouldCache = false;
+
+    if ($state === null) {
+        if (is_array($GLOBALS['__gemini_portal_cache'])) {
+            return $GLOBALS['__gemini_portal_cache'];
+        }
+
+        $state = is_array($GLOBALS['__gemini_portal_state']) ? $GLOBALS['__gemini_portal_state'] : null;
+        if ($state === null) {
+            $state = portal_load_state();
+            $shouldCache = true;
+        } else {
+            $shouldCache = true;
+        }
+    }
+
+    $defaults = portal_default_state()['ai_settings']['gemini'] ?? [];
+    $settingsInput = isset($state['ai_settings']) && is_array($state['ai_settings']) ? $state['ai_settings'] : [];
+    $normalizedSettings = portal_normalize_ai_settings($settingsInput, ['gemini' => $defaults]);
+    $gemini = $normalizedSettings['gemini'] ?? $defaults;
+
+    $apiKey = trim((string) ($gemini['api_key'] ?? ''));
+    $textModel = trim((string) ($gemini['text_model'] ?? ''));
+    $imageModel = trim((string) ($gemini['image_model'] ?? ''));
+    $ttsModel = trim((string) ($gemini['tts_model'] ?? ''));
+
+    $models = [];
+    if ($textModel !== '') {
+        $models['news_digest'] = $textModel;
+        $models['blog_research'] = $textModel;
+        $models['operations_watch'] = $textModel;
+        $models['text'] = $textModel;
+    }
+    if ($imageModel !== '') {
+        $models['image'] = $imageModel;
+    }
+    if ($ttsModel !== '') {
+        $models['tts'] = $ttsModel;
+    }
+
+    $config = [
+        'models' => $models,
+        'versions' => [],
+    ];
+
+    if ($apiKey !== '') {
+        $config['api_key'] = $apiKey;
+    }
+    if ($textModel !== '') {
+        $config['default_model'] = $textModel;
+    }
+
+    if ($shouldCache) {
+        $GLOBALS['__gemini_portal_cache'] = $config;
+    }
+
+    return $config;
+}
+
 function gemini_normalize_config_key(string $key): string
 {
     $withBoundaries = preg_replace('/([a-z\d])([A-Z])/', '$1_$2', $key);
@@ -383,14 +469,18 @@ final class GeminiClient
 
     public function __construct(?string $apiKey = null, ?string $model = null, ?string $apiVersion = null)
     {
-        $fileConfig = gemini_load_api_configuration();
+    $portalConfig = gemini_load_portal_configuration();
+    $fileConfig = gemini_load_api_configuration();
 
-        $candidate = is_string($apiKey) ? trim($apiKey) : '';
-        if ($candidate === '' && isset($fileConfig['api_key'])) {
-            $candidate = trim((string) $fileConfig['api_key']);
-        }
+    $candidate = is_string($apiKey) ? trim($apiKey) : '';
+    if ($candidate === '' && isset($portalConfig['api_key'])) {
+        $candidate = trim((string) $portalConfig['api_key']);
+    }
+    if ($candidate === '' && isset($fileConfig['api_key'])) {
+        $candidate = trim((string) $fileConfig['api_key']);
+    }
 
-        if ($candidate === '') {
+    if ($candidate === '') {
             $candidate = trim((string) (getenv('GEMINI_API_KEY')
                 ?: getenv('GOOGLE_GEMINI_API_KEY')
                 ?: getenv('GOOGLE_AI_STUDIO_KEY')
@@ -403,23 +493,35 @@ final class GeminiClient
 
         $this->apiKey = $candidate;
 
-        $this->taskModels = array_map(static fn($value) => trim((string) $value), $fileConfig['models'] ?? []);
-        $this->taskVersions = array_map(static fn($value) => trim((string) $value), $fileConfig['versions'] ?? []);
+    $this->taskModels = array_map(
+        static fn($value) => trim((string) $value),
+        array_merge($fileConfig['models'] ?? [], $portalConfig['models'] ?? [])
+    );
+    $this->taskVersions = array_map(
+        static fn($value) => trim((string) $value),
+        array_merge($fileConfig['versions'] ?? [], $portalConfig['versions'] ?? [])
+    );
 
-        $modelCandidate = is_string($model) ? trim($model) : '';
-        if ($modelCandidate === '' && isset($fileConfig['default_model'])) {
-            $modelCandidate = trim((string) $fileConfig['default_model']);
-        }
+    $modelCandidate = is_string($model) ? trim($model) : '';
+    if ($modelCandidate === '' && isset($portalConfig['default_model'])) {
+        $modelCandidate = trim((string) $portalConfig['default_model']);
+    }
+    if ($modelCandidate === '' && isset($fileConfig['default_model'])) {
+        $modelCandidate = trim((string) $fileConfig['default_model']);
+    }
 
-        if ($modelCandidate === '') {
+    if ($modelCandidate === '') {
             $modelCandidate = trim((string) (getenv('GEMINI_MODEL') ?: 'gemini-1.5-pro-latest'));
         }
 
-        $this->model = $modelCandidate;
-        $versionCandidate = is_string($apiVersion) ? trim($apiVersion) : '';
-        if ($versionCandidate === '' && isset($fileConfig['default_version'])) {
-            $versionCandidate = trim((string) $fileConfig['default_version']);
-        }
+    $this->model = $modelCandidate;
+    $versionCandidate = is_string($apiVersion) ? trim($apiVersion) : '';
+    if ($versionCandidate === '' && isset($portalConfig['default_version'])) {
+        $versionCandidate = trim((string) $portalConfig['default_version']);
+    }
+    if ($versionCandidate === '' && isset($fileConfig['default_version'])) {
+        $versionCandidate = trim((string) $fileConfig['default_version']);
+    }
 
         if ($versionCandidate === '') {
             $versionCandidate = trim((string) (getenv('GEMINI_API_VERSION') ?: 'v1beta'));

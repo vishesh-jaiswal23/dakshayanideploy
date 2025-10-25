@@ -352,6 +352,7 @@ if (empty($_SESSION['csrf_token'])) {
 }
 
 $state = portal_load_state();
+gemini_set_portal_state($state);
 
 $viewLabels = [
     'overview' => 'Overview',
@@ -435,6 +436,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             redirect_with_flash('settings');
+
+        case 'update_ai_settings':
+            $apiKey = trim((string) ($_POST['gemini_api_key'] ?? ''));
+            $textModel = trim((string) ($_POST['gemini_text_model'] ?? ''));
+            $imageModel = trim((string) ($_POST['gemini_image_model'] ?? ''));
+            $ttsModel = trim((string) ($_POST['gemini_tts_model'] ?? ''));
+
+            $state['ai_settings']['gemini'] = [
+                'api_key' => $apiKey,
+                'text_model' => $textModel,
+                'image_model' => $imageModel,
+                'tts_model' => $ttsModel,
+            ];
+
+            gemini_set_portal_state($state);
+            portal_record_activity($state, 'Updated Gemini API credentials and models.', $actorName);
+
+            if (portal_save_state($state)) {
+                flash('success', 'Gemini API settings saved.');
+            } else {
+                flash('error', 'Unable to save the Gemini API settings.');
+            }
+
+            redirect_with_flash('ai');
 
         case 'run_ai_automation':
             $target = $_POST['automation_target'] ?? '';
@@ -2865,6 +2890,8 @@ if ($lastDataRefreshTimestamp !== null) {
 }
 
 $aiAutomationState = portal_normalize_ai_automation($state['ai_automation'] ?? []);
+$aiSettings = portal_normalize_ai_settings($state['ai_settings'] ?? []);
+$geminiSettings = $aiSettings['gemini'] ?? portal_default_state()['ai_settings']['gemini'];
 
 $aiAutomationView = [];
 $aiAutomationMap = [
@@ -5305,6 +5332,45 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
         $blogAutomation = $aiAutomationView['blog'] ?? [];
         $opsAutomation = $aiAutomationView['operations'] ?? [];
       ?>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <span class="panel-header__meta">Gemini configuration</span>
+            <h2>Manage API key and model targets</h2>
+            <p class="lead">Set the shared credentials and preferred Gemini models for text, image, and voice tasks. The same details power automations, the Viaan assistant, and any future AI tools.</p>
+          </div>
+        </div>
+        <form method="post" class="ai-settings-form" autocomplete="off">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+          <input type="hidden" name="action" value="update_ai_settings" />
+          <input type="hidden" name="redirect_view" value="ai" />
+          <div class="form-grid">
+            <div>
+              <label for="gemini-api-key">Gemini API key</label>
+              <input id="gemini-api-key" name="gemini_api_key" type="password" value="<?= htmlspecialchars($geminiSettings['api_key'] ?? ''); ?>" placeholder="AIza..." autocomplete="off" />
+              <p class="form-helper">Stored securely inside the portal state file. This key is shared with dashboards and front-end AI experiences.</p>
+            </div>
+            <div>
+              <label for="gemini-text-model">Text model</label>
+              <input id="gemini-text-model" name="gemini_text_model" type="text" value="<?= htmlspecialchars($geminiSettings['text_model'] ?? ''); ?>" placeholder="gemini-1.5-pro-latest" />
+              <p class="form-helper">Used for the daily news digest, blog briefings, operations summaries, and Viaan chat replies.</p>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div>
+              <label for="gemini-image-model">Image model</label>
+              <input id="gemini-image-model" name="gemini_image_model" type="text" value="<?= htmlspecialchars($geminiSettings['image_model'] ?? ''); ?>" placeholder="imagen-3.0-generate" />
+              <p class="form-helper">Optional. Provide the preferred Gemini model for creative or analytical image generation tasks.</p>
+            </div>
+            <div>
+              <label for="gemini-tts-model">Text-to-speech model</label>
+              <input id="gemini-tts-model" name="gemini_tts_model" type="text" value="<?= htmlspecialchars($geminiSettings['tts_model'] ?? ''); ?>" placeholder="g2-turbo-tts" />
+              <p class="form-helper">Optional. Supply a voice model when you want Gemini to narrate scripts or announcements.</p>
+            </div>
+          </div>
+          <button class="btn-primary" type="submit">Save Gemini settings</button>
+        </form>
+      </section>
       <section class="panel">
         <div class="panel-header">
           <div>

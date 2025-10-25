@@ -205,7 +205,7 @@
 
     <!-- Viaan AI Expert Logic -->
     <script>
-        const GEMINI_TEXT_MODEL = 'gemini-2.5-flash-lite';
+        let GEMINI_TEXT_MODEL = 'gemini-1.5-pro-latest';
 
         let API_KEY = '';
         let API_URL_TEXT = '';
@@ -254,39 +254,49 @@
             });
         });
 
-        function configureGeminiEndpoints(key) {
+        function configureGeminiEndpoints(key, model) {
             API_KEY = key;
-            API_URL_TEXT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TEXT_MODEL}:generateContent?key=${API_KEY}`;
+            if (typeof model === 'string' && model.trim() !== '') {
+                GEMINI_TEXT_MODEL = model.trim();
+            }
+            API_URL_TEXT = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_TEXT_MODEL)}:generateContent?key=${encodeURIComponent(API_KEY)}`;
         }
 
-        function loadApiKey() {
+        function loadAiConfiguration() {
             if (!apiKeyPromise) {
-                apiKeyPromise = fetch('api.txt', { cache: 'no-store' })
+                apiKeyPromise = fetch('server/ai-config.php', { cache: 'no-store' })
                     .then(response => {
                         if (!response.ok) {
-                            throw new Error('Failed to load API key.');
+                            throw new Error('Failed to load Gemini configuration.');
                         }
-                        return response.text();
+                        return response.json();
                     })
-                    .then(text => {
-                        const key = text.trim();
-                        if (!key) {
-                            throw new Error('API key file is empty.');
+                    .then(config => {
+                        const hasApiKey = config && typeof config === 'object' && typeof config.apiKey === 'string';
+                        const apiKey = hasApiKey ? config.apiKey.trim() : '';
+                        const models = config && typeof config === 'object' && config.models && typeof config.models === 'object' ? config.models : {};
+                        const textModel = typeof models.text === 'string' ? models.text.trim() : '';
+
+                        if (!apiKey) {
+                            throw new Error('Gemini API key is missing.');
                         }
-                        configureGeminiEndpoints(key);
-                        return key;
+
+                        configureGeminiEndpoints(apiKey, textModel);
+
+                        return { apiKey, textModel };
                     })
                     .catch(error => {
-                        console.error('API key initialization failed:', error);
+                        console.error('Gemini configuration failed:', error);
                         throw error;
                     });
             }
+
             return apiKeyPromise;
         }
 
         async function ensureApiKeyLoaded() {
             if (!API_KEY) {
-                await loadApiKey();
+                await loadAiConfiguration();
             }
         }
 

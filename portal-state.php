@@ -376,6 +376,14 @@ function portal_default_state(): array
                 'last_report' => null,
             ],
         ],
+        'ai_settings' => [
+            'gemini' => [
+                'api_key' => '',
+                'text_model' => 'gemini-1.5-pro-latest',
+                'image_model' => '',
+                'tts_model' => '',
+            ],
+        ],
     ];
 }
 
@@ -911,12 +919,67 @@ function portal_load_state(): array
     portal_ensure_employee_approvals($state);
 
     $state['ai_automation'] = portal_normalize_ai_automation($state['ai_automation'] ?? [], $default['ai_automation']);
+    $state['ai_settings'] = portal_normalize_ai_settings($state['ai_settings'] ?? [], $default['ai_settings']);
 
     $state['activity_log'] = array_values(array_filter($state['activity_log'], static function ($entry) {
         return is_array($entry) && isset($entry['event'], $entry['timestamp']);
     }));
 
     return $state;
+}
+
+function portal_normalize_ai_settings(array $input, ?array $defaults = null): array
+{
+    if ($defaults === null) {
+        $defaults = portal_default_state()['ai_settings'];
+    }
+
+    $normalized = [];
+
+    foreach ($defaults as $provider => $defaultSettings) {
+        $incoming = isset($input[$provider]) && is_array($input[$provider]) ? $input[$provider] : [];
+        $normalized[$provider] = portal_normalize_ai_provider_settings($incoming, $defaultSettings);
+    }
+
+    foreach ($input as $provider => $settings) {
+        if (isset($normalized[$provider]) || !is_array($settings)) {
+            continue;
+        }
+
+        $normalized[$provider] = portal_normalize_ai_provider_settings($settings, []);
+    }
+
+    return $normalized;
+}
+
+function portal_normalize_ai_provider_settings(array $settings, array $defaults): array
+{
+    $normalized = [];
+
+    foreach ($defaults as $key => $defaultValue) {
+        if (is_array($defaultValue)) {
+            $normalized[$key] = portal_normalize_ai_provider_settings(
+                isset($settings[$key]) && is_array($settings[$key]) ? $settings[$key] : [],
+                $defaultValue
+            );
+            continue;
+        }
+
+        $value = isset($settings[$key]) ? (string) $settings[$key] : (string) $defaultValue;
+        $normalized[$key] = trim($value);
+    }
+
+    foreach ($settings as $key => $value) {
+        if (array_key_exists($key, $normalized)) {
+            continue;
+        }
+
+        if (is_scalar($value)) {
+            $normalized[$key] = trim((string) $value);
+        }
+    }
+
+    return $normalized;
 }
 
 function portal_save_state(array $state): bool

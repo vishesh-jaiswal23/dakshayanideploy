@@ -84,16 +84,13 @@ runtime or Application Manager setup is required.
 Gemini handles the daily news digest, thrice-weekly blog briefing, and the
 operations review. To keep those jobs running on cPanel:
 
-1. Upload an `api.txt` file (project root) that contains your Gemini key. The
-   automation runner and admin dashboard read from this file automatically. You
-   can also include per-task entries such as `news_model=gemini-1.5-flash`,
-   `blog_model=gemini-1.5-pro-latest`, and `operations_model=gemini-1.5-flash`
-   (plus optional `*_version` keys) so each cron job hits the recommended model
-   variant for that workflow. If you prefer environment variables, set
-   `GEMINI_API_KEY` via **Cron Jobs → Environment Variables** or `.htaccess`.
-   Global fallbacks for the model/version are still available through
-   `GEMINI_MODEL` and `GEMINI_API_VERSION` when a task-specific override is not
-   present.
+1. After deployment, sign in to the admin portal and visit **AI automation →
+   Manage API key and model targets**. Enter the Gemini API key along with the
+   recommended text, image, and TTS models. These values feed the cron runner,
+   dashboard view, and public AI widgets. (You can still upload an optional
+   `api.txt` file or define `GEMINI_API_KEY`/`GEMINI_MODEL` environment
+   variables as fallbacks if you prefer managing credentials outside the
+   dashboard.)
 2. Create the following cron entries (adjust the PHP binary path if needed):
    ```cron
    0 6 * * * /usr/bin/php /home/USER/public_html/server/ai-gemini.php --task=news >> /home/USER/logs/gemini.log 2>&1

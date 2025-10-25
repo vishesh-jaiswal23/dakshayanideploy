@@ -35,6 +35,7 @@ if (isset($taskMap[$taskOption])) {
 }
 
 $state = portal_load_state();
+gemini_set_portal_state($state);
 
 try {
     $client = new GeminiClient();

@@ -37,13 +37,11 @@ additional runtimes.
    ```bash
    php -S 127.0.0.1:8000
    ```
-3. Create an `api.txt` file in the project root that contains your Gemini API
-   key. The admin dashboard, CLI helpers, and AI playground will read the key
-   from this file automatically (environment variables are still supported if
-   you prefer them). Optionally extend the file with lines such as
-   `news_model=gemini-1.5-flash`, `blog_model=gemini-1.5-pro-latest`, or
-   `operations_model=gemini-1.5-flash` (and matching `*_version` entries) to
-   steer each automation toward the most suitable Gemini model for that task.
+3. Sign in and open **Admin → AI automation** to enter your Gemini API key plus
+   the preferred text, image, and voice models. The values are saved inside the
+   portal state so every automation, CLI helper, and the Viaan AI assistant use
+   the same credentials. (A legacy `api.txt` file in the project root remains a
+   fallback if you prefer file-based configuration.)
 4. Visit `http://127.0.0.1:8000/login.php` and sign in with the admin
    credentials defined in `login.php`.
 5. Explore the dashboards for each role. All API requests are served by
@@ -61,14 +59,12 @@ php server/ai-gemini.php --task=all
 
 Supported tasks are `news` (daily solar digest), `blog`
 (Monday/Wednesday/Friday blog research), and `operations` (daily dashboard
-review). Provide `--force` to ignore the schedule window. The script reads the
-API key from the `GEMINI_API_KEY` environment variable or from an `api.txt`
-file in the project root. `api.txt` can also declare `news_model`,
-`blog_model`, `operations_model`, and corresponding `*_version` keys so each
-automation uses the most appropriate Gemini release. Without overrides the
-client targets the `gemini-1.5-pro-latest` model on the `v1beta` endpoint;
-environment variables `GEMINI_MODEL` and `GEMINI_API_VERSION` remain available
-as global fallbacks.
+review). Provide `--force` to ignore the schedule window. The script reuses the
+API key and model preferences saved in the admin dashboard, then falls back to
+environment variables or the optional `api.txt` file in the project root. If no
+overrides are supplied the client targets the `gemini-1.5-pro-latest` model on
+the `v1beta` endpoint; environment variables `GEMINI_MODEL` and
+`GEMINI_API_VERSION` remain available as global fallbacks.
 
 > **Tip:** the API responses are human readable. Visit
 > `http://127.0.0.1:8000/api/me` while signed in to inspect the payload that
