@@ -178,7 +178,8 @@ body[data-role]::before {
 }
 
 .dashboard-shell {
-  width: min(1280px, 100%);
+  width: 100%;
+  max-width: 1280px;
   margin: -4.5rem auto 3.5rem;
   background: var(--surface);
   border-radius: var(--radius-large);
@@ -186,6 +187,13 @@ body[data-role]::before {
   padding: clamp(1.75rem, 3vw, 2.75rem);
   position: relative;
   z-index: 2;
+}
+
+@supports (width: min(1280px, 100%)) {
+  .dashboard-shell {
+    width: min(1280px, 100%);
+    max-width: none;
+  }
 }
 
 .dashboard-layout > * {
@@ -1367,5 +1375,55 @@ body[data-role]::before {
   .table-wrapper td {
     padding: 0.75rem 0.85rem;
     font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .panel,
+  .table-wrapper,
+  .metric-grid,
+  .charts-grid,
+  .timeline-list,
+  .task-list,
+  .job-grid,
+  .checklist,
+  .resource-grid,
+  .overview-grid,
+  .details-grid,
+  .request-form,
+  .approval-grid,
+  .reward-grid,
+  .history-list,
+  .activity-list {
+    width: 100%;
+  }
+
+  .table-wrapper {
+    border-radius: calc(var(--radius-medium) - 4px);
+  }
+
+  .table-wrapper table {
+    min-width: 100%;
+  }
+
+  .page-header__actions,
+  .hero-cards,
+  .metric-grid,
+  .charts-grid,
+  .job-grid,
+  .checklist,
+  .resource-grid,
+  .overview-grid,
+  .details-grid,
+  .request-form,
+  .approval-grid,
+  .reward-grid,
+  .history-list,
+  .activity-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panel-header {
+    gap: 1rem;
   }
 }
