@@ -60,7 +60,9 @@ Supported tasks are `news` (daily solar digest), `blog` (Monday/Wednesday/Friday
 blog research), and `operations` (daily dashboard review). Provide
 `--force` to ignore the schedule window. The script reads the API key from the
 `GEMINI_API_KEY` environment variable or from an `api.txt` file in the project
-root.
+root. By default it targets the `gemini-1.5-pro-latest` model on the `v1beta`
+endpoint; set the `GEMINI_MODEL` (and optionally `GEMINI_API_VERSION`) env vars
+if your account has access to different model names.
 
 > **Tip:** the API responses are human readable. Visit
 > `http://127.0.0.1:8000/api/me` while signed in to inspect the payload that

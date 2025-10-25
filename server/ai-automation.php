@@ -152,9 +152,10 @@ final class GeminiClient
 {
     private string $apiKey;
     private string $model;
+    private string $apiVersion;
     private string $endpoint;
 
-    public function __construct(?string $apiKey = null, ?string $model = null)
+    public function __construct(?string $apiKey = null, ?string $model = null, ?string $apiVersion = null)
     {
         $candidate = is_string($apiKey) ? trim($apiKey) : '';
         if ($candidate === '') {
@@ -182,12 +183,23 @@ final class GeminiClient
 
         $modelCandidate = is_string($model) ? trim($model) : '';
         if ($modelCandidate === '') {
-            $modelCandidate = trim((string) (getenv('GEMINI_MODEL') ?: 'gemini-2.0-pro'));
+            $modelCandidate = trim((string) (getenv('GEMINI_MODEL') ?: 'gemini-1.5-pro-latest'));
         }
 
         $this->model = $modelCandidate;
+        $versionCandidate = is_string($apiVersion) ? trim($apiVersion) : '';
+        if ($versionCandidate === '') {
+            $versionCandidate = trim((string) (getenv('GEMINI_API_VERSION') ?: 'v1beta'));
+        }
+
+        if ($versionCandidate === '') {
+            $versionCandidate = 'v1beta';
+        }
+
+        $this->apiVersion = $versionCandidate;
         $this->endpoint = sprintf(
-            'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s',
+            'https://generativelanguage.googleapis.com/%s/models/%s:generateContent?key=%s',
+            rawurlencode($this->apiVersion),
             rawurlencode($this->model),
             rawurlencode($this->apiKey)
         );
@@ -285,6 +297,16 @@ final class GeminiClient
             curl_close($handle);
 
             if ($status >= 400) {
+                $decodedError = json_decode((string) $raw, true);
+                if (is_array($decodedError) && isset($decodedError['error']['message'])) {
+                    $message = (string) $decodedError['error']['message'];
+                    if (stripos($message, 'not found') !== false && stripos($message, 'models/') !== false) {
+                        $message .= ' (Set GEMINI_MODEL to a supported model such as gemini-1.5-pro-latest.)';
+                    }
+
+                    throw new RuntimeException(sprintf('Gemini API responded with HTTP %d: %s', $status, $message));
+                }
+
                 throw new RuntimeException(sprintf('Gemini API responded with HTTP %d: %s', $status, $raw));
             }
 
@@ -315,6 +337,16 @@ final class GeminiClient
                 if (preg_match('/^HTTP\/\d\.\d\s+(\d+)/', (string) $line, $matches)) {
                     $code = (int) $matches[1];
                     if ($code >= 400) {
+                        $decodedError = json_decode((string) $raw, true);
+                        if (is_array($decodedError) && isset($decodedError['error']['message'])) {
+                            $message = (string) $decodedError['error']['message'];
+                            if (stripos($message, 'not found') !== false && stripos($message, 'models/') !== false) {
+                                $message .= ' (Set GEMINI_MODEL to a supported model such as gemini-1.5-pro-latest.)';
+                            }
+
+                            throw new RuntimeException(sprintf('Gemini API responded with HTTP %d: %s', $code, $message));
+                        }
+
                         throw new RuntimeException(sprintf('Gemini API responded with HTTP %d: %s', $code, $raw));
                     }
                     break;

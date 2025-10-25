@@ -87,7 +87,10 @@ operations review. To keep those jobs running on cPanel:
 1. Upload an `api.txt` file (project root) that contains your Gemini key. The
    automation runner and admin dashboard read from this file automatically. If
    you prefer environment variables, set `GEMINI_API_KEY` via **Cron Jobs →
-   Environment Variables** or `.htaccess`.
+   Environment Variables** or `.htaccess`. The runner defaults to the
+   `gemini-1.5-pro-latest` model on API version `v1beta`; override this with
+   `GEMINI_MODEL` (and optionally `GEMINI_API_VERSION`) if your account uses a
+   different model identifier.
 2. Create the following cron entries (adjust the PHP binary path if needed):
    ```cron
    0 6 * * * /usr/bin/php /home/USER/public_html/server/ai-gemini.php --task=news >> /home/USER/logs/gemini.log 2>&1
