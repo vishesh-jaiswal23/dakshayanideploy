@@ -1,28 +1,18 @@
 <?php
 session_start();
 
-date_default_timezone_set('Asia/Kolkata');
+require_once __DIR__ . '/portal-config.php';
+
+date_default_timezone_set(PORTAL_TIMEZONE);
 
 require_once __DIR__ . '/portal-state.php';
+require_once __DIR__ . '/portal-admin.php';
 
-const ADMIN_EMAIL = 'd.entranchi@gmail.com';
-const ADMIN_PASSWORD_HASH = '$2y$12$P60S2OQ/W/h453B6A6hROuX96Ec3wVBQ8hG7Dx.G9QOkSV8D/hob.';
+portal_admin_bootstrap_files(PORTAL_ADMIN_EMAIL, PORTAL_ADMIN_PASSWORD_HASH);
 
-$dashboardRoutes = [
-    'admin' => 'admin-dashboard.php',
-    'installer' => 'installer-dashboard.php',
-    'customer' => 'customer-dashboard.php',
-    'referrer' => 'referrer-dashboard.php',
-    'employee' => 'employee-dashboard.php',
-];
+$dashboardRoutes = PORTAL_DASHBOARD_ROUTES;
 
-$roleLabels = [
-    'admin' => 'Admin',
-    'installer' => 'Installer',
-    'customer' => 'Customer',
-    'referrer' => 'Referral partner',
-    'employee' => 'Employee',
-];
+$roleLabels = PORTAL_ROLE_LABELS;
 
 if (isset($_SESSION['user_role']) && isset($dashboardRoutes[$_SESSION['user_role']])) {
     header('Location: ' . $dashboardRoutes[$_SESSION['user_role']]);
@@ -32,8 +22,16 @@ if (isset($_SESSION['user_role']) && isset($dashboardRoutes[$_SESSION['user_role
 $error = null;
 $role = $_POST['role'] ?? 'admin';
 $emailInput = '';
+$ipAddress = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+$blockedUntil = portal_admin_is_ip_blocked($ipAddress);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($blockedUntil !== null) {
+    $wait = max(0, $blockedUntil - time());
+    $minutes = max(1, (int) ceil($wait / 60));
+    $error = "Too many failed attempts. Please try again in {$minutes} minute" . ($minutes > 1 ? 's' : '') . '.';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === null) {
     $emailInput = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL) ?: '';
     $password = $_POST['password'] ?? '';
     $role = $_POST['role'] ?? 'admin';
@@ -41,19 +39,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($dashboardRoutes[$role])) {
         $error = 'Please select a valid account type.';
     } elseif ($role === 'admin') {
-        if (strcasecmp($emailInput, ADMIN_EMAIL) !== 0 || !password_verify($password, ADMIN_PASSWORD_HASH)) {
-            $error = 'Incorrect email or password. Please try again.';
+        if (strcasecmp($emailInput, PORTAL_ADMIN_EMAIL) !== 0 || !password_verify($password, PORTAL_ADMIN_PASSWORD_HASH)) {
+            $record = portal_admin_register_failed_login($ipAddress, 5, 900, 600);
+            if (($record['blocked_until'] ?? 0) > time()) {
+                $error = 'Too many failed attempts. Please try again after a short break.';
+            } else {
+                $error = 'Incorrect email or password. Please try again.';
+            }
         } else {
             $_SESSION['user_role'] = 'admin';
             $_SESSION['user_id'] = 'admin-root';
             $_SESSION['display_name'] = 'Dakshayani Admin';
-            $_SESSION['user_email'] = ADMIN_EMAIL;
+            $_SESSION['user_email'] = PORTAL_ADMIN_EMAIL;
             $_SESSION['last_login'] = date('j F Y, g:i A');
             try {
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
             } catch (Exception $e) {
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(16));
             }
+            portal_admin_reset_login_attempts($ipAddress);
+            portal_admin_log_activity('login', 'Admin signed in', 'Dakshayani Admin');
             header('Location: ' . $dashboardRoutes['admin']);
             exit;
         }
@@ -75,7 +80,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (empty($matchedUser['password_hash'])) {
             $error = 'This account does not have a password yet. Please ask the admin to reset it for you.';
         } elseif (!password_verify($password, $matchedUser['password_hash'])) {
-            $error = 'Incorrect email or password. Please try again.';
+            $record = portal_admin_register_failed_login($ipAddress, 5, 900, 600);
+            if (($record['blocked_until'] ?? 0) > time()) {
+                $error = 'Too many failed attempts. Please try again after a short break.';
+            } else {
+                $error = 'Incorrect email or password. Please try again.';
+            }
         } else {
             $_SESSION['user_role'] = $role;
             $_SESSION['user_id'] = $matchedUser['id'];
@@ -87,6 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Exception $e) {
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(16));
             }
+
+            portal_admin_reset_login_attempts($ipAddress);
 
             $loginIso = date('c');
             foreach ($state['users'] as &$user) {

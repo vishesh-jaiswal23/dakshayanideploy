@@ -1,0 +1,31 @@
+{
+    "global": {
+        "phone": "",
+        "email": "",
+        "address": "",
+        "banner_text": ""
+    },
+    "homepage": {
+        "hero_text": "",
+        "highlight_offers": ""
+    },
+    "blog_defaults": {
+        "author": "",
+        "summary": ""
+    },
+    "case_studies": {
+        "summary": "",
+        "cta": ""
+    },
+    "testimonials": {
+        "headline": "",
+        "body": ""
+    },
+    "ai": {
+        "api_key": null,
+        "model": "gemini-1.5-flash"
+    },
+    "complaints": {
+        "public_intake_enabled": false
+    }
+}
