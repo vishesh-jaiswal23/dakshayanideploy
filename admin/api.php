@@ -291,6 +291,57 @@ try {
             respond_json(['status' => 'ok', 'image' => $result]);
             break;
 
+        case 'auto_blog_status':
+            $settings = auto_blog_settings();
+            $state = auto_blog_state_load();
+            $runs = auto_blog_recent_runs(5);
+            $tz = new DateTimeZone('Asia/Kolkata');
+            $todayKey = (new DateTimeImmutable('now', $tz))->format('Y-m-d');
+            $state['today_attempts'] = (int) ($state['daily_attempts'][$todayKey] ?? 0);
+            respond_json([
+                'status' => 'ok',
+                'settings' => $settings,
+                'state' => $state,
+                'runs' => $runs,
+                'csrf' => issue_csrf_token(),
+            ]);
+            break;
+
+        case 'auto_blog_save_settings':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $payload = is_array($input['settings'] ?? null) ? $input['settings'] : $input;
+            $settings = auto_blog_settings_update(is_array($payload) ? $payload : [], $actor);
+            respond_json(['status' => 'ok', 'settings' => $settings]);
+            break;
+
+        case 'auto_blog_run_once':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $lock = auto_blog_lock_acquire();
+            if ($lock === null) {
+                $active = auto_blog_lock_active();
+                $message = $active ? 'Another auto blog run is in progress.' : 'Unable to acquire auto blog lock.';
+                respond_json(['status' => 'error', 'message' => $message], $active ? 409 : 500);
+            }
+            try {
+                $options = [
+                    'trigger' => 'manual',
+                    'force' => true,
+                    'ignore_enabled' => empty($input['respect_enabled']),
+                ];
+                $result = auto_blog_run($options);
+                respond_json(['status' => 'ok', 'result' => $result]);
+            } catch (Throwable $exception) {
+                log_system_error('Manual auto blog trigger failed', ['error' => $exception->getMessage()]);
+                respond_json(['status' => 'error', 'message' => 'Auto blog run failed: ' . $exception->getMessage()], 500);
+            } finally {
+                auto_blog_lock_release($lock);
+            }
+            break;
+
         case 'ai_image_generate':
             if ($method !== 'POST') {
                 respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);

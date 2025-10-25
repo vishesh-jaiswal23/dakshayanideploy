@@ -36,5 +36,33 @@
     "model": "gpt-4o-mini",
     "temperature": 0.3,
     "system_prompt": "You are Dakshayani Enterprises concierge bot."
+  },
+  "auto_blog": {
+    "enabled": true,
+    "time_ist": "06:00",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "default_word_count": 900,
+    "generate_image": true,
+    "topics_pool": [
+      "Residential rooftop solar in Jharkhand",
+      "PM Surya Ghar subsidy process explained",
+      "How to size a 3 kWp system",
+      "Net metering basics for DISCOM customers",
+      "Solar panel maintenance checklist for monsoon"
+    ],
+    "model_overrides": {
+      "text": "gemini-2.5-flash",
+      "image": "gemini-2.5-flash-image"
+    },
+    "max_daily_attempts": 2,
+    "publish_status": "published"
   }
 }

@@ -9,6 +9,9 @@ const UPLOAD_PATH = SERVER_BASE_PATH . '/uploads';
 const LOG_ARCHIVE_PATH = LOG_PATH . '/archive';
 const MODELS_REGISTRY_FILE = DATA_PATH . '/models.json';
 const BLOG_POSTS_FILE = DATA_PATH . '/blog_posts.json';
+const AUTO_BLOG_STATE_FILE = DATA_PATH . '/auto_blog_state.json';
+const AUTO_BLOG_RUNS_FILE = DATA_PATH . '/auto_blog_runs.json';
+const AUTO_BLOG_LOCK_FILE = SERVER_BASE_PATH . '/cron/auto_blog.lock';
 const AI_IMAGES_FILE = DATA_PATH . '/ai_images.json';
 const AI_TTS_FILE = DATA_PATH . '/ai_tts.json';
 const POTENTIAL_CUSTOMERS_FILE = DATA_PATH . '/potential_customers.json';
@@ -85,6 +88,12 @@ function server_bootstrap(): void
             'models' => [],
         ],
         BLOG_POSTS_FILE => [],
+        AUTO_BLOG_STATE_FILE => [
+            'last_topic_index' => null,
+            'daily_attempts' => [],
+            'last_run_at' => null,
+        ],
+        AUTO_BLOG_RUNS_FILE => [],
         AI_IMAGES_FILE => [],
         AI_TTS_FILE => [],
         REFERRERS_FILE => [],
@@ -215,6 +224,26 @@ function default_site_settings(): array
             'model' => 'gpt-4o-mini',
             'temperature' => 0.3,
             'system_prompt' => 'You are Dakshayani Enterprises concierge bot.',
+        ],
+        'auto_blog' => [
+            'enabled' => true,
+            'time_ist' => '06:00',
+            'days' => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            'default_word_count' => 900,
+            'generate_image' => true,
+            'topics_pool' => [
+                'Residential rooftop solar in Jharkhand',
+                'PM Surya Ghar subsidy process explained',
+                'How to size a 3 kWp system',
+                'Net metering basics for DISCOM customers',
+                'Solar panel maintenance checklist for monsoon',
+            ],
+            'model_overrides' => [
+                'text' => 'gemini-2.5-flash',
+                'image' => 'gemini-2.5-flash-image',
+            ],
+            'max_daily_attempts' => 2,
+            'publish_status' => 'published',
         ],
         'Complaints' => [
             'public_intake_enabled' => false,

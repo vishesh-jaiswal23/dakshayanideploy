@@ -3,14 +3,35 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/server/helpers.php';
+require_once __DIR__ . '/server/modules.php';
 
-$token = $_GET['token'] ?? '';
-$file = $_GET['file'] ?? '';
+$type = $_GET['type'] ?? null;
+$file = null;
 
-if (!verify_csrf_token(is_string($token) ? $token : null)) {
-    http_response_code(403);
-    echo 'Access denied.';
-    exit;
+if ($type === 'blog_image') {
+    $blogId = isset($_GET['id']) ? trim((string) $_GET['id']) : '';
+    if ($blogId === '') {
+        http_response_code(404);
+        echo 'File not specified.';
+        exit;
+    }
+    server_bootstrap();
+    $post = blog_post_find($blogId);
+    if (!$post) {
+        http_response_code(404);
+        echo 'File not found.';
+        exit;
+    }
+    $meta = is_array($post['meta'] ?? null) ? $post['meta'] : [];
+    $file = $meta['cover_file'] ?? blog_placeholder_image();
+} else {
+    $token = $_GET['token'] ?? '';
+    if (!verify_csrf_token(is_string($token) ? $token : null)) {
+        http_response_code(403);
+        echo 'Access denied.';
+        exit;
+    }
+    $file = $_GET['file'] ?? '';
 }
 
 if (!is_string($file) || trim($file) === '') {

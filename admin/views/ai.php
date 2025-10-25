@@ -170,6 +170,153 @@ $placeholderBlogImage = htmlspecialchars(blog_placeholder_image(), ENT_QUOTES | 
     </div>
   </div>
 
+  <div class="mt-8 rounded-3xl border border-slate-200 bg-white/90 p-6 shadow" x-data="autoBlogManager()" x-init="init()" x-cloak>
+    <header class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <h2 class="text-lg font-semibold text-slate-900">Auto Blog Automation</h2>
+        <p class="text-sm text-slate-500">Configure the daily Gemini-powered blog workflow and trigger manual runs on demand.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <button class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-300" @click="runNow" :disabled="running">
+          <svg x-show="running" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle class="opacity-25" cx="12" cy="12" r="10"></circle><path class="opacity-75" d="M4 12a8 8 0 018-8"></path></svg>
+          <span>Run Auto-Blog Now</span>
+        </button>
+        <span class="text-xs text-slate-500" x-text="statusNote()"></span>
+      </div>
+    </header>
+
+    <div class="mt-6" x-show="loading">
+      <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
+        <svg class="h-4 w-4 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle class="opacity-25" cx="12" cy="12" r="10"></circle><path class="opacity-75" d="M4 12a8 8 0 018-8"></path></svg>
+        <span>Loading automation settings…</span>
+      </div>
+    </div>
+
+    <div class="mt-6 grid gap-6 lg:grid-cols-[2fr,3fr]" x-show="!loading">
+      <div class="space-y-5">
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-slate-700">Automation status</p>
+              <p class="text-xs text-slate-500" x-text="settings.enabled ? 'Scheduled daily at ' + settings.time_ist + ' IST' : 'Automation is paused until you enable it.'"></p>
+            </div>
+            <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" x-model="settings.enabled" />
+              Enabled
+            </label>
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="text-sm font-medium text-slate-700">Run time (IST)
+            <input type="time" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" x-model="settings.time_ist" />
+          </label>
+          <label class="text-sm font-medium text-slate-700">Target word count
+            <input type="number" min="400" max="2000" step="50" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" x-model.number="settings.default_word_count" />
+          </label>
+        </div>
+
+        <div>
+          <p class="text-sm font-medium text-slate-700">Active days</p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <template x-for="day in daysOptions" :key="day.value">
+              <button type="button" class="rounded-full border px-3 py-1 text-xs font-semibold transition" @click="toggleDay(day.value)" :class="settings.days.includes(day.value) ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-slate-200 text-slate-500 hover:border-slate-300'">
+                <span x-text="day.label"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="text-sm font-medium text-slate-700">Text model
+            <input type="text" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" x-model="settings.model_overrides.text" />
+          </label>
+          <label class="text-sm font-medium text-slate-700">Image model
+            <input type="text" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" x-model="settings.model_overrides.image" />
+          </label>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="text-sm font-medium text-slate-700">Publish status
+            <select class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" x-model="settings.publish_status">
+              <option value="published">Published</option>
+              <option value="draft">Draft</option>
+            </select>
+          </label>
+          <label class="text-sm font-medium text-slate-700">Max daily attempts
+            <input type="number" min="1" max="5" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" x-model.number="settings.max_daily_attempts" />
+          </label>
+        </div>
+
+        <label class="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" x-model="settings.generate_image" />
+          Generate cover image with Gemini
+        </label>
+
+        <label class="block text-sm font-medium text-slate-700">Topics pool (one per line)
+          <textarea class="mt-1 h-32 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="Residential rooftop solar in Jharkhand" x-model="topicsText"></textarea>
+        </label>
+
+        <div class="flex flex-wrap gap-3">
+          <button class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300" @click="save" :disabled="saving">
+            <svg x-show="saving" class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle class="opacity-25" cx="12" cy="12" r="10"></circle><path class="opacity-75" d="M4 12a8 8 0 018-8"></path></svg>
+            <span>Save settings</span>
+          </button>
+          <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50" @click="reset" :disabled="saving || running">Reset</button>
+        </div>
+      </div>
+
+      <div class="space-y-5">
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+          <h3 class="text-sm font-semibold text-slate-700">Run summary</h3>
+          <dl class="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-600">
+            <div class="flex items-center justify-between">
+              <dt>Last run</dt>
+              <dd x-text="formatDate(state.last_run_at)"></dd>
+            </div>
+            <div class="flex items-center justify-between">
+              <dt>Today's attempts</dt>
+              <dd x-text="attemptsSummary()"></dd>
+            </div>
+            <div class="flex items-center justify-between">
+              <dt>Publish mode</dt>
+              <dd x-text="settings.publish_status === 'published' ? 'Publish immediately' : 'Save as draft'"></dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white p-5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-slate-700">Recent runs</h3>
+            <button class="text-xs font-semibold text-blue-600 hover:underline" @click="fetchStatus" :disabled="loading">Refresh</button>
+          </div>
+          <template x-if="runs.length === 0">
+            <p class="mt-3 text-sm text-slate-500">No auto blog runs recorded yet.</p>
+          </template>
+          <ul class="mt-3 space-y-3" x-show="runs.length > 0">
+            <template x-for="run in runs" :key="run.id">
+              <li class="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="font-semibold text-slate-700" x-text="run.topic || '—'"></div>
+                  <span class="rounded-full px-2 py-1 text-xs font-semibold" :class="run.status === 'success' ? 'bg-emerald-100 text-emerald-600' : (run.status === 'error' ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-600')" x-text="run.status"></span>
+                </div>
+                <div class="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                  <span x-text="formatDate(run.timestamp)"></span>
+                  <template x-if="run.blog_id">
+                    <a class="text-blue-600 hover:underline" :href="run.link || ('/blog.php?id=' + encodeURIComponent(run.blog_id))" target="_blank" rel="noopener">View</a>
+                  </template>
+                </div>
+                <template x-if="run.message">
+                  <p class="mt-2 text-xs text-slate-500" x-text="run.message"></p>
+                </template>
+              </li>
+            </template>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     function aiTools() {
       return {
@@ -218,6 +365,15 @@ $placeholderBlogImage = htmlspecialchars(blog_placeholder_image(), ENT_QUOTES | 
         coverPreview() {
           const token = this.token();
           const path = this.blog.cover_image || '<?= $placeholderBlogImage; ?>';
+          if (path.startsWith('download.php')) {
+            let url = '/' + path.replace(/^\/+/, '');
+            if (url.includes('type=blog_image')) {
+              const glue = url.includes('?') ? '&' : '?';
+              return url + glue + 'inline=1';
+            }
+            const glue = url.includes('?') ? '&' : '?';
+            return url + glue + 'token=' + encodeURIComponent(token) + '&inline=1';
+          }
           return '/download.php?file=' + encodeURIComponent(path) + '&token=' + encodeURIComponent(token) + '&inline=1';
         },
         resetDraft() {
@@ -471,6 +627,206 @@ $placeholderBlogImage = htmlspecialchars(blog_placeholder_image(), ENT_QUOTES | 
             reader.onerror = () => reject(reader.error || new Error('Unable to read file.'));
             reader.readAsDataURL(file);
           });
+        },
+        toast(message, type = 'info') {
+          window.dispatchEvent(new CustomEvent('toast', { detail: { message, type } }));
+        },
+      };
+    }
+  </script>
+
+  <script>
+    function autoBlogManager() {
+      return {
+        loading: true,
+        saving: false,
+        running: false,
+        settings: {
+          enabled: true,
+          time_ist: '06:00',
+          days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+          default_word_count: 900,
+          generate_image: true,
+          model_overrides: { text: 'gemini-2.5-flash', image: 'gemini-2.5-flash-image' },
+          max_daily_attempts: 2,
+          publish_status: 'published',
+        },
+        topicsText: '',
+        runs: [],
+        state: { today_attempts: 0, daily_attempts: {}, last_run_at: null },
+        tokenValue: '',
+        original: null,
+        daysOptions: [
+          { value: 'Mon', label: 'Mon' },
+          { value: 'Tue', label: 'Tue' },
+          { value: 'Wed', label: 'Wed' },
+          { value: 'Thu', label: 'Thu' },
+          { value: 'Fri', label: 'Fri' },
+          { value: 'Sat', label: 'Sat' },
+          { value: 'Sun', label: 'Sun' },
+        ],
+        init() {
+          this.fetchStatus();
+        },
+        token() {
+          if (this.tokenValue) {
+            return this.tokenValue;
+          }
+          const meta = document.querySelector('meta[name="csrf-token"]');
+          return meta ? meta.content : '';
+        },
+        async fetchStatus(silent = false) {
+          if (!silent) {
+            this.loading = true;
+          }
+          try {
+            const response = await fetch('/admin/api.php?action=auto_blog_status', { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const payload = await response.json();
+            if (payload.status === 'ok') {
+              this.applyStatus(payload);
+            } else {
+              this.toast(payload.message || 'Unable to load auto blog settings', 'error');
+            }
+          } catch (error) {
+            this.toast('Network error while loading auto blog settings', 'error');
+          } finally {
+            this.loading = false;
+          }
+        },
+        applyStatus(payload) {
+          const data = payload.settings || {};
+          this.settings.enabled = !!data.enabled;
+          this.settings.time_ist = data.time_ist || '06:00';
+          this.settings.days = Array.isArray(data.days) ? data.days.slice() : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+          this.settings.default_word_count = data.default_word_count || 900;
+          this.settings.generate_image = !!data.generate_image;
+          this.settings.model_overrides = {
+            text: data.model_overrides?.text || 'gemini-2.5-flash',
+            image: data.model_overrides?.image || 'gemini-2.5-flash-image',
+          };
+          this.settings.max_daily_attempts = data.max_daily_attempts || 2;
+          this.settings.publish_status = data.publish_status || 'published';
+          this.topicsText = Array.isArray(data.topics_pool) ? data.topics_pool.join('\n') : '';
+          this.runs = Array.isArray(payload.runs) ? payload.runs : this.runs;
+          this.state = payload.state || { today_attempts: 0, daily_attempts: {}, last_run_at: null };
+          this.tokenValue = payload.csrf || this.tokenValue || this.token();
+          this.original = {
+            settings: JSON.parse(JSON.stringify(this.settings)),
+            topicsText: this.topicsText,
+          };
+        },
+        toggleDay(day) {
+          const index = this.settings.days.indexOf(day);
+          if (index === -1) {
+            this.settings.days.push(day);
+          } else {
+            this.settings.days.splice(index, 1);
+          }
+        },
+        async save() {
+          this.saving = true;
+          try {
+            const topics = this.topicsText
+              .split(/\r?\n/)
+              .map((item) => item.trim())
+              .filter((item) => item.length > 0);
+            const payload = {
+              enabled: this.settings.enabled,
+              time_ist: this.settings.time_ist,
+              days: this.settings.days,
+              default_word_count: this.settings.default_word_count,
+              generate_image: this.settings.generate_image,
+              model_overrides: this.settings.model_overrides,
+              topics_pool: topics,
+              publish_status: this.settings.publish_status,
+              max_daily_attempts: this.settings.max_daily_attempts,
+            };
+            const response = await fetch('/admin/api.php?action=auto_blog_save_settings', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': this.token(),
+              },
+              body: JSON.stringify({ settings: payload }),
+            });
+            const result = await response.json();
+            if (result.status === 'ok') {
+              this.toast('Auto blog settings saved', 'success');
+              await this.fetchStatus(true);
+            } else {
+              this.toast(result.message || 'Unable to save settings', 'error');
+            }
+          } catch (error) {
+            this.toast('Network error while saving settings', 'error');
+          } finally {
+            this.saving = false;
+          }
+        },
+        reset() {
+          if (!this.original) {
+            return;
+          }
+          this.settings = JSON.parse(JSON.stringify(this.original.settings));
+          this.topicsText = this.original.topicsText;
+        },
+        async runNow() {
+          if (this.running) {
+            return;
+          }
+          this.running = true;
+          try {
+            const response = await fetch('/admin/api.php?action=auto_blog_run_once', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': this.token(),
+              },
+              body: JSON.stringify({ respect_enabled: this.settings.enabled }),
+            });
+            const result = await response.json();
+            if (result.status === 'ok') {
+              const status = result.result?.status || 'success';
+              if (status === 'success') {
+                this.toast('Auto blog generated successfully', 'success');
+              } else if (status === 'skipped') {
+                this.toast('Auto blog run skipped: ' + (result.result?.reason || 'not eligible'), 'info');
+              } else {
+                this.toast(result.result?.message || 'Auto blog run failed', 'error');
+              }
+              await this.fetchStatus(true);
+            } else {
+              this.toast(result.message || 'Unable to trigger auto blog run', 'error');
+            }
+          } catch (error) {
+            this.toast('Network error while triggering auto blog run', 'error');
+          } finally {
+            this.running = false;
+          }
+        },
+        formatDate(value) {
+          if (!value) {
+            return '—';
+          }
+          try {
+            const date = new Date(value);
+            if (!Number.isFinite(date.getTime())) {
+              return value;
+            }
+            return date.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+          } catch (error) {
+            return value;
+          }
+        },
+        attemptsSummary() {
+          const used = this.state?.today_attempts ?? 0;
+          const max = this.settings.max_daily_attempts || 2;
+          return used + ' / ' + max;
+        },
+        statusNote() {
+          if (this.loading) {
+            return 'Loading…';
+          }
+          return this.settings.enabled ? 'Automation is active' : 'Automation paused';
         },
         toast(message, type = 'info') {
           window.dispatchEvent(new CustomEvent('toast', { detail: { message, type } }));
