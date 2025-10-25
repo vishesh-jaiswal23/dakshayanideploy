@@ -31,16 +31,17 @@ if (isset($_SESSION['user_role']) && isset($dashboardRoutes[$_SESSION['user_role
 
 $error = null;
 $role = $_POST['role'] ?? 'admin';
+$emailInput = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL) ?: '';
+    $emailInput = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL) ?: '';
     $password = $_POST['password'] ?? '';
     $role = $_POST['role'] ?? 'admin';
 
     if (!isset($dashboardRoutes[$role])) {
         $error = 'Please select a valid account type.';
     } elseif ($role === 'admin') {
-        if (strcasecmp($email, ADMIN_EMAIL) !== 0 || !password_verify($password, ADMIN_PASSWORD_HASH)) {
+        if (strcasecmp($emailInput, ADMIN_EMAIL) !== 0 || !password_verify($password, ADMIN_PASSWORD_HASH)) {
             $error = 'Incorrect email or password. Please try again.';
         } else {
             $_SESSION['user_role'] = 'admin';
@@ -60,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $state = portal_load_state();
         $matchedUser = null;
         foreach ($state['users'] as $user) {
-            if (strcasecmp($user['email'] ?? '', $email) === 0 && ($user['role'] ?? '') === $role) {
+            if (strcasecmp($user['email'] ?? '', $emailInput) === 0 && ($user['role'] ?? '') === $role) {
                 $matchedUser = $user;
                 break;
             }
@@ -79,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['user_role'] = $role;
             $_SESSION['user_id'] = $matchedUser['id'];
             $_SESSION['display_name'] = $matchedUser['name'] ?? 'Portal user';
-            $_SESSION['user_email'] = $matchedUser['email'] ?? $email;
+            $_SESSION['user_email'] = $matchedUser['email'] ?? $emailInput;
             $_SESSION['last_login'] = date('j F Y, g:i A');
             try {
                 $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -96,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             unset($user);
 
-            portal_record_activity($state, sprintf('%s signed in as %s', $matchedUser['name'] ?? $email, $roleLabels[$role] ?? ucfirst($role)), $matchedUser['name'] ?? 'Portal user');
+            portal_record_activity($state, sprintf('%s signed in as %s', $matchedUser['name'] ?? $emailInput, $roleLabels[$role] ?? ucfirst($role)), $matchedUser['name'] ?? 'Portal user');
             portal_save_state($state);
 
             header('Location: ' . $dashboardRoutes[$role]);
@@ -276,7 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       <div class="form-group">
         <label for="email">Email</label>
-        <input id="email" type="email" name="email" autocomplete="username" required />
+        <input id="email" type="email" name="email" value="<?= htmlspecialchars($emailInput); ?>" autocomplete="username" required />
       </div>
 
       <div class="form-group">
