@@ -1,5 +1,0 @@
-RewriteEngine On
-
-# Forward /api requests to the consolidated PHP router
-RewriteRule ^api/?$ api/index.php [QSA,L]
-RewriteRule ^api/(.*)$ api/index.php [QSA,L]
