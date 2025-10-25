@@ -587,6 +587,13 @@ body[data-role]::before {
   height: 100% !important;
 }
 
+/* Ensure dashboards that still render canvases directly inside chart-card maintain sizing */
+.chart-card > canvas {
+  display: block;
+  width: 100% !important;
+  height: clamp(220px, 32vh, 320px) !important;
+}
+
 .chart-legend {
   list-style: none;
   margin: 0;
