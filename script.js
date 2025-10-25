@@ -767,16 +767,20 @@ function applyStoredLanguagePreference() {
   setGoogleLanguage(stored);
 }
 
-function setGoogleLanguage(language) {
-  const combo = document.querySelector('.goog-te-combo');
-  if (!combo) {
-    return;
-  }
+function setGoogleLanguage(language, attempt = 0) {
   const normalised = language === 'hi' ? 'hi' : 'en';
-  if (combo.value !== normalised) {
+  const combo = document.querySelector('.goog-te-combo');
+
+  if (!combo) {
+    if (attempt < 10) {
+      window.setTimeout(() => setGoogleLanguage(normalised, attempt + 1), 200);
+    }
+  } else if (combo.value !== normalised) {
     combo.value = normalised;
-    combo.dispatchEvent(new Event('change'));
+    const changeEvent = new Event('change', { bubbles: true });
+    combo.dispatchEvent(changeEvent);
   }
+
   document.documentElement.setAttribute('lang', normalised);
   try {
     window.localStorage?.setItem?.(LANGUAGE_STORAGE_KEY, normalised);
@@ -803,8 +807,8 @@ function setupLanguageToggle(rootEl = document) {
     button.addEventListener('click', () => {
       translateReady
         .then(() => {
-          const combo = document.querySelector('.goog-te-combo');
-          const next = combo && combo.value === 'hi' ? 'en' : 'hi';
+          const current = document.documentElement.getAttribute('lang') === 'hi' ? 'hi' : 'en';
+          const next = current === 'hi' ? 'en' : 'hi';
           setGoogleLanguage(next);
         })
         .catch((error) => console.warn('Translator not initialised', error));
