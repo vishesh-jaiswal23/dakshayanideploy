@@ -390,10 +390,10 @@ function portal_default_state(): array
         ],
         'ai_settings' => [
             'gemini' => [
-                'api_key' => '',
-                'text_model' => 'gemini-1.5-pro-latest',
-                'image_model' => '',
-                'tts_model' => '',
+                'api_key' => 'AIzaSyAsCEn7cd9vZlb5M5z9kw3XwbGkOjg8md0',
+                'text_model' => 'gemini-2.5-flash',
+                'image_model' => 'gemini-2.5-flash-image',
+                'tts_model' => 'gemini-2.5-flash-preview-tts',
             ],
         ],
     ];
@@ -980,7 +980,13 @@ function portal_normalize_ai_provider_settings(array $settings, array $defaults)
         }
 
         $value = isset($settings[$key]) ? (string) $settings[$key] : (string) $defaultValue;
-        $normalized[$key] = trim($value);
+        $trimmed = trim($value);
+
+        if ($trimmed === '' && $defaultValue !== '') {
+            $trimmed = (string) $defaultValue;
+        }
+
+        $normalized[$key] = $trimmed;
     }
 
     foreach ($settings as $key => $value) {
