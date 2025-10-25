@@ -61,6 +61,7 @@ runtime or Application Manager setup is required.
    cPanel’s **Cron Jobs** section. Supported keys include:
    - `GOOGLE_RECAPTCHA_SECRET`
    - `GOOGLE_SOLAR_API_KEY`
+   - `GEMINI_API_KEY`
    - `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`,
      `WHATSAPP_RECIPIENT_NUMBER`
 
@@ -78,7 +79,28 @@ runtime or Application Manager setup is required.
 
 ---
 
-## 5. Smoke test the deployment
+## 5. Schedule Gemini automations
+
+Gemini handles the daily news digest, thrice-weekly blog briefing, and the
+operations review. To keep those jobs running on cPanel:
+
+1. Open **Cron Jobs** and add an environment variable named `GEMINI_API_KEY`
+   with your Gemini key. cPanel will export it to every cron invocation.
+2. Create the following cron entries (adjust the PHP binary path if needed):
+   ```cron
+   0 6 * * * /usr/bin/php /home/USER/public_html/server/ai-gemini.php --task=news >> /home/USER/logs/gemini.log 2>&1
+   0 6 * * 1,3,5 /usr/bin/php /home/USER/public_html/server/ai-gemini.php --task=blog >> /home/USER/logs/gemini.log 2>&1
+   5 6 * * * /usr/bin/php /home/USER/public_html/server/ai-gemini.php --task=operations >> /home/USER/logs/gemini.log 2>&1
+   ```
+   Replace `/home/USER/public_html` with your deployment path. The first job
+   runs daily at 06:00 IST, the second on Monday/Wednesday/Friday at 06:00, and
+   the third at 06:05 to evaluate overnight activity.
+3. Review the generated log periodically and open the admin dashboard’s **AI
+   automation** view to confirm Gemini’s latest outputs.
+
+---
+
+## 6. Smoke test the deployment
 
 1. Visit `https://yourdomain/login.php` and sign in with the admin credentials
    configured in `login.php`.
@@ -92,7 +114,7 @@ runtime or Application Manager setup is required.
 
 ---
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
