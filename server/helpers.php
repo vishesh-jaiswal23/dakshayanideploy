@@ -17,8 +17,17 @@ const SYSTEM_ERROR_FILE = LOG_PATH . '/system_errors.log';
 const LOGIN_ATTEMPTS_FILE = DATA_PATH . '/login_attempts.json';
 const RATE_LIMIT_FILE = DATA_PATH . '/rate_limits.json';
 const SITE_SETTINGS_FILE = DATA_PATH . '/site_settings.json';
+const TICKETS_FILE = DATA_PATH . '/tickets.json';
+const WARRANTY_AMC_FILE = DATA_PATH . '/warranty_amc.json';
+const DOCUMENTS_INDEX_FILE = DATA_PATH . '/documents_index.json';
+const DOCUMENT_TOKENS_FILE = DATA_PATH . '/document_tokens.json';
+const SUBSIDY_TRACKER_FILE = DATA_PATH . '/subsidy_tracker.json';
+const DATA_QUALITY_CACHE_FILE = DATA_PATH . '/data_quality_cache.json';
+const COMMUNICATION_LOG_FILE = DATA_PATH . '/communications.json';
 const AI_IMAGE_UPLOAD_PATH = UPLOAD_PATH . '/ai_images';
 const AI_AUDIO_UPLOAD_PATH = UPLOAD_PATH . '/ai_audio';
+const DOCUMENT_UPLOAD_PATH = UPLOAD_PATH . '/documents';
+const WARRANTY_MEDIA_UPLOAD_PATH = UPLOAD_PATH . '/warranty_media';
 
 function server_bootstrap(): void
 {
@@ -28,7 +37,7 @@ function server_bootstrap(): void
     }
     $booted = true;
 
-    foreach ([DATA_PATH, LOG_PATH, UPLOAD_PATH, AI_IMAGE_UPLOAD_PATH, AI_AUDIO_UPLOAD_PATH] as $directory) {
+    foreach ([DATA_PATH, LOG_PATH, UPLOAD_PATH, AI_IMAGE_UPLOAD_PATH, AI_AUDIO_UPLOAD_PATH, DOCUMENT_UPLOAD_PATH, WARRANTY_MEDIA_UPLOAD_PATH] as $directory) {
         if (!is_dir($directory)) {
             mkdir($directory, 0775, true);
         }
@@ -62,7 +71,7 @@ function server_bootstrap(): void
         ],
         DATA_PATH . '/customers.json' => [],
         POTENTIAL_CUSTOMERS_FILE => [],
-        DATA_PATH . '/tickets.json' => [],
+        TICKETS_FILE => [],
         DATA_PATH . '/tasks.json' => [],
         DATA_PATH . '/approvals.json' => [],
         MODELS_REGISTRY_FILE => [
@@ -75,6 +84,12 @@ function server_bootstrap(): void
         REFERRERS_FILE => [],
         DATA_PATH . '/settings.json' => [],
         SITE_SETTINGS_FILE => default_site_settings(),
+        WARRANTY_AMC_FILE => ['assets' => []],
+        DOCUMENTS_INDEX_FILE => ['documents' => [], 'next_sequence' => 1],
+        DOCUMENT_TOKENS_FILE => [],
+        SUBSIDY_TRACKER_FILE => [],
+        DATA_QUALITY_CACHE_FILE => ['last_run' => null, 'summary' => [], 'issues' => []],
+        COMMUNICATION_LOG_FILE => [],
     ];
 
     foreach ($defaults as $path => $default) {
@@ -191,6 +206,23 @@ function default_site_settings(): array
             'model' => 'gpt-4o-mini',
             'temperature' => 0.3,
             'system_prompt' => 'You are Dakshayani Enterprises concierge bot.',
+        ],
+        'Complaints' => [
+            'public_intake_enabled' => false,
+            'default_priority' => 'medium',
+            'auto_assign_to' => null,
+        ],
+        'Warranty & AMC' => [
+            'reminder_days_before' => 14,
+            'geo_photo_required' => true,
+        ],
+        'Document Vault' => [
+            'max_file_size_mb' => 25,
+            'allowed_extensions' => ['pdf', 'jpg', 'jpeg', 'png', 'docx', 'xlsx'],
+        ],
+        'Data Quality' => [
+            'pincode_regex' => '^[0-9]{6}$',
+            'yes_no_values' => ['yes', 'no'],
         ],
     ];
 }
@@ -517,6 +549,28 @@ function validator_string($value, int $maxLength = 255, bool $allowEmpty = false
 function validator_boolean($value): bool
 {
     return is_bool($value) || $value === 1 || $value === 0 || $value === '1' || $value === '0';
+}
+
+function validator_date(string $value): bool
+{
+    $trimmed = trim($value);
+    if ($trimmed === '') {
+        return false;
+    }
+    $date = DateTime::createFromFormat('Y-m-d', $trimmed);
+    return $date instanceof DateTime && $date->format('Y-m-d') === $trimmed;
+}
+
+function validator_pincode(string $value, ?string $pattern = null): bool
+{
+    $trimmed = trim($value);
+    if ($trimmed === '') {
+        return false;
+    }
+    if ($pattern) {
+        return (bool) preg_match('/' . $pattern . '/u', $trimmed);
+    }
+    return (bool) preg_match('/^[0-9]{6}$/', $trimmed);
 }
 
 function get_authenticated_user(): ?array

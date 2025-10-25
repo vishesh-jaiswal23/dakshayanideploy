@@ -51,6 +51,7 @@
         <div class="form-card">
           <h2 style="margin:0;">Request a free consultation</h2>
           <form id="contactForm">
+            <input type="text" name="Company" id="contactCompany" autocomplete="off" tabindex="-1" aria-hidden="true" data-honeypot style="position:absolute;left:-9999px;opacity:0;height:0;width:0;" />
             <div class="form-group">
               <label for="name">Full name</label>
               <input type="text" id="name" name="Name" required />
@@ -75,6 +76,11 @@
                 <option value="Hydrogen">Meera GH2 / hydrogen</option>
                 <option value="General">General inquiry</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label for="contactAttachments">Supporting documents <span class="form-helper">(optional, max 5&nbsp;MB total)</span></label>
+              <input type="file" id="contactAttachments" name="Attachments" accept=".pdf,.jpg,.jpeg,.png" multiple data-max-total="5242880" />
+              <p class="form-helper">Attach electricity bills or site photos to help our engineers prepare before they call.</p>
             </div>
             <div class="form-group">
               <label for="message">How can we help?</label>
@@ -325,12 +331,36 @@
           event.preventDefault();
 
           const formData = new FormData(form);
+          const honeypot = form.querySelector('[data-honeypot]');
+          if (honeypot && honeypot.value.trim() !== '') {
+            return;
+          }
+
+          const attachmentsInput = form.querySelector('#contactAttachments');
+          if (attachmentsInput && attachmentsInput.files && attachmentsInput.files.length) {
+            const maxTotal = Number(attachmentsInput.dataset.maxTotal || 5242880);
+            const total = Array.from(attachmentsInput.files).reduce((sum, file) => sum + (file.size || 0), 0);
+            if (total > maxTotal) {
+              alert('Please keep attachments under 5 MB.');
+              return;
+            }
+          }
+
           const name = (formData.get('Name') || '').trim();
           const email = (formData.get('Email') || '').trim();
           const phone = (formData.get('Phone') || '').trim();
           const projectType = formData.get('ProjectType') || '';
           const message = (formData.get('Message') || '').trim();
           const channel = formData.get('ContactChannel');
+
+          const attachmentSummary = [];
+          const attachmentsField = form.querySelector('#contactAttachments');
+          if (attachmentsField && attachmentsField.files && attachmentsField.files.length) {
+            Array.from(attachmentsField.files).forEach((file) => {
+              const sizeKb = Math.round((file.size || 0) / 1024);
+              attachmentSummary.push(`${file.name} (${sizeKb} KB)`);
+            });
+          }
 
           if (!channel) {
             form.reportValidity();
@@ -342,10 +372,11 @@
             `Email: ${email}`,
             `Phone: ${phone}`,
             `Project type: ${projectType}`,
+            attachmentSummary.length ? `Attachments: ${attachmentSummary.join(', ')}` : null,
             '',
             'Message:',
             message
-          ].join('\n');
+          ].filter(Boolean).join('\n');
 
           let targetUrl = '';
 

@@ -422,6 +422,309 @@ try {
             respond_json(['status' => 'ok', 'csv' => base64_encode($csv)]);
             break;
 
+        case 'tickets_list':
+            $filters = [
+                'status' => $_GET['status'] ?? null,
+                'priority' => $_GET['priority'] ?? null,
+                'assignee' => $_GET['assignee'] ?? null,
+                'customer_id' => $_GET['customer_id'] ?? null,
+                'tag' => $_GET['tag'] ?? null,
+                'search' => $_GET['search'] ?? null,
+            ];
+            respond_json(['status' => 'ok', 'tickets' => tickets_list($filters)]);
+            break;
+
+        case 'ticket_create':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $ticket = ticket_create($input, $actor);
+            respond_json(['status' => 'ok', 'ticket' => $ticket]);
+            break;
+
+        case 'ticket_update':
+            if (!in_array($method, ['POST', 'PUT'], true)) {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $ticketId = (string) ($input['id'] ?? '');
+            if ($ticketId === '') {
+                respond_json(['status' => 'error', 'message' => 'Ticket id required.'], 422);
+            }
+            $ticket = ticket_update($ticketId, $input, $actor);
+            respond_json(['status' => 'ok', 'ticket' => $ticket]);
+            break;
+
+        case 'ticket_delete':
+            if (!in_array($method, ['POST', 'DELETE'], true)) {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $ticketId = (string) ($input['id'] ?? ($_GET['id'] ?? ''));
+            if ($ticketId === '') {
+                respond_json(['status' => 'error', 'message' => 'Ticket id required.'], 422);
+            }
+            ticket_delete($ticketId, $actor);
+            respond_json(['status' => 'ok']);
+            break;
+
+        case 'ticket_add_note':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $ticketId = (string) ($input['ticket_id'] ?? '');
+            if ($ticketId === '') {
+                respond_json(['status' => 'error', 'message' => 'Ticket id required.'], 422);
+            }
+            $ticket = ticket_add_note($ticketId, $input, $actor);
+            respond_json(['status' => 'ok', 'ticket' => $ticket]);
+            break;
+
+        case 'warranty_assets_list':
+            $filters = [
+                'customer_id' => $_GET['customer_id'] ?? null,
+                'segment' => $_GET['segment'] ?? null,
+                'due_before' => $_GET['due_before'] ?? null,
+                'search' => $_GET['search'] ?? null,
+            ];
+            respond_json(['status' => 'ok', 'assets' => warranty_assets_list($filters)]);
+            break;
+
+        case 'warranty_asset_create':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $asset = warranty_asset_create($input, $actor);
+            respond_json(['status' => 'ok', 'asset' => $asset]);
+            break;
+
+        case 'warranty_asset_update':
+            if (!in_array($method, ['POST', 'PUT'], true)) {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $assetId = (string) ($input['id'] ?? '');
+            if ($assetId === '') {
+                respond_json(['status' => 'error', 'message' => 'Asset id required.'], 422);
+            }
+            $asset = warranty_asset_update($assetId, $input, $actor);
+            respond_json(['status' => 'ok', 'asset' => $asset]);
+            break;
+
+        case 'warranty_asset_delete':
+            if (!in_array($method, ['POST', 'DELETE'], true)) {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $assetId = (string) ($input['id'] ?? ($_GET['id'] ?? ''));
+            if ($assetId === '') {
+                respond_json(['status' => 'error', 'message' => 'Asset id required.'], 422);
+            }
+            warranty_asset_delete($assetId, $actor);
+            respond_json(['status' => 'ok']);
+            break;
+
+        case 'warranty_asset_visit':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $assetId = (string) ($input['id'] ?? '');
+            if ($assetId === '') {
+                respond_json(['status' => 'error', 'message' => 'Asset id required.'], 422);
+            }
+            $asset = warranty_asset_add_visit($assetId, $input, $actor);
+            respond_json(['status' => 'ok', 'asset' => $asset]);
+            break;
+
+        case 'warranty_asset_reminder':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $assetId = (string) ($input['id'] ?? '');
+            if ($assetId === '') {
+                respond_json(['status' => 'error', 'message' => 'Asset id required.'], 422);
+            }
+            $asset = warranty_asset_add_reminder($assetId, $input, $actor);
+            respond_json(['status' => 'ok', 'asset' => $asset]);
+            break;
+
+        case 'warranty_asset_reminder_status':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $assetId = (string) ($input['asset_id'] ?? '');
+            $reminderId = (string) ($input['reminder_id'] ?? '');
+            $statusValue = (string) ($input['status'] ?? '');
+            if ($assetId === '' || $reminderId === '' || $statusValue === '') {
+                respond_json(['status' => 'error', 'message' => 'Asset id, reminder id, and status are required.'], 422);
+            }
+            $asset = warranty_asset_update_reminder_status($assetId, $reminderId, $statusValue, $actor);
+            respond_json(['status' => 'ok', 'asset' => $asset]);
+            break;
+
+        case 'warranty_export':
+            $filters = [
+                'customer_id' => $_GET['customer_id'] ?? null,
+                'segment' => $_GET['segment'] ?? null,
+                'due_before' => $_GET['due_before'] ?? null,
+                'search' => $_GET['search'] ?? null,
+            ];
+            $csv = warranty_amc_export_csv($filters);
+            respond_json(['status' => 'ok', 'csv' => base64_encode($csv)]);
+            break;
+
+        case 'documents_list':
+            $filters = [
+                'customer_id' => $_GET['customer_id'] ?? null,
+                'ticket_id' => $_GET['ticket_id'] ?? null,
+                'tag' => $_GET['tag'] ?? null,
+                'search' => $_GET['search'] ?? null,
+            ];
+            respond_json(['status' => 'ok', 'documents' => documents_vault_list($filters)]);
+            break;
+
+        case 'document_upload':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $document = documents_vault_record_upload($input, $actor);
+            respond_json(['status' => 'ok', 'document' => $document]);
+            break;
+
+        case 'documents_search':
+            $query = (string) ($_GET['q'] ?? ($input['query'] ?? ''));
+            $filters = [
+                'customer_id' => $_GET['customer_id'] ?? ($input['customer_id'] ?? null),
+                'ticket_id' => $_GET['ticket_id'] ?? ($input['ticket_id'] ?? null),
+                'tag' => $_GET['tag'] ?? ($input['tag'] ?? null),
+            ];
+            respond_json(['status' => 'ok', 'documents' => documents_vault_search($query, $filters)]);
+            break;
+
+        case 'document_token':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $documentId = (string) ($input['document_id'] ?? '');
+            $versionId = (string) ($input['version_id'] ?? '');
+            if ($documentId === '' || $versionId === '') {
+                respond_json(['status' => 'error', 'message' => 'Document id and version id are required.'], 422);
+            }
+            $ttl = isset($input['ttl']) ? (int) $input['ttl'] : 900;
+            $token = documents_vault_generate_download_token($documentId, $versionId, $actor, $ttl);
+            respond_json(['status' => 'ok', 'token' => $token]);
+            break;
+
+        case 'subsidy_list':
+            $filters = [
+                'stage' => $_GET['stage'] ?? null,
+                'discom' => $_GET['discom'] ?? null,
+                'search' => $_GET['search'] ?? null,
+            ];
+            respond_json(['status' => 'ok', 'records' => subsidy_records_list($filters)]);
+            break;
+
+        case 'subsidy_create':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $record = subsidy_record_create($input, $actor);
+            respond_json(['status' => 'ok', 'record' => $record]);
+            break;
+
+        case 'subsidy_update':
+            if (!in_array($method, ['POST', 'PUT'], true)) {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $recordId = (string) ($input['id'] ?? '');
+            if ($recordId === '') {
+                respond_json(['status' => 'error', 'message' => 'Record id required.'], 422);
+            }
+            $record = subsidy_record_update($recordId, $input, $actor);
+            respond_json(['status' => 'ok', 'record' => $record]);
+            break;
+
+        case 'subsidy_transition':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $recordId = (string) ($input['id'] ?? '');
+            $stage = (string) ($input['stage'] ?? '');
+            if ($recordId === '' || $stage === '') {
+                respond_json(['status' => 'error', 'message' => 'Record id and stage are required.'], 422);
+            }
+            $record = subsidy_record_transition_stage($recordId, $stage, $input, $actor);
+            respond_json(['status' => 'ok', 'record' => $record]);
+            break;
+
+        case 'subsidy_dashboard':
+            respond_json(['status' => 'ok', 'dashboard' => subsidy_dashboard_metrics()]);
+            break;
+
+        case 'subsidy_export':
+            $filters = [
+                'stage' => $_GET['stage'] ?? null,
+                'discom' => $_GET['discom'] ?? null,
+                'search' => $_GET['search'] ?? null,
+            ];
+            $csv = subsidy_records_export_csv($filters);
+            respond_json(['status' => 'ok', 'csv' => base64_encode($csv)]);
+            break;
+
+        case 'data_quality_scan':
+            $refresh = normalize_bool($_GET['refresh'] ?? ($input['refresh'] ?? true));
+            $report = data_quality_scan($refresh);
+            respond_json(['status' => 'ok', 'report' => $report]);
+            break;
+
+        case 'data_quality_dashboard':
+            $refresh = normalize_bool($_GET['refresh'] ?? ($input['refresh'] ?? false));
+            respond_json(['status' => 'ok', 'dashboard' => data_quality_dashboard($refresh)]);
+            break;
+
+        case 'data_quality_export':
+            $cache = data_quality_get_cache(false);
+            $csv = data_quality_export_errors_csv($cache['issues'] ?? []);
+            respond_json(['status' => 'ok', 'csv' => base64_encode($csv)]);
+            break;
+
+        case 'data_quality_merge':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $result = data_quality_merge($input, $actor);
+            respond_json(['status' => 'ok', 'record' => $result]);
+            break;
+
+        case 'communications_list':
+            $filters = [
+                'customer_id' => $_GET['customer_id'] ?? null,
+                'ticket_id' => $_GET['ticket_id'] ?? null,
+                'channel' => $_GET['channel'] ?? null,
+                'direction' => $_GET['direction'] ?? null,
+                'from' => $_GET['from'] ?? null,
+                'to' => $_GET['to'] ?? null,
+            ];
+            respond_json(['status' => 'ok', 'entries' => communication_log_list($filters)]);
+            break;
+
+        case 'communications_add':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $entry = communication_log_add($input, $actor);
+            respond_json(['status' => 'ok', 'entry' => $entry]);
+            break;
+
+        case 'communications_export':
+            $filters = [
+                'customer_id' => $_GET['customer_id'] ?? null,
+                'ticket_id' => $_GET['ticket_id'] ?? null,
+                'channel' => $_GET['channel'] ?? null,
+                'direction' => $_GET['direction'] ?? null,
+                'from' => $_GET['from'] ?? null,
+                'to' => $_GET['to'] ?? null,
+            ];
+            $csv = communication_log_export_csv($filters);
+            respond_json(['status' => 'ok', 'csv' => base64_encode($csv)]);
+            break;
+
         default:
             respond_json(['status' => 'error', 'message' => 'Unknown action.'], 400);
     }
