@@ -357,7 +357,6 @@ $viewLabels = [
     'accounts' => 'Accounts',
     'customers' => 'Customers',
     'approvals' => 'Employee approvals',
-    'projects' => 'Projects',
     'tasks' => 'Tasks',
     'complaints' => 'Complaint tracking',
     'content' => 'Content manager',
@@ -370,7 +369,6 @@ $adminSidebarIcons = [
     'accounts' => '<circle cx="9" cy="7" r="4" /><path d="M17 11v6" /><path d="M21 11v6" /><path d="M7 22a4 4 0 0 1 4-4" />',
     'customers' => '<path d="M4 4h16v6H4z" /><path d="M2 14h20" /><path d="M7 20h10" />',
     'approvals' => '<path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />',
-    'projects' => '<path d="M4 4h16v12H4z" /><path d="M4 16l4-4 3 3 5-5 4 4" />',
     'tasks' => '<path d="M4 6h9" /><path d="M4 12h9" /><path d="M4 18h9" /><path d="m16 6 2 2 3-3" />',
     'complaints' => '<circle cx="12" cy="12" r="10" /><path d="M12 8v4" /><path d="M12 16h.01" />',
     'content' => '<path d="M4 4h16v16H4z" /><path d="M8 8h8" /><path d="M8 12h6" /><path d="M8 16h8" />',
@@ -1433,7 +1431,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($name === '' || $owner === '' || $stage === '') {
                 flash('error', 'Projects need a name, an owner, and a current stage.');
-                redirect_with_flash('projects');
+                redirect_with_flash('customers');
             }
 
             if (!in_array($status, $projectStatusOptions, true)) {
@@ -1457,7 +1455,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('error', 'Unable to save the new project.');
             }
 
-            redirect_with_flash('projects');
+            redirect_with_flash('customers');
 
         case 'update_project':
             $projectId = $_POST['project_id'] ?? '';
@@ -1488,7 +1486,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!$updated) {
                 flash('error', 'Project not found.');
-                redirect_with_flash('projects');
+                redirect_with_flash('customers');
             }
 
             if (portal_save_state($state)) {
@@ -1497,7 +1495,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('error', 'Unable to update the project.');
             }
 
-            redirect_with_flash('projects');
+            redirect_with_flash('customers');
 
         case 'delete_project':
             $projectId = $_POST['project_id'] ?? '';
@@ -1509,7 +1507,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($initialCount === count($state['projects'])) {
                 flash('error', 'Project already removed or not found.');
-                redirect_with_flash('projects');
+                redirect_with_flash('customers');
             }
 
             portal_record_activity($state, 'Removed a project from the tracker.', $actorName);
@@ -1520,7 +1518,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('error', 'Unable to remove the project.');
             }
 
-            redirect_with_flash('projects');
+            redirect_with_flash('customers');
 
         case 'create_task':
             $title = trim($_POST['task_title'] ?? '');
@@ -2710,6 +2708,11 @@ $quickActions = [
         'href' => 'admin-dashboard.php?view=customers',
     ],
     [
+        'label' => 'Update project milestones',
+        'description' => 'Review customer installs and adjust stages from the same workspace.',
+        'href' => 'admin-dashboard.php?view=customers#project-tracker',
+    ],
+    [
         'label' => 'Approve employee requests',
         'description' => 'See pending content and staffing approvals in one place.',
         'href' => 'admin-dashboard.php?view=approvals',
@@ -3236,7 +3239,7 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
                 <li>Next milestone: <strong><?= htmlspecialchars($firstProject['name']); ?></strong><?php if (!empty($firstProject['target_date'])): ?> · <?= htmlspecialchars(date('j M Y', strtotime($firstProject['target_date']))); ?><?php endif; ?></li>
               <?php endif; ?>
             </ul>
-            <a class="link-button" href="admin-dashboard.php?view=projects">Review project details</a>
+            <a class="link-button" href="admin-dashboard.php?view=customers#project-tracker">Review project details</a>
           </article>
           <article class="summary-card">
             <h3>Leadership tasks</h3>
@@ -3897,6 +3900,131 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
         </section>
       <?php endforeach; ?>
 
+      <section class="panel" id="project-tracker">
+        <h2>Project tracker</h2>
+        <p class="lead">Monitor EPC and financing engagements without leaving the customer lifecycle workspace.</p>
+        <div class="workspace-grid">
+          <div>
+            <?php if (empty($projects)): ?>
+              <p>No projects logged yet. Use the form to add your first initiative.</p>
+            <?php else: ?>
+              <div class="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Project</th>
+                      <th>Owner</th>
+                      <th>Stage</th>
+                      <th>Status</th>
+                      <th>Target date</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($projects as $project): ?>
+                      <?php
+                        $status = $project['status'] ?? 'on-track';
+                        $statusLabel = ucwords(str_replace('-', ' ', $status));
+                        $targetDate = $project['target_date'] ?? '';
+                        $targetFormatted = ($targetDate && strtotime($targetDate)) ? date('j M Y', strtotime($targetDate)) : '—';
+                      ?>
+                      <tr>
+                        <td>
+                          <strong><?= htmlspecialchars($project['name'] ?? ''); ?></strong>
+                          <?php if (!empty($project['stage'])): ?>
+                            <div class="form-helper">Stage: <?= htmlspecialchars($project['stage']); ?></div>
+                          <?php endif; ?>
+                        </td>
+                        <td><?= htmlspecialchars($project['owner'] ?? ''); ?></td>
+                        <td><?= htmlspecialchars($project['stage'] ?? '—'); ?></td>
+                        <td><span class="status-chip" data-status="<?= htmlspecialchars($status); ?>"><?= htmlspecialchars($statusLabel); ?></span></td>
+                        <td><?= htmlspecialchars($targetFormatted); ?></td>
+                        <td>
+                          <details class="manage">
+                            <summary>Manage</summary>
+                            <div class="manage-forms">
+                              <form method="post">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                                <input type="hidden" name="action" value="update_project" />
+                                <input type="hidden" name="redirect_view" value="customers" />
+                                <input type="hidden" name="project_id" value="<?= htmlspecialchars($project['id'] ?? ''); ?>" />
+                                <div class="form-grid">
+                                  <div>
+                                    <label for="project-stage-<?= htmlspecialchars($project['id'] ?? ''); ?>">Stage</label>
+                                    <input id="project-stage-<?= htmlspecialchars($project['id'] ?? ''); ?>" name="stage" type="text" value="<?= htmlspecialchars($project['stage'] ?? ''); ?>" />
+                                  </div>
+                                  <div>
+                                    <label for="project-status-<?= htmlspecialchars($project['id'] ?? ''); ?>">Status</label>
+                                    <select id="project-status-<?= htmlspecialchars($project['id'] ?? ''); ?>" name="status">
+                                      <?php foreach ($projectStatusOptions as $option): ?>
+                                        <option value="<?= htmlspecialchars($option); ?>" <?= $status === $option ? 'selected' : ''; ?>><?= htmlspecialchars(ucwords(str_replace('-', ' ', $option))); ?></option>
+                                      <?php endforeach; ?>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label for="project-target-<?= htmlspecialchars($project['id'] ?? ''); ?>">Target date</label>
+                                    <input id="project-target-<?= htmlspecialchars($project['id'] ?? ''); ?>" name="target_date" type="date" value="<?= htmlspecialchars($project['target_date'] ?? ''); ?>" />
+                                  </div>
+                                </div>
+                                <button class="btn-primary" type="submit">Update project</button>
+                              </form>
+                              <form method="post" onsubmit="return confirm('Remove this project?');">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+                                <input type="hidden" name="action" value="delete_project" />
+                                <input type="hidden" name="redirect_view" value="customers" />
+                                <input type="hidden" name="project_id" value="<?= htmlspecialchars($project['id'] ?? ''); ?>" />
+                                <button class="btn-destructive" type="submit">Delete project</button>
+                              </form>
+                            </div>
+                          </details>
+                        </td>
+                      </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php endif; ?>
+          </div>
+          <aside class="workspace-aside">
+            <h3>Log a project</h3>
+            <form method="post" autocomplete="off">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
+              <input type="hidden" name="action" value="create_project" />
+              <input type="hidden" name="redirect_view" value="customers" />
+              <div class="form-grid">
+                <div>
+                  <label for="new-project-name">Project name</label>
+                  <input id="new-project-name" name="project_name" type="text" placeholder="Rooftop rollout - Ranchi" required />
+                </div>
+                <div>
+                  <label for="new-project-owner">Owner</label>
+                  <input id="new-project-owner" name="project_owner" type="text" placeholder="Priya Sharma" required />
+                </div>
+              </div>
+              <div class="form-grid">
+                <div>
+                  <label for="new-project-stage">Current stage</label>
+                  <input id="new-project-stage" name="project_stage" type="text" placeholder="Installation" required />
+                </div>
+                <div>
+                  <label for="new-project-status">Status</label>
+                  <select id="new-project-status" name="project_status">
+                    <?php foreach ($projectStatusOptions as $option): ?>
+                      <option value="<?= htmlspecialchars($option); ?>" <?= $option === 'on-track' ? 'selected' : ''; ?>><?= htmlspecialchars(ucwords(str_replace('-', ' ', $option))); ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label for="new-project-date">Target date</label>
+                <input id="new-project-date" name="target_date" type="date" />
+              </div>
+              <button class="btn-primary" type="submit">Add project</button>
+            </form>
+          </aside>
+        </div>
+      </section>
+
     <?php elseif ($currentView === 'approvals'): ?>
       <section class="panel">
         <h2>Employee approvals</h2>
@@ -4067,131 +4195,6 @@ $displayInitial = strtoupper($initialCharacter !== '' ? $initialCharacter : 'D')
         <?php endif; ?>
       </section>
 
-    <?php elseif ($currentView === 'projects'): ?>
-      <section class="panel">
-        <h2>Project tracker</h2>
-        <p class="lead">Monitor EPC and financing engagements, and update progress as teams execute.</p>
-        <div class="workspace-grid">
-          <div>
-            <?php if (empty($projects)): ?>
-              <p>No projects logged yet. Use the form to add your first initiative.</p>
-            <?php else: ?>
-              <div class="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Project</th>
-                      <th>Owner</th>
-                      <th>Stage</th>
-                      <th>Status</th>
-                      <th>Target date</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <?php foreach ($projects as $project): ?>
-                      <?php
-                        $status = $project['status'] ?? 'on-track';
-                        $statusLabel = ucwords(str_replace('-', ' ', $status));
-                        $targetDate = $project['target_date'] ?? '';
-                        $targetFormatted = ($targetDate && strtotime($targetDate)) ? date('j M Y', strtotime($targetDate)) : '—';
-                      ?>
-                      <tr>
-                        <td>
-                          <strong><?= htmlspecialchars($project['name'] ?? ''); ?></strong>
-                          <?php if (!empty($project['stage'])): ?>
-                            <div class="form-helper">Stage: <?= htmlspecialchars($project['stage']); ?></div>
-                          <?php endif; ?>
-                        </td>
-                        <td><?= htmlspecialchars($project['owner'] ?? ''); ?></td>
-                        <td><?= htmlspecialchars($project['stage'] ?? '—'); ?></td>
-                        <td><span class="status-chip" data-status="<?= htmlspecialchars($status); ?>"><?= htmlspecialchars($statusLabel); ?></span></td>
-                        <td><?= htmlspecialchars($targetFormatted); ?></td>
-                        <td>
-                          <details class="manage">
-                            <summary>Manage</summary>
-                            <div class="manage-forms">
-                              <form method="post">
-                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-                                <input type="hidden" name="action" value="update_project" />
-                                <input type="hidden" name="redirect_view" value="projects" />
-                                <input type="hidden" name="project_id" value="<?= htmlspecialchars($project['id'] ?? ''); ?>" />
-                                <div class="form-grid">
-                                  <div>
-                                    <label for="project-stage-<?= htmlspecialchars($project['id'] ?? ''); ?>">Stage</label>
-                                    <input id="project-stage-<?= htmlspecialchars($project['id'] ?? ''); ?>" name="stage" type="text" value="<?= htmlspecialchars($project['stage'] ?? ''); ?>" />
-                                  </div>
-                                  <div>
-                                    <label for="project-status-<?= htmlspecialchars($project['id'] ?? ''); ?>">Status</label>
-                                    <select id="project-status-<?= htmlspecialchars($project['id'] ?? ''); ?>" name="status">
-                                      <?php foreach ($projectStatusOptions as $option): ?>
-                                        <option value="<?= htmlspecialchars($option); ?>" <?= $status === $option ? 'selected' : ''; ?>><?= htmlspecialchars(ucwords(str_replace('-', ' ', $option))); ?></option>
-                                      <?php endforeach; ?>
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label for="project-target-<?= htmlspecialchars($project['id'] ?? ''); ?>">Target date</label>
-                                    <input id="project-target-<?= htmlspecialchars($project['id'] ?? ''); ?>" name="target_date" type="date" value="<?= htmlspecialchars($project['target_date'] ?? ''); ?>" />
-                                  </div>
-                                </div>
-                                <button class="btn-primary" type="submit">Update project</button>
-                              </form>
-                              <form method="post" onsubmit="return confirm('Remove this project?');">
-                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-                                <input type="hidden" name="action" value="delete_project" />
-                                <input type="hidden" name="redirect_view" value="projects" />
-                                <input type="hidden" name="project_id" value="<?= htmlspecialchars($project['id'] ?? ''); ?>" />
-                                <button class="btn-destructive" type="submit">Delete project</button>
-                              </form>
-                            </div>
-                          </details>
-                        </td>
-                      </tr>
-                    <?php endforeach; ?>
-                  </tbody>
-                </table>
-              </div>
-            <?php endif; ?>
-          </div>
-          <aside class="workspace-aside">
-            <h3>Log a project</h3>
-            <form method="post" autocomplete="off">
-              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token']); ?>" />
-              <input type="hidden" name="action" value="create_project" />
-              <input type="hidden" name="redirect_view" value="projects" />
-              <div class="form-grid">
-                <div>
-                  <label for="new-project-name">Project name</label>
-                  <input id="new-project-name" name="project_name" type="text" placeholder="Rooftop rollout - Ranchi" required />
-                </div>
-                <div>
-                  <label for="new-project-owner">Owner</label>
-                  <input id="new-project-owner" name="project_owner" type="text" placeholder="Priya Sharma" required />
-                </div>
-              </div>
-              <div class="form-grid">
-                <div>
-                  <label for="new-project-stage">Current stage</label>
-                  <input id="new-project-stage" name="project_stage" type="text" placeholder="Installation" required />
-                </div>
-                <div>
-                  <label for="new-project-status">Status</label>
-                  <select id="new-project-status" name="project_status">
-                    <?php foreach ($projectStatusOptions as $option): ?>
-                      <option value="<?= htmlspecialchars($option); ?>" <?= $option === 'on-track' ? 'selected' : ''; ?>><?= htmlspecialchars(ucwords(str_replace('-', ' ', $option))); ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label for="new-project-date">Target date</label>
-                <input id="new-project-date" name="target_date" type="date" />
-              </div>
-              <button class="btn-primary" type="submit">Add project</button>
-            </form>
-          </aside>
-        </div>
-      </section>
     <?php elseif ($currentView === 'tasks'): ?>
       <section class="panel">
         <h2>Leadership task board</h2>
