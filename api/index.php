@@ -509,6 +509,7 @@ switch (true) {
                 'additionalProperties' => true,
             ];
 
+            $resolved = $client->describeModel('calculator_advisory');
             $aiResponse = $client->generateJson(
                 [[
                     'role' => 'user',
@@ -633,13 +634,13 @@ switch (true) {
 
         try {
             $client = new GeminiClient();
-            $resolved = $client->describeModel('viaan_chat');
+            $resolved = $client->describeModel($body['model'] ?? 'viaan_chat');
 
             $aiResponse = $client->generateJson(
                 $messages,
                 $systemInstruction,
                 $generationConfig,
-                'viaan_chat',
+                $body['model'] ?? 'viaan_chat',
                 $responseSchema
             );
 
