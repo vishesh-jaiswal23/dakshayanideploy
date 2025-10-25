@@ -30,6 +30,7 @@ const COMMUNICATION_LOG_FILE = DATA_PATH . '/communications.json';
 const PORTAL_OTP_FILE = DATA_PATH . '/portal_otps.json';
 const AI_IMAGE_UPLOAD_PATH = UPLOAD_PATH . '/ai_images';
 const AI_AUDIO_UPLOAD_PATH = UPLOAD_PATH . '/ai_audio';
+const BLOG_IMAGE_UPLOAD_PATH = UPLOAD_PATH . '/blog_images';
 const DOCUMENT_UPLOAD_PATH = UPLOAD_PATH . '/documents';
 const WARRANTY_MEDIA_UPLOAD_PATH = UPLOAD_PATH . '/warranty_media';
 
@@ -41,7 +42,7 @@ function server_bootstrap(): void
     }
     $booted = true;
 
-    foreach ([DATA_PATH, LOG_PATH, LOG_ARCHIVE_PATH, UPLOAD_PATH, AI_IMAGE_UPLOAD_PATH, AI_AUDIO_UPLOAD_PATH, DOCUMENT_UPLOAD_PATH, WARRANTY_MEDIA_UPLOAD_PATH] as $directory) {
+    foreach ([DATA_PATH, LOG_PATH, LOG_ARCHIVE_PATH, UPLOAD_PATH, AI_IMAGE_UPLOAD_PATH, AI_AUDIO_UPLOAD_PATH, BLOG_IMAGE_UPLOAD_PATH, DOCUMENT_UPLOAD_PATH, WARRANTY_MEDIA_UPLOAD_PATH] as $directory) {
         if (!is_dir($directory)) {
             mkdir($directory, 0775, true);
         }

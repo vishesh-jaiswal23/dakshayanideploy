@@ -217,6 +217,8 @@ try {
             $filters = [
                 'status' => $_GET['status'] ?? null,
                 'search' => $_GET['search'] ?? null,
+                'date_from' => $_GET['date_from'] ?? null,
+                'date_to' => $_GET['date_to'] ?? null,
             ];
             respond_json(['status' => 'ok', 'posts' => blog_posts_list($filters)]);
             break;
@@ -241,12 +243,52 @@ try {
             respond_json(['status' => 'ok', 'post' => $post]);
             break;
 
+        case 'blog_delete':
+            if (!in_array($method, ['POST', 'DELETE'], true)) {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $postId = (string) ($input['id'] ?? ($_GET['id'] ?? ''));
+            if ($postId === '') {
+                respond_json(['status' => 'error', 'message' => 'Post id required.'], 422);
+            }
+            blog_post_delete($postId, $actor);
+            respond_json(['status' => 'ok']);
+            break;
+
         case 'blog_generate':
             if ($method !== 'POST') {
                 respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
             }
             $post = ai_generate_blog($input, $actor);
             respond_json(['status' => 'ok', 'post' => $post]);
+            break;
+
+        case 'blog_get':
+            $postId = (string) ($_GET['id'] ?? '');
+            if ($postId === '') {
+                respond_json(['status' => 'error', 'message' => 'Post id required.'], 422);
+            }
+            $post = blog_post_find($postId);
+            if ($post === null) {
+                respond_json(['status' => 'error', 'message' => 'Blog post not found.'], 404);
+            }
+            respond_json(['status' => 'ok', 'post' => $post]);
+            break;
+
+        case 'blog_generate_cover':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $image = ai_generate_blog_cover($input, $actor);
+            respond_json(['status' => 'ok', 'image' => $image]);
+            break;
+
+        case 'blog_cover_upload':
+            if ($method !== 'POST') {
+                respond_json(['status' => 'error', 'message' => 'Method not allowed.'], 405);
+            }
+            $result = blog_upload_cover($input, $actor);
+            respond_json(['status' => 'ok', 'image' => $result]);
             break;
 
         case 'ai_image_generate':

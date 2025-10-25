@@ -1,0 +1,221 @@
+<?php
+$placeholderImage = blog_placeholder_image();
+$placeholderDownload = htmlspecialchars($placeholderImage, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<section class="space-y-6" x-data="blogManager()" x-init="init()">
+  <div class="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow">
+    <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h2 class="text-lg font-semibold text-slate-900">Blog Manager</h2>
+        <p class="text-sm text-slate-500">Monitor generated stories, update covers, and publish finished pieces.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3 text-sm">
+        <label class="flex items-center gap-2">
+          <span class="text-slate-500">Status</span>
+          <select class="rounded-lg border border-slate-200 px-3 py-2" x-model="filters.status" @change="fetch()">
+            <option value="">All</option>
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+          </select>
+        </label>
+        <label class="flex items-center gap-2">
+          <span class="text-slate-500">From</span>
+          <input type="date" class="rounded-lg border border-slate-200 px-3 py-2" x-model="filters.date_from" @change="fetch()" />
+        </label>
+        <label class="flex items-center gap-2">
+          <span class="text-slate-500">To</span>
+          <input type="date" class="rounded-lg border border-slate-200 px-3 py-2" x-model="filters.date_to" @change="fetch()" />
+        </label>
+        <div class="relative">
+          <input type="search" placeholder="Search blogs" class="rounded-lg border border-slate-200 px-4 py-2 pl-10" x-model="filters.search" @input.debounce.350ms="applyFilters()" />
+          <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+      </div>
+    </header>
+    <div class="mt-6">
+      <template x-if="loading">
+        <div class="flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/60 py-16 text-slate-500">
+          <svg class="mr-3 h-5 w-5 animate-spin text-blue-600" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+          Loading blog posts…
+        </div>
+      </template>
+      <template x-if="!loading && posts.length === 0">
+        <div class="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 py-16 text-center">
+          <svg class="h-10 w-10 text-slate-300" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13a1 1 0 01-1 1H7a2 2 0 01-2-2V5a2 2 0 012-2z"/><path d="M14 3v4a1 1 0 001 1h4"/><path d="M8 13h8M8 17h5"/></svg>
+          <p class="text-sm text-slate-500">No blog posts match the current filters.</p>
+          <button class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow" @click="resetFilters()">Reset filters</button>
+        </div>
+      </template>
+      <div class="grid gap-4 md:grid-cols-2" x-show="!loading && posts.length > 0" x-cloak>
+        <template x-for="post in posts" :key="post.id">
+          <article class="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="relative h-48 w-full bg-slate-100">
+              <img :src="coverUrl(post)" :alt="post.title" class="h-full w-full object-cover" loading="lazy" />
+              <span class="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold" :class="post.status === 'published' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'">
+                <span class="inline-block h-2 w-2 rounded-full" :class="post.status === 'published' ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                <span x-text="statusLabel(post)"></span>
+              </span>
+            </div>
+            <div class="flex flex-1 flex-col gap-3 p-5">
+              <div>
+                <h3 class="text-base font-semibold text-slate-900" x-text="post.title"></h3>
+                <p class="mt-1 text-xs uppercase tracking-wide text-slate-400">ID <span x-text="post.id"></span></p>
+              </div>
+              <p class="max-h-24 overflow-hidden text-sm leading-relaxed text-slate-600" x-html="excerpt(post)"></p>
+              <div class="mt-auto flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+                <div>
+                  <p>Created <span class="font-semibold" x-text="formatDate(post.created_at)"></span></p>
+                  <p x-show="post.generated_by">Generated by <span class="font-semibold" x-text="post.generated_by"></span></p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button class="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100" @click="edit(post)">Edit</button>
+                  <button class="rounded-lg border border-blue-200 px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50" @click="publish(post)" x-bind:disabled="post.status === 'published' || pending === post.id">
+                    <span x-text="post.status === 'published' ? 'Published' : 'Publish'"></span>
+                  </button>
+                  <button class="rounded-lg border border-red-200 px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50" @click="remove(post)" x-bind:disabled="pending === post.id">Delete</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        </template>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  function blogManager() {
+    return {
+      posts: [],
+      loading: true,
+      pending: null,
+      filters: { status: '', search: '', date_from: '', date_to: '' },
+      timer: null,
+      init() {
+        this.fetch();
+      },
+      resetFilters() {
+        this.filters = { status: '', search: '', date_from: '', date_to: '' };
+        this.fetch();
+      },
+      applyFilters() {
+        clearTimeout(this.timer);
+        this.timer = setTimeout(() => this.fetch(), 250);
+      },
+      get token() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.content : '';
+      },
+      coverUrl(post) {
+        if (!post.cover_image) {
+          return '/download.php?file=' + encodeURIComponent('<?= $placeholderDownload; ?>') + '&token=' + encodeURIComponent(this.token) + '&inline=1';
+        }
+        return '/download.php?file=' + encodeURIComponent(post.cover_image) + '&token=' + encodeURIComponent(this.token) + '&inline=1';
+      },
+      excerpt(post) {
+        const div = document.createElement('div');
+        div.innerHTML = post.content || '';
+        const text = (div.textContent || '').trim();
+        if (text.length === 0) {
+          return 'Draft content pending.';
+        }
+        return text.length > 160 ? text.slice(0, 160) + '…' : text;
+      },
+      formatDate(value) {
+        if (!value) return 'Unknown';
+        try {
+          const date = new Date(value);
+          return date.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+        } catch (error) {
+          return value;
+        }
+      },
+      statusLabel(post) {
+        return post.status === 'published' ? 'Published' : 'Draft';
+      },
+      async fetch() {
+        this.loading = true;
+        const params = new URLSearchParams();
+        Object.entries(this.filters).forEach(([key, value]) => {
+          if (value) params.append(key, value);
+        });
+        try {
+          const response = await fetch('/admin/api.php?action=blog_list&' + params.toString(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          });
+          const payload = await response.json();
+          if (payload.status === 'ok') {
+            this.posts = payload.posts || [];
+          } else {
+            this.posts = [];
+            this.toast(payload.message || 'Unable to load blog posts', 'error');
+          }
+        } catch (error) {
+          this.posts = [];
+          this.toast('Network error while loading blogs', 'error');
+        } finally {
+          this.loading = false;
+        }
+      },
+      async publish(post) {
+        if (post.status === 'published') return;
+        this.pending = post.id;
+        try {
+          const response = await fetch('/admin/api.php?action=blog_publish', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': this.token,
+            },
+            body: JSON.stringify({ id: post.id }),
+          });
+          const payload = await response.json();
+          if (payload.status === 'ok') {
+            const updated = payload.post;
+            this.posts = this.posts.map((item) => (item.id === updated.id ? updated : item));
+            this.toast('Blog published', 'success');
+          } else {
+            this.toast(payload.message || 'Unable to publish blog', 'error');
+          }
+        } catch (error) {
+          this.toast('Network error while publishing', 'error');
+        } finally {
+          this.pending = null;
+        }
+      },
+      async remove(post) {
+        if (!confirm('Delete blog "' + post.title + '"?')) {
+          return;
+        }
+        this.pending = post.id;
+        try {
+          const response = await fetch('/admin/api.php?action=blog_delete', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': this.token,
+            },
+            body: JSON.stringify({ id: post.id }),
+          });
+          const payload = await response.json();
+          if (payload.status === 'ok') {
+            this.posts = this.posts.filter((item) => item.id !== post.id);
+            this.toast('Blog deleted', 'success');
+          } else {
+            this.toast(payload.message || 'Unable to delete blog', 'error');
+          }
+        } catch (error) {
+          this.toast('Network error while deleting', 'error');
+        } finally {
+          this.pending = null;
+        }
+      },
+      edit(post) {
+        window.location.href = '/admin/index.php?view=ai&post=' + encodeURIComponent(post.id);
+      },
+      toast(message, type = 'info') {
+        window.dispatchEvent(new CustomEvent('toast', { detail: { message, type } }));
+      },
+    };
+  }
+</script>

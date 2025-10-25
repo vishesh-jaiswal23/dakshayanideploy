@@ -320,12 +320,53 @@ function blog_posts_load(): array
     if (!is_array($posts)) {
         return [];
     }
-    return $posts;
+    return array_map('blog_post_normalize', $posts);
 }
 
 function blog_posts_save(array $posts): void
 {
-    json_write(BLOG_POSTS_FILE, $posts);
+    $normalized = array_map('blog_post_normalize', $posts);
+    usort($normalized, static function ($a, $b) {
+        return strcmp($b['created_at'] ?? '', $a['created_at'] ?? '');
+    });
+    json_write(BLOG_POSTS_FILE, array_values($normalized));
+}
+
+function blog_post_normalize(array $post): array
+{
+    $post['id'] = is_string($post['id'] ?? null) ? $post['id'] : null;
+    $post['title'] = is_string($post['title'] ?? null) ? $post['title'] : '';
+    $post['content'] = is_string($post['content'] ?? null) ? $post['content'] : '';
+    $post['cover_image'] = is_string($post['cover_image'] ?? null) && $post['cover_image'] !== '' ? $post['cover_image'] : null;
+    $post['generated_by'] = is_string($post['generated_by'] ?? null) ? $post['generated_by'] : null;
+    $post['created_at'] = is_string($post['created_at'] ?? null) ? $post['created_at'] : now_ist();
+    $post['updated_at'] = is_string($post['updated_at'] ?? null) ? $post['updated_at'] : $post['created_at'];
+    $post['model_used_text'] = is_string($post['model_used_text'] ?? null) ? $post['model_used_text'] : null;
+    $post['model_used_image'] = is_string($post['model_used_image'] ?? null) ? $post['model_used_image'] : null;
+    $status = strtolower((string) ($post['status'] ?? 'draft'));
+    $post['status'] = in_array($status, ['draft', 'published'], true) ? $status : 'draft';
+    $post['published_at'] = is_string($post['published_at'] ?? null) ? $post['published_at'] : null;
+    $post['keywords'] = blog_normalize_keywords($post['keywords'] ?? []);
+    $post['meta'] = is_array($post['meta'] ?? null) ? $post['meta'] : [];
+    return $post;
+}
+
+function blog_normalize_keywords($value): array
+{
+    if (is_string($value)) {
+        $value = preg_split('/[,;]+/', $value);
+    }
+    if (!is_array($value)) {
+        return [];
+    }
+    $keywords = [];
+    foreach ($value as $keyword) {
+        $clean = sanitize_string($keyword ?? '', 60, true);
+        if ($clean !== null && $clean !== '') {
+            $keywords[] = $clean;
+        }
+    }
+    return array_values(array_unique($keywords));
 }
 
 function blog_posts_list(array $filters = []): array
@@ -333,76 +374,238 @@ function blog_posts_list(array $filters = []): array
     $posts = blog_posts_load();
     $statusFilter = $filters['status'] ?? null;
     $search = strtolower(trim((string) ($filters['search'] ?? '')));
-    return array_values(array_filter($posts, function ($post) use ($statusFilter, $search) {
+    $from = null;
+    $to = null;
+    if (isset($filters['date_from']) && $filters['date_from'] !== '') {
+        try {
+            $from = new DateTimeImmutable((string) $filters['date_from']);
+        } catch (Exception $exception) {
+            $from = null;
+        }
+    }
+    if (isset($filters['date_to']) && $filters['date_to'] !== '') {
+        try {
+            $to = new DateTimeImmutable((string) $filters['date_to']);
+        } catch (Exception $exception) {
+            $to = null;
+        }
+    }
+
+    $filtered = array_filter($posts, static function ($post) use ($statusFilter, $search, $from, $to) {
         if ($statusFilter && ($post['status'] ?? '') !== $statusFilter) {
             return false;
         }
         if ($search !== '') {
-            $haystack = strtolower(($post['title'] ?? '') . ' ' . ($post['content'] ?? ''));
-            return str_contains($haystack, $search);
+            $haystack = strtolower(($post['title'] ?? '') . ' ' . strip_tags($post['content'] ?? ''));
+            if (!str_contains($haystack, $search)) {
+                return false;
+            }
+        }
+        if ($from || $to) {
+            try {
+                $created = new DateTimeImmutable((string) ($post['created_at'] ?? ''));
+            } catch (Exception $exception) {
+                return false;
+            }
+            if ($from && $created < $from) {
+                return false;
+            }
+            if ($to && $created > $to->setTime(23, 59, 59)) {
+                return false;
+            }
         }
         return true;
-    }));
+    });
+
+    usort($filtered, static function ($a, $b) {
+        return strcmp($b['created_at'] ?? '', $a['created_at'] ?? '');
+    });
+
+    return array_values($filtered);
+}
+
+function blog_generate_next_id(array $posts): string
+{
+    $year = (new DateTimeImmutable('now', new DateTimeZone('Asia/Kolkata')))->format('Y');
+    $prefix = 'BLOG-' . $year . '-';
+    $max = 0;
+    foreach ($posts as $post) {
+        $id = (string) ($post['id'] ?? '');
+        if (str_starts_with($id, $prefix)) {
+            $numeric = (int) substr($id, strlen($prefix));
+            if ($numeric > $max) {
+                $max = $numeric;
+            }
+        }
+    }
+    return $prefix . str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);
+}
+
+function blog_sanitize_content($value): string
+{
+    if (!is_string($value)) {
+        throw new InvalidArgumentException('Content is required.');
+    }
+    $trimmed = trim($value);
+    if ($trimmed === '') {
+        throw new InvalidArgumentException('Content is required.');
+    }
+    $allowed = '<p><h1><h2><h3><h4><h5><h6><ul><ol><li><blockquote><strong><em><a><code><pre><table><thead><tbody><tr><th><td><img><figure><figcaption><br><hr>'; 
+    $clean = strip_tags($trimmed, $allowed);
+    $clean = preg_replace('/on\w+\s*=\s*"[^"]*"/i', '', (string) $clean);
+    $clean = preg_replace('/style\s*=\s*"[^"]*"/i', '', (string) $clean);
+    $clean = preg_replace('/javascript:/i', '', (string) $clean);
+    $clean = mb_substr((string) $clean, 0, 120000);
+    if (trim($clean) === '') {
+        throw new InvalidArgumentException('Content is required.');
+    }
+    return $clean;
+}
+
+function blog_placeholder_image(): string
+{
+    ensure_directory(BLOG_IMAGE_UPLOAD_PATH);
+    $path = BLOG_IMAGE_UPLOAD_PATH . '/placeholder.png';
+    if (!file_exists($path)) {
+        $pixel = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAZAAAAEABAMAAAD3sZ0XAAAAGFBMVEUAZdP///8AY9Tz8/PR0dH39/f5+fmGh4i6CHXA' .
+            'AAAACXBIWXMAAAsTAAALEwEAmpwYAAAFUUlEQVR42u3cP2/TQBiA8UdSd3d3d9f3P7i2KdoJorFGSBFJ7B8PkD9pRq' .
+            'kDttGsjXglzhN5Zf2t0g2Wq7O4M1mx8hQ4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMBfLMuOO8f0uZJb' .
+            'C+3yavZN9W9m2+0n3b6Rt2m2nLRu93aXbbpP0rbtN0n7bbpP0rbtN0n7bbpP0rbtN0n7bbpP0rbtN0n7bbpP0rbtN0n7' .
+            'bbpP0rbtN0n7bbpP0rbtN0n7bbpP0rbtN0n7bbpP0rbtN0n7bbpP0rbtN0n7bbpP0rbtN0n7bbpP0rbtN0n7bbpP0rbt' .
+            'N0n7bbpP0rbtN0n7bbpP0rbtN0n7bbpP0rbtN0n7bbpP0rbtN0n7bbpP0rbtN0n7bbrn83vt6V+83t6V+83t6V+83t6V' .
+            '+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+8' .
+            '3t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t' .
+            '6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V' .
+            '+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+8' .
+            '3t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t' .
+            '6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V' .
+            '+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+8' .
+            '3t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t6V+83t' .
+            '6V+83v7H93uOYz8JPCcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIDt/wBPIQ2+pX9Q+QAAAABJRU5ErkJggg==', true);
+        if ($pixel !== false) {
+            file_put_contents($path, $pixel, LOCK_EX);
+        }
+    }
+    return 'blog_images/' . basename($path);
+}
+
+function blog_store_image(string $binary, string $mime): string
+{
+    $allowed = ['image/png' => 'png', 'image/jpeg' => 'jpg'];
+    if (!isset($allowed[$mime])) {
+        throw new InvalidArgumentException('Unsupported image type.');
+    }
+    if (strlen($binary) > 5 * 1024 * 1024) {
+        throw new InvalidArgumentException('Image exceeds the 5 MB limit.');
+    }
+    ensure_directory(BLOG_IMAGE_UPLOAD_PATH);
+    $filename = 'blog-cover-' . uniqid('', true) . '.' . $allowed[$mime];
+    $path = BLOG_IMAGE_UPLOAD_PATH . '/' . $filename;
+    file_put_contents($path, $binary, LOCK_EX);
+    return 'blog_images/' . $filename;
+}
+
+function blog_store_base64_image(string $data, string $mime): string
+{
+    $binary = base64_decode($data, true);
+    if ($binary === false) {
+        throw new InvalidArgumentException('Invalid image data.');
+    }
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $detected = $finfo->buffer($binary) ?: $mime;
+    return blog_store_image($binary, $detected);
 }
 
 function blog_post_upsert(array $payload, string $actor): array
 {
     $posts = blog_posts_load();
-    $id = $payload['id'] ?? null;
-    $title = sanitize_string($payload['title'] ?? '', 160);
-    $content = sanitize_string($payload['content'] ?? '', 64000);
-    $tags = $payload['tags'] ?? [];
+    $idRaw = sanitize_string($payload['id'] ?? '', 64, true);
+    $id = $idRaw !== null && $idRaw !== '' ? $idRaw : null;
+    $title = sanitize_string($payload['title'] ?? '', 120);
     if ($title === null || $title === '') {
         throw new InvalidArgumentException('Title is required.');
     }
-    if ($content === null || $content === '') {
-        throw new InvalidArgumentException('Content is required.');
+    $content = blog_sanitize_content($payload['content'] ?? '');
+    $keywords = blog_normalize_keywords($payload['keywords'] ?? []);
+    $status = strtolower((string) ($payload['status'] ?? 'draft'));
+    if (!in_array($status, ['draft', 'published'], true)) {
+        $status = 'draft';
     }
-    if (!is_array($tags)) {
-        $tags = [];
+    $coverImage = null;
+    if (isset($payload['cover_image']) && is_string($payload['cover_image']) && trim($payload['cover_image']) !== '') {
+        $coverImage = ltrim(str_replace(['..', '\\'], '', trim($payload['cover_image'])), '/');
     }
-    $tags = array_values(array_filter(array_map(fn ($tag) => sanitize_string($tag ?? '', 50), $tags)));
     $now = now_ist();
-    $status = $payload['status'] ?? 'draft';
+    $generatedBy = is_string($payload['generated_by'] ?? null) ? $payload['generated_by'] : $actor;
+    $modelUsedText = is_string($payload['model_used_text'] ?? null) ? $payload['model_used_text'] : null;
+    $modelUsedImage = is_string($payload['model_used_image'] ?? null) ? $payload['model_used_image'] : null;
+    $meta = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
+
     if ($id) {
-        $found = false;
         $updated = null;
         foreach ($posts as &$post) {
-            if (($post['id'] ?? '') === $id) {
-                $post['title'] = $title;
-                $post['content'] = $content;
-                $post['tags'] = $tags;
-                $post['status'] = $status;
-                $post['model_id'] = $payload['model_id'] ?? ($post['model_id'] ?? null);
-                $post['updated_at'] = $now;
-                $found = true;
-                $updated = $post;
-                break;
+            if (($post['id'] ?? '') !== $id) {
+                continue;
             }
+            $post['title'] = $title;
+            $post['content'] = $content;
+            $post['keywords'] = $keywords;
+            $post['status'] = $status;
+            if ($coverImage !== null) {
+                $post['cover_image'] = $coverImage;
+            }
+            if (!empty($generatedBy) && empty($post['generated_by'])) {
+                $post['generated_by'] = $generatedBy;
+            }
+            if ($modelUsedText !== null) {
+                $post['model_used_text'] = $modelUsedText;
+            }
+            if ($modelUsedImage !== null) {
+                $post['model_used_image'] = $modelUsedImage;
+            }
+            $post['meta'] = $meta;
+            if ($status === 'published' && empty($post['published_at'])) {
+                $post['published_at'] = $now;
+            }
+            $post['updated_at'] = $now;
+            $updated = $post;
+            break;
         }
         unset($post);
-        if (!$found || $updated === null) {
+        if ($updated === null) {
             throw new RuntimeException('Blog post not found.');
         }
         blog_posts_save($posts);
         log_activity('blog.update', 'Updated blog post ' . $id, $actor);
-        return $updated;
+        return blog_post_normalize($updated);
+    }
+
+    $id = blog_generate_next_id($posts);
+    if ($coverImage === null) {
+        $coverImage = blog_placeholder_image();
     }
 
     $post = [
-        'id' => uuid('blog'),
+        'id' => $id,
         'title' => $title,
         'content' => $content,
-        'tags' => $tags,
+        'keywords' => $keywords,
         'status' => $status,
-        'model_id' => $payload['model_id'] ?? null,
+        'cover_image' => $coverImage,
+        'generated_by' => $generatedBy,
+        'model_used_text' => $modelUsedText,
+        'model_used_image' => $modelUsedImage,
+        'meta' => $meta,
         'created_at' => $now,
         'updated_at' => $now,
     ];
+    if ($status === 'published') {
+        $post['published_at'] = $now;
+    }
     $posts[] = $post;
     blog_posts_save($posts);
     log_activity('blog.create', 'Created blog post ' . $post['id'], $actor);
-    return $post;
+    return blog_post_normalize($post);
 }
 
 function blog_post_publish(string $id, string $actor): array
@@ -413,43 +616,326 @@ function blog_post_publish(string $id, string $actor): array
             $post['status'] = 'published';
             $post['published_at'] = now_ist();
             $post['updated_at'] = now_ist();
-            $updated = $post;
+            if (empty($post['cover_image'])) {
+                $post['cover_image'] = blog_placeholder_image();
+            }
             blog_posts_save($posts);
             log_activity('blog.publish', 'Published blog post ' . $id, $actor);
-            return $updated;
+            return blog_post_normalize($post);
         }
     }
     throw new RuntimeException('Blog post not found.');
 }
 
+function blog_post_delete(string $id, string $actor): void
+{
+    $posts = blog_posts_load();
+    $filtered = array_values(array_filter($posts, static fn($post) => ($post['id'] ?? '') !== $id));
+    if (count($filtered) === count($posts)) {
+        throw new RuntimeException('Blog post not found.');
+    }
+    blog_posts_save($filtered);
+    log_activity('blog.delete', 'Deleted blog post ' . $id, $actor);
+}
+
+function blog_post_find(string $id): ?array
+{
+    foreach (blog_posts_load() as $post) {
+        if (($post['id'] ?? '') === $id) {
+            return blog_post_normalize($post);
+        }
+    }
+    return null;
+}
+
+function models_registry_find_preferred(string $preferredCode, string $type): ?array
+{
+    $registry = models_registry_load();
+    $preferred = null;
+    foreach ($registry['models'] as $model) {
+        if (strcasecmp((string) ($model['model_code'] ?? ''), $preferredCode) === 0 && strcasecmp((string) ($model['type'] ?? ''), $type) === 0) {
+            if (($model['status'] ?? 'inactive') === 'active' && !empty($model['api_key'])) {
+                return $model;
+            }
+            $preferred = $model;
+        }
+    }
+    foreach ($registry['models'] as $model) {
+        if (strcasecmp((string) ($model['type'] ?? ''), $type) === 0 && ($model['status'] ?? 'inactive') === 'active' && !empty($model['api_key'])) {
+            return $model;
+        }
+    }
+    return $preferred;
+}
+
+function gemini_http_request(string $endpoint, string $apiKey, array $payload): array
+{
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException('cURL extension is required for Gemini requests.');
+    }
+    $url = $endpoint . '?key=' . urlencode($apiKey);
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        CURLOPT_TIMEOUT => 20,
+    ]);
+    $response = curl_exec($ch);
+    if ($response === false) {
+        $error = curl_error($ch);
+        curl_close($ch);
+        throw new RuntimeException('Gemini request failed: ' . $error);
+    }
+    $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+    $decoded = json_decode($response, true);
+    if ($status >= 400) {
+        $message = is_array($decoded) ? ($decoded['error']['message'] ?? 'HTTP ' . $status) : 'HTTP ' . $status;
+        throw new RuntimeException('Gemini error: ' . $message);
+    }
+    if (!is_array($decoded)) {
+        throw new RuntimeException('Gemini returned invalid payload.');
+    }
+    return $decoded;
+}
+
+function gemini_generate_text(string $modelCode, string $apiKey, string $prompt): string
+{
+    $payload = [
+        'contents' => [
+            ['parts' => [['text' => $prompt]]],
+        ],
+        'generationConfig' => [
+            'temperature' => 0.65,
+            'topP' => 0.95,
+            'topK' => 40,
+            'maxOutputTokens' => 2048,
+        ],
+        'safetySettings' => [
+            ['category' => 'HARM_CATEGORY_HATE_SPEECH', 'threshold' => 'BLOCK_LOW_AND_ABOVE'],
+            ['category' => 'HARM_CATEGORY_SEXUAL', 'threshold' => 'BLOCK_LOW_AND_ABOVE'],
+            ['category' => 'HARM_CATEGORY_HARASSMENT', 'threshold' => 'BLOCK_LOW_AND_ABOVE'],
+        ],
+    ];
+    $endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($modelCode) . ':generateContent';
+    $response = gemini_http_request($endpoint, $apiKey, $payload);
+    $candidates = $response['candidates'] ?? [];
+    foreach ($candidates as $candidate) {
+        $parts = $candidate['content']['parts'] ?? [];
+        foreach ($parts as $part) {
+            if (isset($part['text']) && is_string($part['text'])) {
+                return $part['text'];
+            }
+        }
+    }
+    throw new RuntimeException('Gemini response missing text content.');
+}
+
+function gemini_generate_image(string $modelCode, string $apiKey, string $prompt): array
+{
+    $payload = [
+        'contents' => [
+            ['parts' => [['text' => $prompt]]],
+        ],
+        'generationConfig' => [
+            'temperature' => 0.4,
+        ],
+    ];
+    $endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($modelCode) . ':generateContent';
+    $response = gemini_http_request($endpoint, $apiKey, $payload);
+    $candidates = $response['candidates'] ?? [];
+    foreach ($candidates as $candidate) {
+        $parts = $candidate['content']['parts'] ?? [];
+        foreach ($parts as $part) {
+            if (isset($part['inlineData']['data'], $part['inlineData']['mimeType'])) {
+                $data = base64_decode((string) $part['inlineData']['data'], true);
+                $mime = (string) $part['inlineData']['mimeType'];
+                if ($data !== false) {
+                    return ['binary' => $data, 'mime' => $mime];
+                }
+            }
+        }
+    }
+    throw new RuntimeException('Gemini response missing image data.');
+}
+
 function ai_generate_blog(array $payload, string $actor): array
 {
-    $prompt = sanitize_string($payload['prompt'] ?? '', 4000);
-    if ($prompt === null || $prompt === '') {
-        throw new InvalidArgumentException('Prompt is required.');
+    $title = sanitize_string($payload['title'] ?? '', 120);
+    if ($title === null || $title === '') {
+        throw new InvalidArgumentException('Blog title is required.');
     }
-    $modelId = $payload['model_id'] ?? null;
-    $model = $modelId ? models_registry_find($modelId) : null;
-    $usedMock = !$model || empty($model['api_key']);
-    $title = $payload['title'] ?? null;
-    if (!$title) {
-        $title = mb_strimwidth($prompt, 0, 60, '...');
+    $keywords = blog_normalize_keywords($payload['keywords'] ?? []);
+    $wordCount = isset($payload['word_count']) ? max(250, min(2000, (int) $payload['word_count'])) : 800;
+    $generateImage = normalize_bool($payload['generate_image'] ?? false);
+
+    $textModel = models_registry_find_preferred('gemini-2.5-flash', 'Text');
+    $textModelCode = $textModel['model_code'] ?? 'gemini-2.5-flash';
+    $textApiKey = $textModel['api_key'] ?? null;
+
+    $prompt = "Write a blog article for Dakshayani Enterprises about: " . $title . ".";
+    if ($keywords) {
+        $prompt .= " Keywords: " . implode(', ', $keywords) . '.';
     }
-    $content = "Generated narrative based on prompt:\n\n" . $prompt;
-    if ($usedMock) {
-        $content .= "\n\n(Mock Gemini response - configure API key for live data.)";
-    } else {
-        $content .= "\n\n(Content prepared using model " . ($model['nickname'] ?? $model['model_code'] ?? 'model') . ".)";
+    $prompt .= "\nReturn well-structured HTML with clear <h2> sections, engaging introduction, actionable insights, a bullet list, and a concluding call-to-action for renewable energy services in India. Word count target: " . $wordCount . ". Avoid adding <html>, <body>, or external styles.";
+
+    $content = null;
+    $usedMock = false;
+    if ($textApiKey) {
+        try {
+            $content = gemini_generate_text($textModelCode, $textApiKey, $prompt);
+        } catch (Throwable $exception) {
+            log_system_error('Gemini text generation failed', ['error' => $exception->getMessage()]);
+        }
     }
+    if ($content === null) {
+        $usedMock = true;
+        $content = '<h2>Overview</h2><p>This is a placeholder draft for the topic “' . htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '”. Configure Gemini credentials to generate production content.</p>';
+    }
+
+    $imagePath = null;
+    $imageModelCode = null;
+    if ($generateImage) {
+        $imageModel = models_registry_find_preferred('gemini-2.5-flash-image', 'Image');
+        $imageModelCode = $imageModel['model_code'] ?? 'gemini-2.5-flash-image';
+        $imageApiKey = $imageModel['api_key'] ?? null;
+        if ($imageApiKey) {
+            try {
+                $promptImage = 'Generate a cover image for a blog titled ' . $title;
+                if ($keywords) {
+                    $promptImage .= ' about ' . implode(', ', $keywords);
+                }
+                $image = gemini_generate_image($imageModelCode, $imageApiKey, $promptImage . '. Make it vibrant, sustainable-energy themed, and suitable as a 16:9 hero.');
+                $imagePath = blog_store_image($image['binary'], $image['mime']);
+            } catch (Throwable $exception) {
+                log_system_error('Gemini image generation failed', ['error' => $exception->getMessage()]);
+                $imagePath = blog_placeholder_image();
+            }
+        } else {
+            $imagePath = blog_placeholder_image();
+        }
+    }
+
     $post = blog_post_upsert([
         'title' => $title,
         'content' => $content,
+        'keywords' => $keywords,
         'status' => 'draft',
-        'model_id' => $modelId,
-        'tags' => $payload['tags'] ?? [],
+        'generated_by' => $actor,
+        'cover_image' => $imagePath,
+        'model_used_text' => $textModelCode,
+        'model_used_image' => $imageModelCode,
+        'meta' => ['word_count_target' => $wordCount, 'mock_response' => $usedMock],
     ], $actor);
-    $post['used_mock'] = $usedMock;
+
+    if ($generateImage) {
+        log_activity('blog.ai.generate', 'AI Blog Generated with Image|' . $post['id'], $actor);
+    } else {
+        log_activity('blog.ai.generate', 'AI Blog Generated|' . $post['id'], $actor);
+    }
+
     return $post;
+}
+
+function ai_generate_blog_cover(array $payload, string $actor): array
+{
+    $title = sanitize_string($payload['title'] ?? '', 120);
+    if ($title === null || $title === '') {
+        throw new InvalidArgumentException('Blog title is required for image generation.');
+    }
+    $keywords = blog_normalize_keywords($payload['keywords'] ?? []);
+    $postIdRaw = sanitize_string($payload['id'] ?? '', 64, true);
+    $postId = $postIdRaw !== null && $postIdRaw !== '' ? $postIdRaw : null;
+
+    $imageModel = models_registry_find_preferred('gemini-2.5-flash-image', 'Image');
+    $imageModelCode = $imageModel['model_code'] ?? 'gemini-2.5-flash-image';
+    $imageApiKey = $imageModel['api_key'] ?? null;
+    $imagePath = null;
+    $usedPlaceholder = false;
+
+    if ($imageApiKey) {
+        try {
+            $prompt = 'Generate a cover image for a blog titled ' . $title;
+            if ($keywords) {
+                $prompt .= ' about ' . implode(', ', $keywords);
+            }
+            $result = gemini_generate_image($imageModelCode, $imageApiKey, $prompt . '. The artwork should communicate solar and clean energy leadership in India.');
+            $imagePath = blog_store_image($result['binary'], $result['mime']);
+        } catch (Throwable $exception) {
+            log_system_error('Gemini blog cover regeneration failed', ['error' => $exception->getMessage()]);
+            $imagePath = blog_placeholder_image();
+            $usedPlaceholder = true;
+        }
+    } else {
+        $imagePath = blog_placeholder_image();
+        $usedPlaceholder = true;
+    }
+
+    $post = null;
+    if ($postId) {
+        $post = blog_update_cover_image($postId, $imagePath, $actor, $imageModelCode);
+    }
+
+    if ($usedPlaceholder) {
+        log_system_error('Gemini cover image fallback triggered', ['post_id' => $postId ?? 'draft']);
+    }
+
+    return [
+        'path' => $imagePath,
+        'model' => $imageModelCode,
+        'post' => $post,
+        'placeholder' => $usedPlaceholder,
+    ];
+}
+
+function blog_update_cover_image(string $id, string $coverImage, string $actor, ?string $modelCode = null): array
+{
+    $posts = blog_posts_load();
+    foreach ($posts as &$post) {
+        if (($post['id'] ?? '') !== $id) {
+            continue;
+        }
+        $post['cover_image'] = $coverImage;
+        if ($modelCode !== null) {
+            $post['model_used_image'] = $modelCode;
+        }
+        $post['updated_at'] = now_ist();
+        blog_posts_save($posts);
+        log_activity('blog.update.cover', 'Updated blog cover ' . $id, $actor);
+        return blog_post_normalize($post);
+    }
+    throw new RuntimeException('Blog post not found.');
+}
+
+function blog_upload_cover(array $payload, string $actor): array
+{
+    $postIdRaw = sanitize_string($payload['id'] ?? '', 64, true);
+    $postId = $postIdRaw !== null && $postIdRaw !== '' ? $postIdRaw : null;
+    if ($postId === null) {
+        throw new InvalidArgumentException('Blog id is required for cover upload.');
+    }
+    $data = $payload['data'] ?? '';
+    $mime = $payload['mime'] ?? '';
+    if (!is_string($data) || trim($data) === '') {
+        throw new InvalidArgumentException('Image payload missing.');
+    }
+    if (is_string($mime) && str_contains($mime, ';')) {
+        $mime = substr($mime, 0, strpos($mime, ';'));
+    }
+    if (str_starts_with($data, 'data:')) {
+        if (preg_match('/^data:(.*?);base64,(.*)$/', $data, $matches)) {
+            $mime = $mime !== '' ? $mime : ($matches[1] ?? 'image/png');
+            $data = $matches[2] ?? '';
+        }
+    }
+    if (!is_string($mime) || $mime === '') {
+        $mime = 'image/png';
+    }
+    $path = blog_store_base64_image($data, $mime);
+    $post = blog_update_cover_image($postId, $path, $actor, null);
+    return ['path' => $path, 'post' => $post];
 }
 
 /**
