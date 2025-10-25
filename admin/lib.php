@@ -23,6 +23,20 @@ function admin_portal_bootstrap(): array
     ];
 }
 
+function admin_record_ledger_disabled_once(string $actor): void
+{
+    $log = json_read(ACTIVITY_LOG_FILE, []);
+    if (!is_array($log)) {
+        $log = [];
+    }
+    foreach ($log as $entry) {
+        if (($entry['action'] ?? '') === 'ledger.disabled') {
+            return;
+        }
+    }
+    log_activity('ledger.disabled', 'Accounts Ledger disabled', $actor);
+}
+
 function admin_perform_integrity_checks(): array
 {
     $schemas = admin_expected_data_shapes();

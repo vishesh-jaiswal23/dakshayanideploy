@@ -17,6 +17,8 @@ $notificationSummary = admin_notification_summary($alerts);
 $activeSessions = admin_active_sessions();
 $themeMode = $context['site_settings']['Theme']['mode'] ?? 'auto';
 
+admin_record_ledger_disabled_once($CURRENT_USER['email'] ?? 'admin');
+
 $viewPath = __DIR__ . '/views/' . $requestedView . '.php';
 if (!file_exists($viewPath)) {
     $viewPath = __DIR__ . '/views/dashboard.php';

@@ -5,11 +5,129 @@ declare(strict_types=1);
 /**
  * Models Registry helpers
  */
+function ai_settings_defaults(): array
+{
+    return [
+        'api_key' => 'AIzaSyAsCEn7cd9vZlb5M5z9kw3XwbGkOjg8md0',
+        'models' => [
+            'text' => 'gemini-2.5-flash',
+            'image' => 'gemini-2.5-flash-image',
+            'tts' => 'gemini-2.5-flash-preview-tts',
+        ],
+        'last_test_results' => [],
+    ];
+}
+
+function ai_settings_normalize($settings): array
+{
+    $defaults = ai_settings_defaults();
+    if (!is_array($settings)) {
+        $settings = [];
+    }
+
+    $apiKey = isset($settings['api_key']) && is_string($settings['api_key'])
+        ? trim($settings['api_key'])
+        : '';
+    if ($apiKey === '') {
+        $apiKey = $defaults['api_key'];
+    }
+
+    $models = $defaults['models'];
+    if (isset($settings['models']) && is_array($settings['models'])) {
+        foreach ($models as $key => $value) {
+            $candidate = $settings['models'][$key] ?? $value;
+            if (is_string($candidate) && trim($candidate) !== '') {
+                $models[$key] = trim($candidate);
+            }
+        }
+    }
+
+    $lastResults = [];
+    if (isset($settings['last_test_results']) && is_array($settings['last_test_results'])) {
+        foreach ($settings['last_test_results'] as $key => $result) {
+            if (!is_array($result)) {
+                continue;
+            }
+            $status = strtolower((string) ($result['status'] ?? 'fail')) === 'pass' ? 'pass' : 'fail';
+            $message = is_string($result['message'] ?? null) ? trim($result['message']) : '';
+            $testedAt = is_string($result['tested_at'] ?? null) ? trim($result['tested_at']) : '';
+            $lastResults[$key] = [
+                'status' => $status,
+                'message' => $message,
+                'tested_at' => $testedAt,
+            ];
+        }
+    }
+
+    return [
+        'api_key' => $apiKey,
+        'models' => $models,
+        'last_test_results' => $lastResults,
+    ];
+}
+
+function ai_settings_get(): array
+{
+    $registry = json_read(MODELS_REGISTRY_FILE, []);
+    if (!is_array($registry)) {
+        $registry = [];
+    }
+    return ai_settings_normalize($registry['ai_settings'] ?? []);
+}
+
+function ai_settings_store(array $settings): bool
+{
+    $registry = models_registry_load();
+    $registry['ai_settings'] = ai_settings_normalize($settings);
+    return models_registry_save($registry);
+}
+
+function ai_settings_public_payload(array $settings): array
+{
+    return [
+        'models' => $settings['models'],
+        'api_key_masked' => mask_sensitive($settings['api_key'] ?? ''),
+        'has_api_key' => ($settings['api_key'] ?? '') !== '',
+        'last_test_results' => $settings['last_test_results'] ?? [],
+    ];
+}
+
+function ai_settings_ping_model(string $type, string $modelCode, string $apiKey): void
+{
+    $payload = [
+        'contents' => [
+            ['parts' => [['text' => 'ping']]],
+        ],
+    ];
+
+    if ($type === 'text') {
+        $payload['generationConfig'] = ['maxOutputTokens' => 8];
+    } elseif ($type === 'image') {
+        $payload['generationConfig'] = ['responseMimeType' => 'image/png'];
+    } else {
+        $payload['generationConfig'] = ['responseMimeType' => 'audio/pcm;bitrate=16000;channels=1'];
+    }
+
+    $endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($modelCode) . ':generateContent';
+    $response = gemini_http_request($endpoint, $apiKey, $payload);
+    if (!isset($response['candidates']) || !is_array($response['candidates'])) {
+        throw new RuntimeException('No candidates returned.');
+    }
+}
+
 function models_registry_load(): array
 {
-    $registry = json_read(MODELS_REGISTRY_FILE, ['default_model' => null, 'models' => []]);
+    $registry = json_read(MODELS_REGISTRY_FILE, [
+        'default_model' => null,
+        'models' => [],
+        'ai_settings' => ai_settings_defaults(),
+    ]);
     if (!is_array($registry)) {
-        $registry = ['default_model' => null, 'models' => []];
+        $registry = [
+            'default_model' => null,
+            'models' => [],
+            'ai_settings' => ai_settings_defaults(),
+        ];
     }
     if (!isset($registry['default_model'])) {
         $registry['default_model'] = null;
@@ -17,6 +135,8 @@ function models_registry_load(): array
     if (!isset($registry['models']) || !is_array($registry['models'])) {
         $registry['models'] = [];
     }
+    $registry['ai_settings'] = ai_settings_normalize($registry['ai_settings'] ?? []);
+
     foreach ($registry['models'] as &$model) {
         if (!isset($model['id'])) {
             $model['id'] = uuid('model');
@@ -33,6 +153,12 @@ function models_registry_load(): array
 
 function models_registry_save(array $registry): bool
 {
+    if (!isset($registry['ai_settings']) || !is_array($registry['ai_settings'])) {
+        $registry['ai_settings'] = ai_settings_defaults();
+    } else {
+        $registry['ai_settings'] = ai_settings_normalize($registry['ai_settings']);
+    }
+
     foreach ($registry['models'] as &$model) {
         $model['api_key_masked'] = mask_sensitive($model['api_key'] ?? null);
     }
@@ -64,6 +190,7 @@ function models_registry_list(): array
     return [
         'default_model' => $registry['default_model'],
         'models' => $models,
+        'ai_settings' => ai_settings_public_payload($registry['ai_settings']),
     ];
 }
 
@@ -738,6 +865,23 @@ function blog_post_find(string $id): ?array
 function models_registry_find_preferred(string $preferredCode, string $type): ?array
 {
     $registry = models_registry_load();
+    $typeKey = strtolower($type);
+    $aiSettings = $registry['ai_settings'] ?? ai_settings_defaults();
+    $modelsMap = $aiSettings['models'] ?? [];
+    $apiKey = $aiSettings['api_key'] ?? '';
+    if ($apiKey !== '' && isset($modelsMap[$typeKey])) {
+        return [
+            'id' => 'ai-settings-' . $typeKey,
+            'nickname' => strtoupper($typeKey) . ' model',
+            'type' => ucfirst(strtolower($type)),
+            'model_code' => $modelsMap[$typeKey],
+            'status' => 'active',
+            'last_tested' => $aiSettings['last_test_results'][$typeKey]['tested_at'] ?? null,
+            'api_key' => $apiKey,
+            'params' => [],
+        ];
+    }
+
     $preferred = null;
     foreach ($registry['models'] as $model) {
         if (strcasecmp((string) ($model['model_code'] ?? ''), $preferredCode) === 0 && strcasecmp((string) ($model['type'] ?? ''), $type) === 0) {
@@ -1620,7 +1764,15 @@ function ai_tts_generate(array $payload, string $actor): array
     $voice = sanitize_string($payload['voice'] ?? 'default', 80) ?? 'default';
     $modelId = $payload['model_id'] ?? null;
     $model = $modelId ? models_registry_find($modelId) : null;
-    $usedMock = !$model || empty($model['api_key']);
+    if ($model === null) {
+        $aiSettings = ai_settings_get();
+        $model = [
+            'model_code' => $aiSettings['models']['tts'] ?? 'gemini-2.5-flash-preview-tts',
+            'api_key' => $aiSettings['api_key'] ?? '',
+        ];
+    }
+    $modelCode = $model['model_code'] ?? 'gemini-2.5-flash-preview-tts';
+    $usedMock = empty($model['api_key']);
 
     ensure_directory(AI_AUDIO_UPLOAD_PATH);
     $filename = 'ai-tts-' . uniqid() . '.wav';
@@ -1636,6 +1788,7 @@ function ai_tts_generate(array $payload, string $actor): array
         'file' => 'uploads/ai_audio/' . $filename,
         'created_at' => now_ist(),
         'mock' => $usedMock,
+        'model_code' => $modelCode,
     ];
     $clips = json_read(AI_TTS_FILE, []);
     $clips[] = $record;
