@@ -177,6 +177,7 @@ switch (true) {
             $systemConfigurationLabel = api_system_configuration_label($systemConfiguration);
         }
 
+        $clientRequestId = api_trim_string($body['clientRequestId'] ?? $body['client_request_id'] ?? '');
         $description = api_trim_string($body['description'] ?? $body['issue'] ?? $body['details'] ?? '');
         $issueLabels = $body['issueLabels'] ?? $body['issue_labels'] ?? [];
         $issueValues = $body['issues'] ?? $body['issue_types'] ?? [];
@@ -281,6 +282,7 @@ switch (true) {
                 'systemConfiguration' => $systemConfiguration,
                 'systemConfigurationLabel' => $systemConfigurationLabel,
                 'systemConfigurationRaw' => $systemConfigurationRaw,
+                'clientRequestId' => $clientRequestId,
             ],
         ];
 
@@ -352,6 +354,41 @@ switch (true) {
                     $jsonError = json_last_error_msg();
                     $logComplaintError('Failed to decode existing tickets JSON: ' . $ticketsFile . ' | JSON error: ' . $jsonError);
                     throw new RuntimeException('Server data error: could not read existing complaints.');
+                }
+            }
+
+            if ($clientRequestId !== '') {
+                foreach ($ticketsData as $existingTicket) {
+                    if (!is_array($existingTicket)) {
+                        continue;
+                    }
+
+                    $existingMeta = $existingTicket['meta'] ?? [];
+                    if (!is_array($existingMeta)) {
+                        continue;
+                    }
+
+                    $existingRequestId = api_trim_string($existingMeta['clientRequestId'] ?? $existingMeta['client_request_id'] ?? '');
+                    if ($existingRequestId !== '' && $existingRequestId === $clientRequestId) {
+                        if (!flock($fileHandle, LOCK_UN)) {
+                            $lastError = error_get_last();
+                            $logComplaintError('Failed to release lock after duplicate complaint detection: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                        }
+
+                        if (!fclose($fileHandle)) {
+                            $lastError = error_get_last();
+                            $logComplaintError('Failed to close tickets file after duplicate complaint detection: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                        }
+
+                        $fileHandle = null;
+
+                        api_send_json(200, [
+                            'success' => true,
+                            'ticketId' => $existingTicket['id'] ?? null,
+                            'ticket' => $existingTicket,
+                            'duplicate' => true,
+                        ]);
+                    }
                 }
             }
 
