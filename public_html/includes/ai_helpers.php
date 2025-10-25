@@ -673,7 +673,11 @@ function ai_log_run(string $status, int $count, ?string $errorMsg = null, ?strin
  */
 function ai_fetch_recent_logs(int $limit = 10): array
 {
-    $pdo = ai_get_pdo();
+    try {
+        $pdo = ai_get_pdo();
+    } catch (\RuntimeException $exception) {
+        return [];
+    }
     $stmt = $pdo->prepare('SELECT * FROM ai_logs ORDER BY run_time DESC LIMIT :limit');
     $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
     $stmt->execute();
