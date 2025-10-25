@@ -218,7 +218,6 @@ switch (true) {
             ? 'Service issue: ' . implode(' • ', $subjectParts)
             : 'Website service complaint';
 
-        $tickets = api_read_tickets();
         try {
             $ticketId = 'tkt-' . bin2hex(random_bytes(6));
         } catch (Exception $exception) {
@@ -285,8 +284,137 @@ switch (true) {
             ],
         ];
 
-        $tickets[] = $ticket;
-        api_write_tickets($tickets);
+        $dataDir = __DIR__ . '/../server/data';
+        $ticketsFile = $dataDir . '/tickets.json';
+        $logFile = __DIR__ . '/../server/complaint_error.log';
+
+        $logComplaintError = static function (string $message) use ($logFile): void {
+            $timestamp = date('Y-m-d H:i:s');
+            file_put_contents($logFile, '[' . $timestamp . '] ' . $message . PHP_EOL, FILE_APPEND);
+        };
+
+        if (!is_dir($dataDir)) {
+            $logComplaintError('Data directory does not exist: ' . $dataDir);
+            api_send_json(500, ['success' => false, 'error' => 'Server configuration error: data directory missing.']);
+        }
+
+        if (!is_writable($dataDir)) {
+            $logComplaintError('Data directory is not writable: ' . $dataDir);
+            api_send_json(500, ['success' => false, 'error' => 'Server permission error: cannot write to data directory.']);
+        }
+
+        $ticketsFileExists = file_exists($ticketsFile);
+        if ($ticketsFileExists && !is_writable($ticketsFile)) {
+            $logComplaintError('Tickets file is not writable: ' . $ticketsFile);
+            api_send_json(500, ['success' => false, 'error' => 'Server permission error: cannot write to tickets file.']);
+        }
+
+        if (!$ticketsFileExists && !is_writable($dataDir)) {
+            $logComplaintError('Tickets file missing and data directory not writable for creation: ' . $dataDir);
+            api_send_json(500, ['success' => false, 'error' => 'Server permission error: cannot create tickets file.']);
+        }
+
+        $fileHandle = null;
+
+        try {
+            $fileHandle = fopen($ticketsFile, 'c+');
+            if ($fileHandle === false) {
+                $lastError = error_get_last();
+                $logComplaintError('Failed to open tickets file for writing: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                throw new RuntimeException('Server error: could not open complaint storage.');
+            }
+
+            if (!flock($fileHandle, LOCK_EX)) {
+                $lastError = error_get_last();
+                $logComplaintError('Failed to obtain exclusive lock on tickets file: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                throw new RuntimeException('Server busy: could not acquire data lock.');
+            }
+
+            if (!rewind($fileHandle)) {
+                $lastError = error_get_last();
+                $logComplaintError('Failed to rewind tickets file handle: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                throw new RuntimeException('Server error: could not read complaint storage.');
+            }
+
+            $existingContent = stream_get_contents($fileHandle);
+            if ($existingContent === false) {
+                $lastError = error_get_last();
+                $logComplaintError('Failed to read existing tickets from file: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                throw new RuntimeException('Server error: could not read complaint storage.');
+            }
+
+            $existingContent = trim($existingContent);
+            if ($existingContent === '') {
+                $ticketsData = [];
+            } else {
+                $ticketsData = json_decode($existingContent, true);
+                if (!is_array($ticketsData)) {
+                    $jsonError = json_last_error_msg();
+                    $logComplaintError('Failed to decode existing tickets JSON: ' . $ticketsFile . ' | JSON error: ' . $jsonError);
+                    throw new RuntimeException('Server data error: could not read existing complaints.');
+                }
+            }
+
+            $ticketsData[] = $ticket;
+
+            $newJson = json_encode($ticketsData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            if ($newJson === false) {
+                $jsonError = json_last_error_msg();
+                $logComplaintError('Failed to encode tickets JSON: ' . $ticketsFile . ' | JSON error: ' . $jsonError);
+                throw new RuntimeException('Server error: could not encode complaint data.');
+            }
+
+            if (!rewind($fileHandle)) {
+                $lastError = error_get_last();
+                $logComplaintError('Failed to rewind tickets file before writing: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                throw new RuntimeException('Server error: could not prepare complaint storage for writing.');
+            }
+
+            if (!ftruncate($fileHandle, 0)) {
+                $lastError = error_get_last();
+                $logComplaintError('Failed to truncate tickets file: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                throw new RuntimeException('Server error: could not clear previous complaint data.');
+            }
+
+            if (fwrite($fileHandle, $newJson) === false) {
+                $lastError = error_get_last();
+                $logComplaintError('Failed to write updated tickets file: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                throw new RuntimeException('Server error: could not write complaint data.');
+            }
+
+            if (!fflush($fileHandle)) {
+                $lastError = error_get_last();
+                $logComplaintError('Failed to flush tickets file handle: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                throw new RuntimeException('Server error: could not persist complaint data.');
+            }
+
+            if (!flock($fileHandle, LOCK_UN)) {
+                $lastError = error_get_last();
+                $logComplaintError('Failed to release lock on tickets file: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                throw new RuntimeException('Server error: could not release complaint data lock.');
+            }
+
+            if (!fclose($fileHandle)) {
+                $lastError = error_get_last();
+                $logComplaintError('Failed to close tickets file handle: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                throw new RuntimeException('Server error: could not finalise complaint save.');
+            }
+
+            $fileHandle = null;
+        } catch (RuntimeException $exception) {
+            if (is_resource($fileHandle)) {
+                if (!flock($fileHandle, LOCK_UN)) {
+                    $lastError = error_get_last();
+                    $logComplaintError('Failed to release lock during error handling for tickets file: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                }
+                if (!fclose($fileHandle)) {
+                    $lastError = error_get_last();
+                    $logComplaintError('Failed to close tickets file handle during error handling: ' . $ticketsFile . ' | PHP error: ' . ($lastError['message'] ?? 'Unknown error'));
+                }
+            }
+
+            api_send_json(500, ['success' => false, 'error' => $exception->getMessage()]);
+        }
 
         api_upsert_customer_record([
             'phone' => $phone,
@@ -310,7 +438,7 @@ switch (true) {
             'segmentLabel' => 'Service complaints',
         ]);
 
-        api_send_json(201, ['ticket' => $ticket]);
+        api_send_json(201, ['success' => true, 'ticketId' => $ticketId, 'ticket' => $ticket]);
         break;
 
     case $path === '/public/search' && $method === 'GET':
