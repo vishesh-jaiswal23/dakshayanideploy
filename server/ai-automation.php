@@ -890,11 +890,6 @@ final class GeminiClient
      */
     private function decodeJsonFromText(string $text): ?array
     {
-        $directDecode = json_decode($text, true);
-        if (is_array($directDecode)) {
-            return $directDecode;
-        }
-
         $attempts = [];
         $trimmed = trim($text);
 
@@ -923,7 +918,7 @@ final class GeminiClient
             }
         }
 
-        foreach (array_unique($attempts) as $candidate) {
+        foreach ($attempts as $candidate) {
             $decoded = json_decode($candidate, true);
             if (is_array($decoded)) {
                 return $decoded;

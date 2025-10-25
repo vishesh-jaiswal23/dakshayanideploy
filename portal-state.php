@@ -157,7 +157,7 @@ function portal_normalize_column_key(?string $value, ?string $label = null): str
     return '';
 }
 
-const PORTAL_DATA_FILE = __DIR__ . '/data/portal-state.json';
+const PORTAL_DATA_FILE = __DIR__ . '/server/data/portal-state.json';
 
 function portal_default_state(): array
 {
@@ -402,7 +402,9 @@ function portal_default_state(): array
 function portal_load_state(): array
 {
     if (!file_exists(PORTAL_DATA_FILE)) {
-        return portal_default_state();
+        $defaultState = portal_default_state();
+        portal_save_state($defaultState);
+        return $defaultState;
     }
 
     $json = file_get_contents(PORTAL_DATA_FILE);
