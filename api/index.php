@@ -571,6 +571,100 @@ switch (true) {
         ]);
         break;
 
+    case $path === '/public/viaan-chat' && $method === 'POST':
+        $body = api_read_json_body();
+
+        $message = api_trim_string($body['message'] ?? '');
+        if ($message === '') {
+            api_send_error(400, 'Ask a question for Viaan.');
+        }
+
+        $historyEntries = [];
+        if (isset($body['history']) && is_array($body['history'])) {
+            foreach ($body['history'] as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $text = api_trim_string($entry['text'] ?? ($entry['message'] ?? ''));
+                if ($text === '') {
+                    continue;
+                }
+
+                $role = strtolower(api_trim_string($entry['role'] ?? 'user'));
+
+                $historyEntries[] = [
+                    'role' => $role === 'model' ? 'model' : 'user',
+                    'parts' => [['text' => $text]],
+                ];
+            }
+        }
+
+        if ($historyEntries !== []) {
+            $historyEntries = array_slice($historyEntries, -10);
+        }
+
+        $messages = $historyEntries;
+        $messages[] = [
+            'role' => 'user',
+            'parts' => [['text' => $message]],
+        ];
+
+        $systemInstruction = "You are Viaan, Dakshayani Enterprises' virtual solar expert. Only answer questions about Dakshayani Enterprises, our solar solutions, policies, financing, RESCO services, Meera GH2, EV charging, and other official ventures. If a query falls outside this scope, politely refuse and guide the user back to solar or Dakshayani topics. Keep answers concise, factual, and grounded in Jharkhand-specific context when possible.";
+
+        $generationConfig = [
+            'temperature' => 0.6,
+            'topP' => 0.9,
+            'maxOutputTokens' => 600,
+        ];
+
+        $responseSchema = [
+            'type' => 'object',
+            'required' => ['answer'],
+            'properties' => [
+                'answer' => ['type' => 'string'],
+                'followUp' => ['type' => 'string'],
+            ],
+            'additionalProperties' => true,
+        ];
+
+        $state = api_load_state();
+        gemini_set_portal_state($state);
+
+        try {
+            $client = new GeminiClient();
+            $resolved = $client->describeModel('viaan_chat');
+
+            $aiResponse = $client->generateJson(
+                $messages,
+                $systemInstruction,
+                $generationConfig,
+                'viaan_chat',
+                $responseSchema
+            );
+
+            $answer = api_trim_string($aiResponse['answer'] ?? '');
+            if ($answer === '') {
+                throw new RuntimeException('Viaan returned an empty response.');
+            }
+
+            $followUp = api_trim_string($aiResponse['followUp'] ?? '');
+
+            gemini_set_portal_state(null);
+
+            api_send_json(200, [
+                'answer' => $answer,
+                'followUp' => $followUp,
+                'model' => $resolved['model'],
+                'version' => $resolved['version'],
+            ]);
+        } catch (RuntimeException $exception) {
+            gemini_set_portal_state(null);
+            api_send_error(500, $exception->getMessage());
+        }
+
+        break;
+
     case $path === '/public/ai/news' && $method === 'GET':
         $state = api_load_state();
         $automation = isset($state['ai_automation']['news_digest']) && is_array($state['ai_automation']['news_digest'])

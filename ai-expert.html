@@ -215,11 +215,7 @@
 
     <!-- Viaan AI Expert Logic -->
     <script>
-        let GEMINI_TEXT_MODEL = 'gemini-1.5-pro-latest';
-
-        let API_KEY = '';
-        let API_URL_TEXT = '';
-        let apiKeyPromise = null;
+        const VIAAN_CHAT_ENDPOINT = '/api/public/viaan-chat';
 
         const conversationHistory = [];
 
@@ -228,6 +224,10 @@
         const chatForm = document.getElementById('chat-form');
         const chipButtons = document.querySelectorAll('.chip');
         const modelBadge = document.getElementById('ai-model-badge');
+
+        let viaanConfiguredModel = '';
+        let viaanAiConfig = null;
+        let aiConfigPromise = null;
 
         chatForm.addEventListener('submit', async (event) => {
             event.preventDefault();
@@ -248,10 +248,17 @@
 
             try {
                 const reply = await fetchViaanAnswer(message);
-                setMessageText(pendingMessage, reply);
+                const combinedAnswer = reply.followUp
+                    ? `${reply.answer}\n\n${reply.followUp}`
+                    : reply.answer;
+                setMessageText(pendingMessage, combinedAnswer);
+                addToHistory('user', message);
+                addToHistory('model', combinedAnswer);
             } catch (error) {
                 console.error('Viaan chat error:', error);
-                setMessageText(pendingMessage, "I'm sorry, but I couldn't reach my knowledge base right now. Please retry in a moment or contact +91 70702 78178 for immediate help.");
+                const fallbackMessage = "I'm sorry, but I couldn't reach my knowledge base right now. Please retry in a moment or contact +91 70702 78178 for immediate help.";
+                const candidate = typeof error?.message === 'string' ? error.message.trim() : '';
+                setMessageText(pendingMessage, candidate !== '' ? candidate : fallbackMessage);
             }
         });
 
@@ -265,46 +272,108 @@
             });
         });
 
-        function configureGeminiEndpoints(key, model) {
-            API_KEY = key;
-
-            let resolvedModel = GEMINI_TEXT_MODEL;
-            if (typeof model === 'string' && model.trim() !== '') {
-                resolvedModel = model.trim();
+        function addToHistory(role, text) {
+            if (typeof text !== 'string' || text.trim() === '') {
+                return;
             }
 
-            GEMINI_TEXT_MODEL = resolvedModel;
+            conversationHistory.push({
+                role: role === 'model' ? 'model' : 'user',
+                text: text
+            });
 
-            if (modelBadge) {
-                if (resolvedModel) {
-                    modelBadge.textContent = `Model: ${resolvedModel}`;
+            if (conversationHistory.length > 10) {
+                conversationHistory.splice(0, conversationHistory.length - 10);
+            }
+        }
+
+        async function fetchViaanAnswer(message) {
+            await loadAiConfiguration().catch(() => {});
+
+            const historyPayload = conversationHistory.map(entry => ({
+                role: entry.role === 'model' ? 'model' : 'user',
+                text: typeof entry.text === 'string' ? entry.text : ''
+            }));
+
+            const payload = {
+                message,
+                history: historyPayload,
+                model: viaanAiConfig?.textModel || ''
+            };
+
+            const response = await fetch(VIAAN_CHAT_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            let data = null;
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                data = null;
+            }
+
+            if (!response.ok) {
+                const messageText = typeof data?.error === 'string' && data.error.trim() !== ''
+                    ? data.error.trim()
+                    : 'Viaan is temporarily unavailable. Please try again shortly.';
+                throw new Error(messageText);
+            }
+
+            const answer = typeof data?.answer === 'string' ? data.answer.trim() : '';
+            if (answer === '') {
+                throw new Error('Viaan did not return an answer. Please try again in a moment.');
+            }
+
+            const followUp = typeof data?.followUp === 'string' ? data.followUp.trim() : '';
+            const modelName = typeof data?.model === 'string' ? data.model.trim() : '';
+            if (modelName !== '') {
+                updateModelBadge(modelName);
+            }
+
+            return { answer, followUp };
+        }
+
+        function updateModelBadge(model) {
+            const trimmed = typeof model === 'string' ? model.trim() : '';
+            if (trimmed !== '') {
+                viaanConfiguredModel = trimmed;
+                if (modelBadge) {
+                    modelBadge.textContent = `Model: ${trimmed}`;
                     modelBadge.removeAttribute('hidden');
-                } else {
-                    modelBadge.textContent = '';
-                    modelBadge.setAttribute('hidden', 'hidden');
                 }
+            } else if (modelBadge) {
+                modelBadge.textContent = '';
+                modelBadge.setAttribute('hidden', 'hidden');
+            }
+        }
+
+        function normaliseAiConfig(config) {
+            if (!config || typeof config !== 'object') {
+                throw new Error('Gemini configuration missing.');
             }
 
-            API_URL_TEXT = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_TEXT_MODEL)}:generateContent?key=${encodeURIComponent(API_KEY)}`;
+            const apiKey = typeof config.apiKey === 'string' ? config.apiKey.trim() : '';
+            const models = config.models && typeof config.models === 'object' ? config.models : {};
+            const textModel = typeof models.text === 'string' ? models.text.trim() : '';
+
+            return { apiKey, textModel };
+        }
+
+        function applyAiConfig(config) {
+            const normalized = normaliseAiConfig(config);
+            viaanAiConfig = normalized;
+            if (normalized.textModel) {
+                updateModelBadge(normalized.textModel);
+            } else if (viaanConfiguredModel) {
+                updateModelBadge(viaanConfiguredModel);
+            }
+            return normalized;
         }
 
         function loadAiConfiguration() {
-            if (!apiKeyPromise) {
-                const normalise = (config) => {
-                    const hasApiKey = config && typeof config === 'object' && typeof config.apiKey === 'string';
-                    const apiKey = hasApiKey ? config.apiKey.trim() : '';
-                    const models = config && typeof config === 'object' && config.models && typeof config.models === 'object' ? config.models : {};
-                    const textModel = typeof models.text === 'string' ? models.text.trim() : '';
-
-                    if (!apiKey) {
-                        throw new Error('Gemini API key is missing.');
-                    }
-
-                    configureGeminiEndpoints(apiKey, textModel);
-
-                    return { apiKey, textModel };
-                };
-
+            if (!aiConfigPromise) {
                 const loadFromServer = () => fetch('server/ai-config.php', { cache: 'no-store' })
                     .then(response => {
                         if (!response.ok) {
@@ -312,101 +381,22 @@
                         }
                         return response.json();
                     })
-                    .then(normalise);
+                    .then(applyAiConfig);
 
-                const loadPromise = (window.dakshayaniAIConfig && typeof window.dakshayaniAIConfig.getConfig === 'function')
-                    ? window.dakshayaniAIConfig.getConfig().then(normalise).catch(loadFromServer)
+                const fromGlobal = (window.dakshayaniAIConfig && typeof window.dakshayaniAIConfig.getConfig === 'function')
+                    ? window.dakshayaniAIConfig.getConfig().then(applyAiConfig).catch(() => loadFromServer())
                     : loadFromServer();
 
-                apiKeyPromise = loadPromise.catch(error => {
+                aiConfigPromise = fromGlobal.catch(error => {
                     console.error('Gemini configuration failed:', error);
                     throw error;
                 });
             }
 
-            return apiKeyPromise;
+            return aiConfigPromise;
         }
 
-        async function ensureApiKeyLoaded() {
-            if (!API_KEY) {
-                await loadAiConfiguration();
-            }
-        }
-
-        const MAX_RETRIES = 3;
-
-        async function handleFetchWithRetry(url, payload, retries = 0) {
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    if (response.status === 429 && retries < MAX_RETRIES) {
-                        const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        return handleFetchWithRetry(url, payload, retries + 1);
-                    }
-                    throw new Error(`API Error: ${response.status} ${response.statusText}`);
-                }
-
-                return response.json();
-            } catch (error) {
-                if (retries < MAX_RETRIES) {
-                    const delay = Math.pow(2, retries) * 1000 + Math.random() * 1000;
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    return handleFetchWithRetry(url, payload, retries + 1);
-                }
-                throw error;
-            }
-        }
-
-        async function fetchViaanAnswer(message) {
-            await ensureApiKeyLoaded();
-
-            const newHistory = [
-                ...conversationHistory,
-                { role: 'user', parts: [{ text: message }] }
-            ];
-
-            const payload = {
-                contents: newHistory,
-                systemInstruction: {
-                    role: 'system',
-                    parts: [{
-                        text: "You are Viaan, Dakshayani Enterprises' virtual solar expert. Only answer questions about Dakshayani Enterprises, our solar solutions, policies, financing, RESCO services, Meera GH2, EV charging, and other official ventures. If a query falls outside this scope, politely refuse and guide the user back to solar or Dakshayani topics. Keep answers concise, factual, and grounded in Jharkhand-specific context when possible."
-                    }]
-                },
-                generationConfig: {
-                    temperature: 0.6,
-                    topP: 0.9,
-                    maxOutputTokens: 600
-                }
-            };
-
-            const result = await handleFetchWithRetry(API_URL_TEXT, payload);
-            const reply = extractCandidateText(result);
-
-            if (!reply) {
-                throw new Error('Empty response from Viaan.');
-            }
-
-            conversationHistory.push({ role: 'user', parts: [{ text: message }] });
-            conversationHistory.push({ role: 'model', parts: [{ text: reply }] });
-
-            return reply;
-        }
-
-        function extractCandidateText(result) {
-            const parts = result?.candidates?.[0]?.content?.parts;
-            if (!Array.isArray(parts)) {
-                return '';
-            }
-            const textPart = parts.find(part => typeof part?.text === 'string');
-            return textPart?.text?.trim() || '';
-        }
+        loadAiConfiguration().catch(() => {});
 
         function appendMessage(sender, text) {
             const messageElement = document.createElement('div');
